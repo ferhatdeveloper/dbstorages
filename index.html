@@ -9,7 +9,7 @@
       (function () {
         try {
           var key = 'graphcore-theme';
-          var mode = localStorage.getItem(key) || 'system';
+          var mode = localStorage.getItem(key) || 'dark';
           var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           document.documentElement.classList.toggle('dark', dark);
           document.documentElement.classList.toggle('light', !dark);

@@ -35,7 +35,7 @@ function readStoredMode(): ThemeMode {
   } catch {
     /* ignore */
   }
-  return 'system';
+  return 'dark';
 }
 
 function applyDomTheme(resolved: ResolvedTheme) {
