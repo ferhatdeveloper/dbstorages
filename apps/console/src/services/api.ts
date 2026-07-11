@@ -659,6 +659,12 @@ class ApiService {
     );
   }
 
+  async cloudGetServer(id: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}`
+    );
+  }
+
   async cloudCreateServer(body: Record<string, unknown>) {
     return this.request<{ success: boolean; data: any; operationId?: string }>(
       `${NODE_API_BASE}/cloud/servers`,

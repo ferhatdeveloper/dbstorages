@@ -71,6 +71,7 @@ function wireExtraHandlers(queue, resolveDriver, newId) {
         ...(server.metadata || {}),
         console: {
           wssUrl: out.wssUrl,
+          password: out.password || null,
           requestedAt: new Date().toISOString(),
         },
       },

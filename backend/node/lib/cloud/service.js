@@ -29,20 +29,29 @@ function ensureHandlers() {
     const req = op.request || {};
     const { driver } = await resolveDriver(op.provider_id);
     const out = await driver.createServer(req.spec);
+    const imageName = String(req.spec?.image || out.server?.image || '');
+    const osFamily = /windows/i.test(imageName) ? 'windows' : 'linux';
+    const existing = await repo.getServer(op.resource_id);
     await repo.updateServer(op.resource_id, {
       externalId: out.server.externalId,
       status: out.server.status || 'running',
       ipv4: out.server.ipv4,
       ipv6: out.server.ipv6,
       metadata: {
+        ...(existing?.metadata || {}),
         rootPasswordSet: Boolean(out.rootPassword),
         providerAction: out.action,
+        osFamily,
       },
     });
     return {
       resourceId: op.resource_id,
       externalId: out.server.externalId,
       action: out.action,
+      osFamily,
+      rootPasswordSet: Boolean(out.rootPassword),
+      // One-time password in operation result (Windows Administrator / Linux root)
+      rootPassword: out.rootPassword || null,
     };
   });
 

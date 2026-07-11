@@ -138,12 +138,14 @@ class MockCloudProvider extends CloudProvider {
 
   async listImages() {
     return [
-      { id: 'ubuntu-22.04', name: 'ubuntu-22.04', description: 'Ubuntu 22.04', osFlavor: 'ubuntu' },
-      { id: 'debian-12', name: 'debian-12', description: 'Debian 12', osFlavor: 'debian' },
-      { id: 'alma-9', name: 'alma-9', description: 'AlmaLinux 9', osFlavor: 'alma' },
-      { id: 'rocky-9', name: 'rocky-9', description: 'Rocky Linux 9', osFlavor: 'rocky' },
-      { id: 'fedora-39', name: 'fedora-39', description: 'Fedora 39', osFlavor: 'fedora' },
-      { id: 'centos-stream-9', name: 'centos-stream-9', description: 'CentOS Stream 9', osFlavor: 'centos' },
+      { id: 'ubuntu-22.04', name: 'ubuntu-22.04', description: 'Ubuntu 22.04', osFlavor: 'ubuntu', osFamily: 'linux' },
+      { id: 'debian-12', name: 'debian-12', description: 'Debian 12', osFlavor: 'debian', osFamily: 'linux' },
+      { id: 'alma-9', name: 'alma-9', description: 'AlmaLinux 9', osFlavor: 'alma', osFamily: 'linux' },
+      { id: 'rocky-9', name: 'rocky-9', description: 'Rocky Linux 9', osFlavor: 'rocky', osFamily: 'linux' },
+      { id: 'fedora-39', name: 'fedora-39', description: 'Fedora 39', osFlavor: 'fedora', osFamily: 'linux' },
+      { id: 'centos-stream-9', name: 'centos-stream-9', description: 'CentOS Stream 9', osFlavor: 'centos', osFamily: 'linux' },
+      { id: 'windows-2022', name: 'windows-2022', description: 'Windows Server 2022', osFlavor: 'windows', osFamily: 'windows' },
+      { id: 'windows-2019', name: 'windows-2019', description: 'Windows Server 2019', osFlavor: 'windows', osFamily: 'windows' },
     ];
   }
 

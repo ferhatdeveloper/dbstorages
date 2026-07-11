@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  Loader2,
   Plus,
   Power,
   PowerOff,
@@ -13,7 +13,6 @@ import {
 import { apiService } from '../../services/api'
 import {
   formatEur,
-  serverTypeShortSpecs,
   type VpsServerType,
   VPS_POPULAR_FALLBACK,
 } from '../../lib/vpsCatalog'
@@ -22,20 +21,22 @@ import {
   CloudError,
   CloudLoading,
   CloudPageHeader,
-  CloudSlideOver,
   CloudStatusPill,
-  SIZE_FAMILIES,
   cloudBtnGhost,
   cloudBtnPrimary,
-  cloudFieldClass,
   cloudPanelClass,
   cloudTableWrap,
   cloudTd,
   cloudTh,
   cloudThead,
   cloudTr,
-  detectSizeFamily,
 } from './cloudUi'
+import CloudProvisionWizard, {
+  type CatalogImage,
+  type CatalogRegion,
+  type Provider,
+  type SshKey,
+} from './CloudProvisionWizard'
 
 type ServerRow = {
   id: string
@@ -50,97 +51,42 @@ type ServerRow = {
   cost_provider?: number | null
   price_retail?: number | null
   currency?: string
+  metadata?: Record<string, unknown>
+  labels?: Record<string, string>
 }
-
-type Provider = { id: string; name: string; slug: string }
-type SshKey = { id: string; name: string; external_id?: string }
 
 const ADVANCED_ACTIONS: [string, string][] = [
   ['reset', 'Reset (hard)'],
-  ['resize', 'Resize type'],
-  ['rebuild', 'Rebuild OS'],
-  ['enable_rescue', 'Enable rescue'],
-  ['disable_rescue', 'Disable rescue'],
-  ['rename', 'Rename'],
-  ['labels', 'Set labels'],
-  ['change_protection', 'Protect delete'],
-  ['attach_iso', 'Attach ISO'],
-  ['detach_iso', 'Detach ISO'],
-  ['request_console', 'Console / VNC'],
-  ['enable_backup', 'Enable backups'],
-  ['disable_backup', 'Disable backups'],
-  ['metrics', 'Metrics (stub)'],
+  ['resize', 'Boyut değiştir'],
+  ['rebuild', 'OS yeniden kur'],
+  ['enable_rescue', 'Rescue aç'],
+  ['disable_rescue', 'Rescue kapat'],
+  ['rename', 'Yeniden adlandır'],
+  ['labels', 'Etiketler'],
+  ['change_protection', 'Silme koruması'],
+  ['attach_iso', 'ISO bağla'],
+  ['detach_iso', 'ISO ayır'],
+  ['request_console', 'Konsol / VNC'],
+  ['enable_backup', 'Yedek aç'],
+  ['disable_backup', 'Yedek kapat'],
+  ['metrics', 'Metrikler (stub)'],
 ]
 
 const CloudServersPage: React.FC = () => {
   const [rows, setRows] = useState<ServerRow[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
   const [sshKeys, setSshKeys] = useState<SshKey[]>([])
-  const [images, setImages] = useState<{ id: string; name?: string }[]>([])
-  const [regions, setRegions] = useState<{ id: string; name?: string; description?: string }[]>([])
+  const [images, setImages] = useState<CatalogImage[]>([])
+  const [regions, setRegions] = useState<CatalogRegion[]>([])
   const [sizes, setSizes] = useState<VpsServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [sizeFamily, setSizeFamily] = useState<string>('cx')
-  const [form, setForm] = useState({
-    providerId: '',
-    name: '',
-    serverType: 'cx23',
-    image: 'ubuntu-22.04',
-    location: 'nbg1',
-    sshKeyId: '',
-    userData: '',
-  })
-  const [saving, setSaving] = useState(false)
-
-  const selectedSize = useMemo(
-    () => sizes.find((s) => (s.name || s.id) === form.serverType) || null,
-    [sizes, form.serverType]
-  )
-
-  const sizesByFamily = useMemo(() => {
-    const map: Record<string, VpsServerType[]> = {}
-    for (const s of sizes) {
-      const fam = detectSizeFamily(s.name || s.id || '', s.family)
-      if (!map[fam]) map[fam] = []
-      map[fam].push(s)
-    }
-    return map
-  }, [sizes])
-
-  const familyTabs = useMemo(() => {
-    const known = SIZE_FAMILIES.filter((f) => (sizesByFamily[f.id] || []).length > 0)
-    const extras = Object.keys(sizesByFamily)
-      .filter((k) => k !== 'other' && !SIZE_FAMILIES.some((f) => f.id === k))
-      .map((id) => ({ id, label: id.toUpperCase(), hint: '' }))
-    const other =
-      (sizesByFamily.other || []).length > 0
-        ? [{ id: 'other', label: 'Diğer', hint: '' }]
-        : []
-    const tabs = [...known, ...extras, ...other]
-    return tabs.length ? tabs : [...SIZE_FAMILIES]
-  }, [sizesByFamily])
-
-  const visibleSizes = sizesByFamily[sizeFamily] || sizesByFamily[familyTabs[0]?.id] || sizes
-
-  useEffect(() => {
-    if (!familyTabs.length) return
-    if (!familyTabs.some((t) => t.id === sizeFamily)) {
-      setSizeFamily(familyTabs[0].id)
-    }
-  }, [familyTabs, sizeFamily])
-
-  useEffect(() => {
-    if (!selectedSize) return
-    const fam = detectSizeFamily(selectedSize.name || '', selectedSize.family)
-    if (fam !== sizeFamily && (sizesByFamily[fam] || []).length) {
-      setSizeFamily(fam)
-    }
-  }, [form.serverType]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [catalogProviderId, setCatalogProviderId] = useState('')
 
   const loadCatalog = useCallback(async (providerId: string) => {
     if (!providerId) return
+    setCatalogProviderId(providerId)
     try {
       const [img, reg, typ] = await Promise.all([
         apiService.cloudCatalog('images', providerId).catch(() => ({ data: [] })),
@@ -151,14 +97,6 @@ const CloudServersPage: React.FC = () => {
       setRegions(reg.data || [])
       const types = (typ.data || []) as VpsServerType[]
       setSizes(types.length ? types : VPS_POPULAR_FALLBACK)
-      setForm((f) => ({
-        ...f,
-        image: String(img.data?.[0]?.name || img.data?.[0]?.id || f.image),
-        location: String(reg.data?.[0]?.name || reg.data?.[0]?.id || f.location),
-        serverType: String(
-          types[0]?.name || types[0]?.id || VPS_POPULAR_FALLBACK[0].name || f.serverType
-        ),
-      }))
     } catch {
       setSizes(VPS_POPULAR_FALLBACK)
     }
@@ -177,10 +115,8 @@ const CloudServersPage: React.FC = () => {
       setProviders(p.data || [])
       setSshKeys(k.data || [])
       if (p.data?.[0]) {
-        setForm((f) => {
-          const next = f.providerId || p.data![0].id
-          return { ...f, providerId: next }
-        })
+        const pid = catalogProviderId || p.data[0].id
+        await loadCatalog(pid)
       } else {
         try {
           const pub = await apiService.cloudPublicCatalog()
@@ -194,46 +130,11 @@ const CloudServersPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [catalogProviderId, loadCatalog])
 
   useEffect(() => {
     load()
-  }, [load])
-
-  useEffect(() => {
-    if (form.providerId) loadCatalog(form.providerId)
-  }, [form.providerId, loadCatalog])
-
-  const create = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    try {
-      const selectedKey = sshKeys.find((k) => k.id === form.sshKeyId)
-      await apiService.cloudCreateServer({
-        providerId: form.providerId,
-        name: form.name,
-        serverType: form.serverType,
-        image: form.image,
-        location: form.location,
-        userData: form.userData || undefined,
-        sshKeys: selectedKey?.external_id
-          ? [selectedKey.external_id]
-          : form.sshKeyId
-            ? [form.sshKeyId]
-            : undefined,
-        enableIpv4: true,
-        enableIpv6: true,
-      })
-      setShowForm(false)
-      setForm((f) => ({ ...f, name: '', userData: '', sshKeyId: '' }))
-      await load()
-    } catch (err: any) {
-      setError(err.message || 'Oluşturma başarısız')
-    } finally {
-      setSaving(false)
-    }
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = async (id: string, action: 'reboot' | 'power-on' | 'power-off' | 'delete') => {
     try {
@@ -253,11 +154,11 @@ const CloudServersPage: React.FC = () => {
     try {
       let body: Record<string, unknown> = {}
       if (action === 'resize') {
-        const serverType = window.prompt('Yeni server type (örn. cx33)', 'cx33')
+        const serverType = window.prompt('Yeni sunucu tipi (örn. cx33)', 'cx33')
         if (!serverType) return
         body = { serverType }
       } else if (action === 'rebuild') {
-        const image = window.prompt('Image (örn. ubuntu-22.04)', 'ubuntu-22.04')
+        const image = window.prompt('Image (örn. ubuntu-22.04 veya windows-2022)', 'ubuntu-22.04')
         if (!image) return
         body = { image }
       } else if (action === 'rename') {
@@ -275,16 +176,11 @@ const CloudServersPage: React.FC = () => {
       } else if (action === 'metrics') {
         await apiService.cloudServerAction(id, 'metrics', {})
         return
+      } else if (action === 'request_console' || action === 'console') {
+        window.location.assign(`/cloud/servers/${id}`)
+        return
       }
-      const res = await apiService.cloudServerAction(id, action, body)
-      if (action === 'request_console' || action === 'console') {
-        const opId = (res as any).operationId
-        window.alert(
-          opId
-            ? `Console isteği kuyruğa alındı (${opId}). Activity’den sonucu kontrol edin (wssUrl).`
-            : 'Console isteği gönderildi'
-        )
-      }
+      await apiService.cloudServerAction(id, action, body)
       await load()
     } catch (err: any) {
       setError(err.message || 'İşlem başarısız')
@@ -300,16 +196,21 @@ const CloudServersPage: React.FC = () => {
     return popular.length ? popular : sizes.slice(0, 4)
   }, [sizes])
 
+  const windowsImageCount = images.filter((i) => {
+    const f = `${i.osFamily || ''} ${i.osFlavor || ''} ${i.name || ''}`.toLowerCase()
+    return f.includes('windows')
+  }).length
+
   return (
     <div className="space-y-4">
       <CloudPageHeader
-        title="Servers"
-        description="Sunucu listesi ve async provision. Fiyatlar perakende (×1.20 EUR, KDV hariç)."
+        title="Sunucular"
+        description="Çok adımlı provision sihirbazı · Linux / Windows Server · perakende ×1,20 EUR."
         onRefresh={load}
         refreshing={loading}
         actions={
           <button type="button" onClick={() => setShowForm(true)} className={cloudBtnPrimary}>
-            <Plus className="h-3.5 w-3.5" /> Provision
+            <Plus className="h-3.5 w-3.5" /> Sunucu oluştur
           </button>
         }
       />
@@ -325,7 +226,7 @@ const CloudServersPage: React.FC = () => {
               <CloudEmptyState
                 icon={<Server className="h-6 w-6" />}
                 title="Henüz sunucu yok"
-                description="Provision ile ilk sunucuyu oluşturun. Katalog fiyatları sağ panelde; oluşturma slide-over üzerinden yapılır."
+                description="Sihirbaz ile OS, konum, tip ve erişimi adım adım seçin. Windows Server image’ları katalogda."
                 action={
                   <button type="button" onClick={() => setShowForm(true)} className={cloudBtnPrimary}>
                     <Plus className="h-3.5 w-3.5" /> Sunucu oluştur
@@ -346,90 +247,114 @@ const CloudServersPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-slate-900">
-                    {rows.map((r) => (
-                      <tr key={r.id} className={cloudTr}>
-                        <td className={`${cloudTd} font-medium text-slate-900 dark:text-slate-100`}>
-                          {r.name}
-                        </td>
-                        <td className={cloudTd}>
-                          <CloudStatusPill status={r.status} />
-                        </td>
-                        <td className={`${cloudTd} text-xs text-slate-500 dark:text-slate-400`}>
-                          <span className="font-mono text-[11px] uppercase text-slate-700 dark:text-slate-200">
-                            {r.server_type || '—'}
-                          </span>
-                          <span className="mt-0.5 block">
-                            {r.image || '—'} · {r.location || '—'}
-                          </span>
-                        </td>
-                        <td className={`${cloudTd} text-xs text-slate-600 dark:text-slate-300`}>
-                          {r.price_retail != null ? (
-                            <>
-                              <span className="font-medium">{formatEur(Number(r.price_retail))}/ay</span>
-                              <span className="mt-0.5 block text-[10px] text-slate-400">
-                                cost {formatEur(Number(r.cost_provider))}
+                    {rows.map((r) => {
+                      const win = /windows/i.test(
+                        `${r.image || ''} ${(r.metadata as any)?.osFamily || ''} ${r.labels?.os_family || ''}`
+                      )
+                      return (
+                        <tr key={r.id} className={cloudTr}>
+                          <td className={`${cloudTd} font-medium text-slate-900 dark:text-slate-100`}>
+                            <Link
+                              to={`/cloud/servers/${r.id}`}
+                              className="hover:text-teal-700 hover:underline dark:hover:text-lime-400"
+                            >
+                              {r.name}
+                            </Link>
+                            {win && (
+                              <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                                Win
                               </span>
-                            </>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className={`${cloudTd} font-mono text-xs`}>{r.ipv4 || '—'}</td>
-                        <td className={cloudTd}>
-                          <div className="flex flex-wrap items-center gap-0.5">
-                            <button
-                              type="button"
-                              title="Reboot"
-                              onClick={() => act(r.id, 'reboot')}
-                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Power on"
-                              onClick={() => act(r.id, 'power-on')}
-                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            >
-                              <Power className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Power off"
-                              onClick={() => act(r.id, 'power-off')}
-                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            >
-                              <PowerOff className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Delete"
-                              onClick={() => act(r.id, 'delete')}
-                              className="rounded p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                            <details className="relative">
-                              <summary className="list-none cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </summary>
-                              <div className="absolute right-0 z-10 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                                {ADVANCED_ACTIONS.map(([a, label]) => (
-                                  <button
-                                    key={a}
-                                    type="button"
-                                    className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
-                                    onClick={() => advancedAct(r.id, a)}
-                                  >
-                                    {label}
-                                  </button>
-                                ))}
-                              </div>
-                            </details>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                            )}
+                          </td>
+                          <td className={cloudTd}>
+                            <CloudStatusPill status={r.status} />
+                          </td>
+                          <td className={`${cloudTd} text-xs text-slate-500 dark:text-slate-400`}>
+                            <span className="font-mono text-[11px] uppercase text-slate-700 dark:text-slate-200">
+                              {r.server_type || '—'}
+                            </span>
+                            <span className="mt-0.5 block">
+                              {r.image || '—'} · {r.location || '—'}
+                            </span>
+                          </td>
+                          <td className={`${cloudTd} text-xs text-slate-600 dark:text-slate-300`}>
+                            {r.price_retail != null ? (
+                              <>
+                                <span className="font-medium">
+                                  {formatEur(Number(r.price_retail))}/ay
+                                </span>
+                                <span className="mt-0.5 block text-[10px] text-slate-400">
+                                  maliyet {formatEur(Number(r.cost_provider))}
+                                </span>
+                              </>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className={`${cloudTd} font-mono text-xs`}>{r.ipv4 || '—'}</td>
+                          <td className={cloudTd}>
+                            <div className="flex flex-wrap items-center gap-0.5">
+                              <Link
+                                to={`/cloud/servers/${r.id}`}
+                                title="Detay / Konsol"
+                                className="rounded px-1.5 py-1 text-[10px] font-semibold text-teal-700 hover:bg-teal-50 dark:text-lime-400 dark:hover:bg-lime-500/10"
+                              >
+                                Detay
+                              </Link>
+                              <button
+                                type="button"
+                                title="Reboot"
+                                onClick={() => act(r.id, 'reboot')}
+                                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Power on"
+                                onClick={() => act(r.id, 'power-on')}
+                                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              >
+                                <Power className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Power off"
+                                onClick={() => act(r.id, 'power-off')}
+                                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              >
+                                <PowerOff className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete"
+                                onClick={() => act(r.id, 'delete')}
+                                className="rounded p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                              <details className="relative">
+                                <summary className="list-none cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </summary>
+                                <div className="absolute right-0 z-10 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                                  {ADVANCED_ACTIONS.map(([a, label]) => (
+                                    <button
+                                      key={a}
+                                      type="button"
+                                      className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                                      onClick={() => advancedAct(r.id, a)}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </details>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -455,9 +380,18 @@ const CloudServersPage: React.FC = () => {
                   <p className="text-[11px] text-slate-500">Çalışan</p>
                 </div>
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
-                <p className="text-[11px] text-slate-500">
-                  Provider: <span className="font-medium text-slate-700 dark:text-slate-200">{providers.length}</span>
+              <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800">
+                <p>
+                  Sağlayıcı:{' '}
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {providers.length}
+                  </span>
+                </p>
+                <p className="mt-1">
+                  Windows image:{' '}
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {windowsImageCount}
+                  </span>
                 </p>
               </div>
             </div>
@@ -492,228 +426,28 @@ const CloudServersPage: React.FC = () => {
                 onClick={() => setShowForm(true)}
                 className={`${cloudBtnGhost} mt-3 w-full`}
               >
-                Plan seç &amp; provision
+                Sihirbazı aç
               </button>
             </div>
           </aside>
         </div>
       )}
 
-      <CloudSlideOver
+      <CloudProvisionWizard
         open={showForm}
-        onClose={() => setShowForm(false)}
-        title="Sunucu provision"
-        subtitle="Boyut ailesi seçin · perakende fiyat ×1.20 EUR"
-        wide
-        footer={
-          <div className="flex items-center justify-between gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className={cloudBtnGhost}>
-              İptal
-            </button>
-            <button
-              type="submit"
-              form="cloud-provision-form"
-              disabled={saving || !providers.length}
-              className={cloudBtnPrimary + ' min-w-[10rem]'}
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Oluştur (async)'
-              )}
-            </button>
-          </div>
-        }
-      >
-        <form id="cloud-provision-form" onSubmit={create} className="space-y-4">
-          {!providers.length && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              Önce Providers sekmesinden provider ekleyin.
-            </p>
-          )}
-
-          <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-            Provider
-            <select
-              className={cloudFieldClass}
-              value={form.providerId}
-              onChange={(e) => setForm({ ...form, providerId: e.target.value })}
-              required
-            >
-              <option value="">Provider seçin</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.slug})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-            Sunucu adı
-            <input
-              className={cloudFieldClass}
-              placeholder="web-01"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </label>
-
-          <div>
-            <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              Size (aile + perakende)
-            </p>
-            <div className="mb-3 flex flex-wrap gap-1">
-              {familyTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSizeFamily(tab.id)}
-                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                    sizeFamily === tab.id
-                      ? 'bg-teal-700 text-white dark:bg-lime-500 dark:text-slate-900'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                  title={'hint' in tab ? String(tab.hint || '') : ''}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {sizes.length ? (
-              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-                {(visibleSizes.length ? visibleSizes : sizes).map((s) => {
-                  const value = s.name || s.id || ''
-                  const selected = form.serverType === value
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setForm({ ...form, serverType: value })}
-                      className={`rounded-lg border p-3 text-left transition ${
-                        selected
-                          ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600/40 dark:border-lime-500 dark:bg-lime-500/10 dark:ring-lime-500/30'
-                          : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-mono text-xs font-bold uppercase text-slate-900 dark:text-slate-100">
-                          {(s.description || s.name).toUpperCase()}
-                        </span>
-                        <span className="shrink-0 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-lime-500 dark:text-slate-900">
-                          {formatEur(s.priceRetailMonthly)}/ay
-                        </span>
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                        {serverTypeShortSpecs(s)}
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <input
-                className={cloudFieldClass}
-                value={form.serverType}
-                onChange={(e) => setForm({ ...form, serverType: e.target.value })}
-                placeholder="cx23"
-                required
-              />
-            )}
-
-            {selectedSize && (
-              <p className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                Seçili:{' '}
-                <strong>{(selectedSize.description || selectedSize.name).toUpperCase()}</strong>
-                {' · '}
-                maliyet {formatEur(selectedSize.priceProviderMonthly)} × 1.20 ={' '}
-                <strong>{formatEur(selectedSize.priceRetailMonthly)}</strong>/ay
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-              Image
-              {images.length ? (
-                <select
-                  className={cloudFieldClass}
-                  value={form.image}
-                  onChange={(e) => setForm({ ...form, image: e.target.value })}
-                >
-                  {images.map((s) => (
-                    <option key={s.id} value={s.name || s.id}>
-                      {s.name || s.id}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={cloudFieldClass}
-                  value={form.image}
-                  onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  placeholder="ubuntu-22.04"
-                  required
-                />
-              )}
-            </label>
-            <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-              Region
-              {regions.length ? (
-                <select
-                  className={cloudFieldClass}
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                >
-                  {regions.map((s) => (
-                    <option key={s.id} value={s.name || s.id}>
-                      {s.name || s.id}
-                      {s.description ? ` — ${s.description}` : ''}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={cloudFieldClass}
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  placeholder="nbg1"
-                  required
-                />
-              )}
-            </label>
-          </div>
-
-          <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-            SSH Key
-            <select
-              className={cloudFieldClass}
-              value={form.sshKeyId}
-              onChange={(e) => setForm({ ...form, sshKeyId: e.target.value })}
-            >
-              <option value="">Yok / sonra ekle</option>
-              {sshKeys.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
-            User-data / cloud-init
-            <textarea
-              className={`${cloudFieldClass} font-mono text-xs`}
-              rows={4}
-              placeholder={"#cloud-config\npackages:\n  - nginx"}
-              value={form.userData}
-              onChange={(e) => setForm({ ...form, userData: e.target.value })}
-            />
-          </label>
-        </form>
-      </CloudSlideOver>
+        onClose={() => {
+          setShowForm(false)
+          load()
+        }}
+        providers={providers}
+        sshKeys={sshKeys}
+        images={images}
+        regions={regions}
+        sizes={sizes}
+        initialProviderId={catalogProviderId || providers[0]?.id}
+        onProviderChange={(pid) => loadCatalog(pid)}
+        onCreated={() => load()}
+      />
     </div>
   )
 }

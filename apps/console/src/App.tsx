@@ -24,6 +24,7 @@ import BillingHistoryPage from './pages/BillingHistoryPage'
 import CloudLayout from './pages/cloud/CloudLayout'
 import CloudProvidersPage from './pages/cloud/CloudProvidersPage'
 import CloudServersPage from './pages/cloud/CloudServersPage'
+import CloudServerDetailPage from './pages/cloud/CloudServerDetailPage'
 import {
   CloudVolumesPage,
   CloudSnapshotsPage,
@@ -92,6 +93,7 @@ function App() {
           <Route index element={<Navigate to="/cloud/servers" replace />} />
           <Route path="providers" element={<CloudProvidersPage />} />
           <Route path="servers" element={<CloudServersPage />} />
+          <Route path="servers/:id" element={<CloudServerDetailPage />} />
           <Route path="volumes" element={<CloudVolumesPage />} />
           <Route path="snapshots" element={<CloudSnapshotsPage />} />
           <Route path="firewalls" element={<CloudFirewallsPage />} />

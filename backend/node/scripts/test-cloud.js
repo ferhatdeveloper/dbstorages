@@ -46,6 +46,8 @@ async function main() {
   const images = await mock.listImages();
   assert(images.some((i) => /ubuntu/i.test(i.name)), 'mock ubuntu image');
   assert(images.some((i) => /debian/i.test(i.name)), 'mock debian image');
+  assert(images.some((i) => /windows-2022/i.test(i.name)), 'mock windows-2022 image');
+  assert(images.some((i) => i.osFamily === 'windows'), 'mock windows osFamily');
 
   const { createProviderFromRow, listSupportedSlugs } = require(path.join(
     root,
@@ -92,6 +94,7 @@ async function main() {
             images: [
               { id: 1, name: 'ubuntu-22.04', description: 'Ubuntu', os_flavor: 'ubuntu', architecture: 'x86' },
               { id: 2, name: 'debian-12', description: 'Debian', os_flavor: 'debian', architecture: 'x86' },
+              { id: 3, name: 'windows-2022', description: 'Windows Server 2022', os_flavor: 'windows', architecture: 'x86' },
             ],
           },
         };
@@ -116,6 +119,8 @@ async function main() {
   assert(calls[0].data.public_net.enable_ipv4 === true, 'hetzner ipv4 flag');
   const imgs = await hz.listImages();
   assert(imgs.length >= 2, 'hetzner listImages filtered');
+  assert(imgs.some((i) => i.osFamily === 'windows'), 'hetzner windows image filtered');
+  assert(imgs.some((i) => /windows/i.test(i.name)), 'hetzner windows-2022 listed');
 
   // Service + queue with mock provider (in-memory store)
   const store = require(path.join(root, 'lib/store'));

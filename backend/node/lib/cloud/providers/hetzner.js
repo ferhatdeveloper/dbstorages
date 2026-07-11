@@ -16,7 +16,14 @@ const OS_IMAGE_HINTS = [
   'rocky',
   'fedora',
   'centos',
+  'windows',
 ];
+
+function detectOsFamily(name, description, osFlavor) {
+  const blob = `${name || ''} ${description || ''} ${osFlavor || ''}`.toLowerCase();
+  if (blob.includes('windows') || osFlavor === 'windows') return 'windows';
+  return 'linux';
+}
 
 class HetznerProvider extends CloudProvider {
   /**
@@ -232,7 +239,7 @@ class HetznerProvider extends CloudProvider {
     const data = await this._request('GET', '/images?type=system&per_page=50');
     const images = (data.images || [])
       .filter((img) => {
-        const n = `${img.name || ''} ${img.description || ''}`.toLowerCase();
+        const n = `${img.name || ''} ${img.description || ''} ${img.os_flavor || ''}`.toLowerCase();
         return OS_IMAGE_HINTS.some((h) => n.includes(h));
       })
       .map((img) => ({
@@ -240,6 +247,7 @@ class HetznerProvider extends CloudProvider {
         name: img.name,
         description: img.description,
         osFlavor: img.os_flavor,
+        osFamily: detectOsFamily(img.name, img.description, img.os_flavor),
         architecture: img.architecture,
       }));
     return images;
