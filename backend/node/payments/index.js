@@ -166,23 +166,33 @@ const ADDONS = [
     name: 'VPS Kiralama',
     priceCents: 0,
     priceYearCents: 0,
-    currency: 'usd',
+    currency: 'eur',
     interval: 'month',
-    billingNote: 'Ayrı ek hizmet — async provision (checkout yok)',
+    billingNote: 'Ayrı ek hizmet — katalog fiyatı (Hetzner × 1.20, EUR)',
     description:
-      'Veritabanı planlarından bağımsız VPS / sunucu kiralama. Studio → Cloud Infrastructure: provider, server, volume, firewall, snapshot.',
+      'Veritabanı planlarından bağımsız VPS / sunucu kiralama. Studio → Cloud Infrastructure: provider, server, volume, firewall, snapshot. Per-plan retail = upstream × 1.20.',
     contactOnly: true,
     studioPath: '/app/cloud/servers',
+    catalogPath: '/api/cloud/public-catalog',
     messaging: [
       'Provider: ad, slug, endpoint, API key',
       'Sunucu: name, image, region, size, SSH, cloud-init',
       'Volume attach/detach · Snapshot restore',
       'Firewall · Activity / Jobs',
+      'Fiyat: Hetzner list × %20 (EUR, KDV hariç)',
     ],
     stripePriceEnv: 'STRIPE_PRICE_VPS',
     stripePriceYearEnv: 'STRIPE_PRICE_VPS_YEAR',
   },
 ];
+
+function getVpsCatalog() {
+  try {
+    return require('../lib/cloud/catalog').getPublicCatalog();
+  } catch {
+    return null;
+  }
+}
 
 function normalizeInterval(interval) {
   return interval === 'year' || interval === 'annual' ? 'year' : 'month';
@@ -775,6 +785,7 @@ module.exports = {
   getAddons,
   getPackage,
   getAddon,
+  getVpsCatalog,
   resolveAddons,
   totalAmountCents,
   unitAmountCents,

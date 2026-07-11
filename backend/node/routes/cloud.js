@@ -26,6 +26,38 @@ function sendError(res, err) {
   });
 }
 
+/** Public VPS catalog (no auth) — retail = Hetzner × 1.20, EUR */
+router.get('/public-catalog', (_req, res) => {
+  try {
+    const data = CloudService.publicCatalog();
+    res.json({ success: true, data });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/quote', (req, res) => {
+  try {
+    const serverType = req.query.serverType || req.query.type;
+    if (!serverType) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'serverType query required' },
+      });
+    }
+    const data = CloudService.quoteServerType(String(serverType));
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'not_found', message: 'Unknown server type' },
+      });
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 async function resolveTenant(req) {
   const memberships = await listMemberships(req.user.sub);
   const tenantId =

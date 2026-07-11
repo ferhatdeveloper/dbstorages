@@ -193,6 +193,56 @@ async function main() {
   assert(getPackage('max').priceCents === 9900, 'max $99 untouched');
   assert(getAddon('backup').priceCents === 1000, 'backup $10 untouched');
 
+  // Markup helper: retail = provider × 1.20
+  const {
+    applyRetailMarkup,
+    RETAIL_MARKUP,
+    CURRENCY,
+  } = require(path.join(root, 'lib/cloud/catalog/markup'));
+  assert(RETAIL_MARKUP === 1.2, 'markup factor 1.2');
+  assert(CURRENCY === 'EUR', 'catalog currency EUR');
+  assert(applyRetailMarkup(5.49) === 6.59, '5.49 * 1.2 = 6.59');
+  assert(applyRetailMarkup(8.49) === 10.19, '8.49 * 1.2 = 10.19');
+  assert(applyRetailMarkup(19.49) === 23.39, '19.49 * 1.2 = 23.39');
+  assert(applyRetailMarkup(0) === 0, 'zero markup');
+  assert(applyRetailMarkup(null) === null, 'null markup');
+
+  const { getPublicCatalog, findSeedServerType } = require(path.join(
+    root,
+    'lib/cloud/catalog'
+  ));
+  const pub = getPublicCatalog();
+  assert(pub.markup === 1.2, 'public catalog markup');
+  assert(pub.popularPlans.length >= 4, 'popular plans seeded');
+  const cx23 = findSeedServerType('cx23');
+  assert(cx23.priceProviderMonthly === 5.49, 'cx23 provider price');
+  assert(cx23.priceRetailMonthly === 6.59, 'cx23 retail +20%');
+  assert(cx23.cores === 2 && cx23.memoryGb === 4, 'cx23 specs');
+
+  const quote = CloudService.quoteServerType('cpx22');
+  assert(quote.priceRetailMonthly === 23.39, 'quote cpx22 retail');
+  assert(server.cost_provider === 5.49 || server.cost_provider == null || Number(server.cost_provider) >= 0, 'server cost fields optional on mock cx22');
+
+  // Re-create with known seed type to assert cost_provider / price_retail
+  const { server: srv2 } = await CloudService.createServer({
+    tenantId: 'ten_demo',
+    providerId: provider.id,
+    name: 'priced-1',
+    serverType: 'cx23',
+    image: 'ubuntu-22.04',
+    location: 'nbg1',
+    createdBy: 'usr_demo',
+  });
+  assert(Number(srv2.cost_provider) === 5.49, 'cx23 cost_provider stored');
+  assert(Number(srv2.price_retail) === 6.59, 'cx23 price_retail stored');
+  assert(srv2.currency === 'EUR', 'server currency EUR');
+
+  const enriched = await CloudService.catalog(provider.id, 'server-types');
+  assert(
+    enriched.some((t) => t.name === 'cx23' && t.priceRetailMonthly === 6.59),
+    'catalog server-types retail'
+  );
+
   if (failed) {
     console.error(`\ntest-cloud: ${failed} failure(s)`);
     process.exit(1);

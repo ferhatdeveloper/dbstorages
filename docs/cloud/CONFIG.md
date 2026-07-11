@@ -14,6 +14,9 @@
 - DB plans Pro **$34** / Scale **$50** / Max **$99** unchanged
 - Backup addon **$10**/mo unchanged
 - `vps` addon is **contactOnly** — surfaced on Pricing & Landing, links to Cloud UI
+- **VPS retail markup:** `price_retail = hetzner_list × 1.20` (EUR excl. VAT) — see [PRICING.md](./PRICING.md)
+- Catalog: `lib/cloud/catalog` seed + live `listServerTypes` when token present
+- Public: `GET /api/cloud/public-catalog`, packages payload `vpsCatalog`
 
 ## Dokploy
 

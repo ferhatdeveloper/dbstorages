@@ -222,6 +222,11 @@ CREATE INDEX IF NOT EXISTS idx_cloud_ssh_keys_tenant ON cloud_ssh_keys(tenant_id
 CREATE INDEX IF NOT EXISTS idx_cloud_networks_tenant ON cloud_networks(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_operations_tenant ON cloud_operations(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_operations_status ON cloud_operations(status);
+
+-- VPS retail vs provider cost (EUR); does not affect DB Pro/Scale/Max packages
+ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS cost_provider NUMERIC(12,4);
+ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS price_retail NUMERIC(12,4);
+ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EUR';
 `;
 
 async function ensureMetaSchema(pool) {

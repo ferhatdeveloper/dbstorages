@@ -1,6 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, Plus, Power, PowerOff, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { apiService } from '../../services/api'
+import {
+  formatEur,
+  serverTypeLabel,
+  type VpsServerType,
+  VPS_POPULAR_FALLBACK,
+} from '../../lib/vpsCatalog'
 
 type Server = {
   id: string
@@ -12,6 +18,9 @@ type Server = {
   ipv4?: string
   ipv6?: string
   provider_id?: string
+  cost_provider?: number | null
+  price_retail?: number | null
+  currency?: string
 }
 
 type Provider = { id: string; name: string; slug: string }
@@ -23,20 +32,25 @@ const CloudServersPage: React.FC = () => {
   const [sshKeys, setSshKeys] = useState<SshKey[]>([])
   const [images, setImages] = useState<{ id: string; name?: string }[]>([])
   const [regions, setRegions] = useState<{ id: string; name?: string }[]>([])
-  const [sizes, setSizes] = useState<{ id: string; name?: string }[]>([])
+  const [sizes, setSizes] = useState<VpsServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     providerId: '',
     name: '',
-    serverType: 'cx22',
+    serverType: 'cx23',
     image: 'ubuntu-22.04',
     location: 'nbg1',
     sshKeyId: '',
     userData: '',
   })
   const [saving, setSaving] = useState(false)
+
+  const selectedSize = useMemo(
+    () => sizes.find((s) => (s.name || s.id) === form.serverType) || null,
+    [sizes, form.serverType]
+  )
 
   const loadCatalog = useCallback(async (providerId: string) => {
     if (!providerId) return
@@ -48,15 +62,18 @@ const CloudServersPage: React.FC = () => {
       ])
       setImages(img.data || [])
       setRegions(reg.data || [])
-      setSizes(typ.data || [])
+      const types = (typ.data || []) as VpsServerType[]
+      setSizes(types.length ? types : VPS_POPULAR_FALLBACK)
       setForm((f) => ({
         ...f,
         image: String(img.data?.[0]?.name || img.data?.[0]?.id || f.image),
         location: String(reg.data?.[0]?.name || reg.data?.[0]?.id || f.location),
-        serverType: String(typ.data?.[0]?.name || typ.data?.[0]?.id || f.serverType),
+        serverType: String(
+          types[0]?.name || types[0]?.id || VPS_POPULAR_FALLBACK[0].name || f.serverType
+        ),
       }))
     } catch {
-      /* keep manual fields */
+      setSizes(VPS_POPULAR_FALLBACK)
     }
   }, [])
 
@@ -77,6 +94,14 @@ const CloudServersPage: React.FC = () => {
           const next = f.providerId || p.data![0].id
           return { ...f, providerId: next }
         })
+      } else {
+        // No provider yet — still show seed catalog for pricing preview
+        try {
+          const pub = await apiService.cloudPublicCatalog()
+          setSizes(pub.data?.serverTypes || VPS_POPULAR_FALLBACK)
+        } catch {
+          setSizes(VPS_POPULAR_FALLBACK)
+        }
       }
     } catch (e: any) {
       setError(e.message || 'Yüklenemedi')
@@ -160,7 +185,7 @@ const CloudServersPage: React.FC = () => {
       </div>
 
       {showForm && (
-        <form onSubmit={create} className="grid max-w-lg gap-2 rounded-xl border p-4 dark:border-slate-700">
+        <form onSubmit={create} className="grid max-w-xl gap-2 rounded-xl border p-4 dark:border-slate-700">
           <label className="grid gap-1 text-xs text-slate-500">
             Provider
             <select
@@ -188,8 +213,8 @@ const CloudServersPage: React.FC = () => {
             />
           </label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label className="grid gap-1 text-xs text-slate-500">
-              Size
+            <label className="grid gap-1 text-xs text-slate-500 sm:col-span-3">
+              Size (katalog + %20)
               {sizes.length ? (
                 <select
                   className={fieldClass}
@@ -197,8 +222,8 @@ const CloudServersPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, serverType: e.target.value })}
                 >
                   {sizes.map((s) => (
-                    <option key={s.id} value={s.name || s.id}>
-                      {s.name || s.id}
+                    <option key={s.id || s.name} value={s.name || s.id}>
+                      {serverTypeLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -207,7 +232,7 @@ const CloudServersPage: React.FC = () => {
                   className={fieldClass}
                   value={form.serverType}
                   onChange={(e) => setForm({ ...form, serverType: e.target.value })}
-                  placeholder="cx22"
+                  placeholder="cx23"
                   required
                 />
               )}
@@ -236,7 +261,7 @@ const CloudServersPage: React.FC = () => {
                 />
               )}
             </label>
-            <label className="grid gap-1 text-xs text-slate-500">
+            <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
               Region
               {regions.length ? (
                 <select
@@ -247,6 +272,9 @@ const CloudServersPage: React.FC = () => {
                   {regions.map((s) => (
                     <option key={s.id} value={s.name || s.id}>
                       {s.name || s.id}
+                      {(s as { description?: string }).description
+                        ? ` — ${(s as { description?: string }).description}`
+                        : ''}
                     </option>
                   ))}
                 </select>
@@ -261,6 +289,19 @@ const CloudServersPage: React.FC = () => {
               )}
             </label>
           </div>
+          {selectedSize && (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Seçili plan:{' '}
+              <strong>{(selectedSize.description || selectedSize.name).toUpperCase()}</strong>
+              {' · '}
+              {selectedSize.cores} vCPU / {selectedSize.memoryGb ?? selectedSize.memory} GB RAM /{' '}
+              {selectedSize.diskGb ?? selectedSize.disk} GB
+              {' · '}
+              Perakende{' '}
+              <strong>{formatEur(selectedSize.priceRetailMonthly)}</strong>/ay (EUR, KDV hariç; maliyet{' '}
+              {formatEur(selectedSize.priceProviderMonthly)} × 1.20)
+            </p>
+          )}
           <label className="grid gap-1 text-xs text-slate-500">
             SSH Key
             <select
@@ -311,6 +352,7 @@ const CloudServersPage: React.FC = () => {
                 <th className="px-3 py-2">Ad</th>
                 <th className="px-3 py-2">Durum</th>
                 <th className="px-3 py-2">Tip / Image</th>
+                <th className="px-3 py-2">Fiyat</th>
                 <th className="px-3 py-2">IP</th>
                 <th className="px-3 py-2">İşlem</th>
               </tr>
@@ -326,6 +368,18 @@ const CloudServersPage: React.FC = () => {
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-500">
                     {r.server_type} · {r.image} · {r.location}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+                    {r.price_retail != null ? (
+                      <>
+                        {formatEur(Number(r.price_retail))}/ay
+                        <span className="block text-[10px] text-slate-400">
+                          cost {formatEur(Number(r.cost_provider))}
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{r.ipv4 || '—'}</td>
                   <td className="px-3 py-2">
@@ -348,7 +402,7 @@ const CloudServersPage: React.FC = () => {
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-slate-400">
+                  <td colSpan={6} className="px-3 py-8 text-center text-slate-400">
                     Sunucu yok — Provision ile oluşturun.
                   </td>
                 </tr>

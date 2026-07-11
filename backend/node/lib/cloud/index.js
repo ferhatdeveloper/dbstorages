@@ -15,4 +15,6 @@ module.exports = {
   encryptSecret,
   decryptSecret,
   queue,
+  catalog: require('./catalog'),
+  markup: require('./catalog/markup'),
 };

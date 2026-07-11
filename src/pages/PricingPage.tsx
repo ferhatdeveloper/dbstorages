@@ -3,6 +3,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
+import {
+  formatEur,
+  serverTypeShortSpecs,
+  VPS_POPULAR_FALLBACK,
+  type VpsServerType,
+} from '../lib/vpsCatalog';
 
 type Plan = {
   id: string;
@@ -164,6 +170,7 @@ const VPS_MESSAGING = [
   'Sunucu: name, image, region, size, SSH, cloud-init',
   'Volume attach/detach · Snapshot restore',
   'Firewall kuralları · Activity / Jobs izleme',
+  'Perakende fiyat = Hetzner list × 1.20 (EUR, KDV hariç)',
 ];
 
 function planAmount(plan: Plan, interval: BillingInterval) {
@@ -210,11 +217,12 @@ const PricingPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [canceled] = useState(params.get('canceled') === '1');
+  const [vpsPlans, setVpsPlans] = useState<VpsServerType[]>(VPS_POPULAR_FALLBACK);
 
   useEffect(() => {
     apiService
       .getPackages()
-      .then((res) => {
+      .then((res: any) => {
         if (res.data?.length) {
           const byId = new Map(res.data.map((p: Plan) => [p.id, p]));
           setPlans(
@@ -240,6 +248,9 @@ const PricingPage: React.FC = () => {
         }
         if (res.addons?.length) setAddons(res.addons);
         if (res.providers) setProviders(res.providers);
+        const popular =
+          res.vpsCatalog?.popularPlans || res.vpsCatalog?.serverTypes?.filter((p: VpsServerType) => p.popular);
+        if (popular?.length) setVpsPlans(popular);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -420,13 +431,31 @@ const PricingPage: React.FC = () => {
         <div id="vps-addon" className="pricing-addon pricing-addon-contact pricing-vps-block">
           <span>
             <strong>{vpsAddon.name}</strong> — ek hizmet
-            <em>{vpsAddon.billingNote || 'DB paketlerinden ayrı'}</em>
+            <em>{vpsAddon.billingNote || 'DB paketlerinden ayrı · EUR × 1.20'}</em>
             <small>{vpsAddon.description}</small>
             <ul className="pricing-vps-fields">
               {VPS_MESSAGING.map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
+            <div className="pricing-vps-plans" style={{ marginTop: '0.75rem' }}>
+              <strong style={{ fontSize: '0.85rem' }}>Popüler planlar (perakende)</strong>
+              <ul className="pricing-vps-fields" style={{ marginTop: '0.35rem' }}>
+                {vpsPlans.map((p) => (
+                  <li key={p.name}>
+                    <strong>{(p.description || p.name).toUpperCase()}</strong>
+                    {' — '}
+                    {serverTypeShortSpecs(p)}
+                    {' · '}
+                    {formatEur(p.priceRetailMonthly)}/ay
+                    <span style={{ opacity: 0.65 }}>
+                      {' '}
+                      (maliyet {formatEur(p.priceProviderMonthly)})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </span>
           <div className="pricing-vps-actions">
             <Link

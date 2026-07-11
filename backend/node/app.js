@@ -172,12 +172,13 @@ app.get('/api/schema', (req, res, next) => {
 
 // Packages alias
 app.get('/api/packages', (_req, res) => {
-  const { getPackages, getAddons, listProviders } = require('./payments');
+  const { getPackages, getAddons, listProviders, getVpsCatalog } = require('./payments');
   res.json({
     success: true,
     data: getPackages(),
     addons: getAddons(),
     providers: listProviders(),
+    vpsCatalog: getVpsCatalog(),
   });
 });
 

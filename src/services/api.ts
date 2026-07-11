@@ -501,6 +501,7 @@ class ApiService {
       data: any[];
       addons?: any[];
       providers: any[];
+      vpsCatalog?: any;
     }>(`${NODE_API_BASE}/packages`);
   }
 
@@ -811,6 +812,19 @@ class ApiService {
     const qs = `?providerId=${encodeURIComponent(providerId)}`;
     return this.request<{ success: boolean; data: any[] }>(
       `${NODE_API_BASE}/cloud/${kind}${qs}`
+    );
+  }
+
+  async cloudPublicCatalog() {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/public-catalog`
+    );
+  }
+
+  async cloudQuote(serverType: string) {
+    const qs = `?serverType=${encodeURIComponent(serverType)}`;
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/quote${qs}`
     );
   }
 }

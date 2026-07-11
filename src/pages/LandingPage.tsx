@@ -14,6 +14,12 @@ import {
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import ThemeToggle from '../components/ThemeToggle';
+import {
+  formatEur,
+  serverTypeShortSpecs,
+  VPS_POPULAR_FALLBACK,
+  type VpsServerType,
+} from '../lib/vpsCatalog';
 
 type Plan = {
   id: string;
@@ -134,7 +140,7 @@ const VPS_ADDON = {
   id: 'vps',
   name: 'VPS Kiralama',
   description:
-    'Veritabanı planlarından bağımsız sunucu kiralama (Cloud Infrastructure).',
+    'Veritabanı planlarından bağımsız sunucu kiralama (Cloud Infrastructure). Perakende = Hetzner × %20 (EUR).',
   studioPath: '/app/cloud/servers',
 };
 
@@ -181,6 +187,7 @@ const LandingPage: React.FC = () => {
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>(
     'month'
   );
+  const [vpsPlans, setVpsPlans] = useState<VpsServerType[]>(VPS_POPULAR_FALLBACK);
 
   useEffect(() => {
     apiService
@@ -209,6 +216,10 @@ const LandingPage: React.FC = () => {
             })
           );
         }
+        const popular =
+          res.vpsCatalog?.popularPlans ||
+          res.vpsCatalog?.serverTypes?.filter((p: VpsServerType) => p.popular);
+        if (popular?.length) setVpsPlans(popular);
       })
       .catch(() => {
         /* keep fallback */
@@ -542,6 +553,17 @@ const LandingPage: React.FC = () => {
                 {VPS_ADDON.description} Checkout ile değil — kayıt sonrası Cloud
                 panelinden yönetilir.
               </p>
+              <ul className="landing-cloud-vps-plans" style={{ marginTop: '0.75rem', paddingLeft: '1.1rem' }}>
+                {vpsPlans.map((p) => (
+                  <li key={p.name} style={{ marginBottom: '0.35rem' }}>
+                    <strong>{(p.description || p.name).toUpperCase()}</strong>
+                    {' — '}
+                    {serverTypeShortSpecs(p)}
+                    {' · '}
+                    {formatEur(p.priceRetailMonthly)}/ay
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="landing-actions">
               <Link to="/register" className="landing-btn-primary">

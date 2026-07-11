@@ -147,19 +147,28 @@ class MockCloudProvider extends CloudProvider {
     ];
   }
 
-  async listLocations() {
-    return [
-      { id: '1', name: 'nbg1', description: 'Nuremberg', country: 'DE', city: 'Nuremberg' },
-      { id: '2', name: 'fsn1', description: 'Falkenstein', country: 'DE', city: 'Falkenstein' },
-      { id: '3', name: 'hel1', description: 'Helsinki', country: 'FI', city: 'Helsinki' },
-    ];
+  async listServerTypes() {
+    const { getSeedServerTypes } = require('../catalog');
+    return getSeedServerTypes().map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      cores: t.cores,
+      memory: t.memoryGb,
+      disk: t.diskGb,
+      priceProviderMonthly: t.priceProviderMonthly,
+      prices: [
+        {
+          location: 'nbg1',
+          price_monthly: { net: String(t.priceProviderMonthly), gross: String(t.priceProviderMonthly) },
+        },
+      ],
+    }));
   }
 
-  async listServerTypes() {
-    return [
-      { id: '1', name: 'cx22', description: 'CX22', cores: 2, memory: 4, disk: 40 },
-      { id: '2', name: 'cx32', description: 'CX32', cores: 4, memory: 8, disk: 80 },
-    ];
+  async listLocations() {
+    const { getSeedLocations } = require('../catalog');
+    return getSeedLocations();
   }
 
   async listSSHKeys() {

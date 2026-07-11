@@ -286,6 +286,7 @@ const CloudService = {
       );
     }
     await resolveDriver(providerId);
+    const quote = require('./catalog/enrich').quoteServerType(serverType);
     const server = await repo.insertServer({
       id: newId('csrv'),
       tenantId,
@@ -298,6 +299,9 @@ const CloudService = {
       location,
       labels,
       userData,
+      costProvider: quote?.costProviderMonthly ?? null,
+      priceRetail: quote?.priceRetailMonthly ?? null,
+      currency: quote?.currency || 'EUR',
       createdBy,
     });
     const op = await enqueueAction({
@@ -655,20 +659,50 @@ const CloudService = {
   },
 
   async catalog(providerId, kind) {
+    const { enrichServerTypes, enrichLocations } = require('./catalog/enrich');
+    const {
+      getSeedServerTypes,
+      getSeedLocations,
+      getPublicCatalog,
+    } = require('./catalog');
+    if (!providerId || providerId === 'seed' || providerId === 'public') {
+      if (kind === 'server-types') return getSeedServerTypes();
+      if (kind === 'locations' || kind === 'regions') return getSeedLocations();
+      if (kind === 'public') return getPublicCatalog();
+      throw cloudError(400, `Unknown catalog kind: ${kind}`, 'validation');
+    }
     const { driver } = await resolveDriver(providerId);
     switch (kind) {
       case 'images':
         return driver.listImages();
       case 'locations':
-      case 'regions':
-        return driver.listLocations();
-      case 'server-types':
-        return driver.listServerTypes();
+      case 'regions': {
+        try {
+          return enrichLocations(await driver.listLocations());
+        } catch {
+          return getSeedLocations();
+        }
+      }
+      case 'server-types': {
+        try {
+          return enrichServerTypes(await driver.listServerTypes());
+        } catch {
+          return getSeedServerTypes();
+        }
+      }
       case 'ssh-keys':
         return driver.listSSHKeys();
       default:
         throw cloudError(400, `Unknown catalog kind: ${kind}`, 'validation');
     }
+  },
+
+  publicCatalog() {
+    return require('./catalog').getPublicCatalog();
+  },
+
+  quoteServerType(serverType) {
+    return require('./catalog/enrich').quoteServerType(serverType);
   },
 
   getOperation(id) {

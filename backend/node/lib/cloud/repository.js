@@ -114,6 +114,11 @@ async function insertServer(data) {
     labels: data.labels || {},
     user_data: data.userData || null,
     metadata: data.metadata || {},
+    cost_provider:
+      data.costProvider != null ? Number(data.costProvider) : null,
+    price_retail:
+      data.priceRetail != null ? Number(data.priceRetail) : null,
+    currency: data.currency || 'EUR',
     created_by: data.createdBy || null,
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -122,8 +127,9 @@ async function insertServer(data) {
     await getMetaPool().query(
       `INSERT INTO cloud_servers
         (id, tenant_id, project_id, provider_id, name, external_id, status,
-         server_type, image, location, ipv4, ipv6, labels, user_data, metadata, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15::jsonb,$16)`,
+         server_type, image, location, ipv4, ipv6, labels, user_data, metadata,
+         cost_provider, price_retail, currency, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15::jsonb,$16,$17,$18,$19)`,
       [
         row.id,
         row.tenant_id,
@@ -140,6 +146,9 @@ async function insertServer(data) {
         JSON.stringify(row.labels),
         row.user_data,
         JSON.stringify(row.metadata),
+        row.cost_provider,
+        row.price_retail,
+        row.currency,
         row.created_by,
       ]
     );
@@ -161,6 +170,8 @@ async function updateServer(id, patch) {
         serverType: 'server_type',
         userData: 'user_data',
         updatedAt: 'updated_at',
+        costProvider: 'cost_provider',
+        priceRetail: 'price_retail',
       };
       const column = map[k] || col;
       if (column === 'labels' || column === 'metadata') {
