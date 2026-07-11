@@ -436,6 +436,9 @@ const PricingPage: React.FC = () => {
                 {vpsPlans.map((p) => (
                   <li key={p.name}>
                     <strong>{(p.description || p.name).toUpperCase()}</strong>
+                    {p.familyLabel ? (
+                      <span style={{ opacity: 0.75 }}> · {p.familyLabel}</span>
+                    ) : null}
                     {' — '}
                     {serverTypeShortSpecs(p)}
                     {' · '}
@@ -444,6 +447,9 @@ const PricingPage: React.FC = () => {
                       {' '}
                       (maliyet {formatEur(p.priceProviderMonthly)})
                     </span>
+                    {p.useCaseHint ? (
+                      <div style={{ opacity: 0.7, fontSize: '0.85em' }}>{p.useCaseHint}</div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -7,8 +7,9 @@
  * this seed is always the offline / marketing fallback.
  */
 const { applyRetailMarkup, CURRENCY, RETAIL_MARKUP } = require('./markup');
+const { FAMILIES, attachFamilyFields, getFamilyMeta } = require('./families');
 
-/** @typedef {{ name: string, description: string, family: string, cpuKind: 'shared'|'dedicated', architecture: string, cores: number, memoryGb: number, diskGb: number, priceProviderMonthly: number, popular?: boolean }} SeedServerType */
+/** @typedef {{ name: string, description: string, family: string, cpuKind: 'shared'|'dedicated', architecture: string, cores: number, memoryGb: number, diskGb: number, priceProviderMonthly: number, popular?: boolean, trafficTb?: number, useCaseHint?: string, descriptionTr?: string }} SeedServerType */
 
 /** @type {SeedServerType[]} */
 const SERVER_TYPES = [
@@ -264,11 +265,16 @@ const VOLUME_PRESETS = [
 
 function withRetail(server) {
   const cost = server.priceProviderMonthly;
+  const familyFields = attachFamilyFields(server);
   return {
     id: server.name,
     name: server.name,
     description: server.description,
     family: server.family,
+    familyLabel: familyFields.familyLabel,
+    descriptionTr: familyFields.descriptionTr,
+    useCaseHint: familyFields.useCaseHint,
+    trafficTb: familyFields.trafficTb,
     cpuKind: server.cpuKind,
     architecture: server.architecture,
     cores: server.cores,
@@ -342,6 +348,7 @@ function getPublicCatalog() {
     markupNote:
       'Retail display/billing = upstream (Hetzner) list price × 1.20. Amounts in EUR excl. VAT; Primary IPv4 billed separately.',
     source: 'seed',
+    families: Object.values(FAMILIES),
     serverTypes: getSeedServerTypes(),
     popularPlans: getSeedServerTypes({ popularOnly: true }),
     locations: getSeedLocations(),
@@ -362,6 +369,8 @@ module.exports = {
   LOCATIONS,
   STORAGE,
   VOLUME_PRESETS,
+  FAMILIES,
+  getFamilyMeta,
   getSeedServerTypes,
   getSeedLocations,
   getSeedStorage,

@@ -8,6 +8,7 @@ const {
   RETAIL_MARKUP,
 } = require('./markup');
 const { findSeedServerType, getSeedServerTypes, getSeedLocations } = require('./index');
+const { attachFamilyFields } = require('./families');
 
 function familyFromName(name) {
   const n = String(name || '').toLowerCase();
@@ -43,12 +44,23 @@ function enrichServerType(t, location) {
   const cores = t.cores ?? seed?.cores ?? null;
   const memoryGb = t.memory ?? t.memoryGb ?? seed?.memoryGb ?? null;
   const diskGb = t.disk ?? t.diskGb ?? seed?.diskGb ?? null;
+  const familyFields = attachFamilyFields({
+    name,
+    family,
+    descriptionTr: t.descriptionTr || seed?.descriptionTr,
+    useCaseHint: t.useCaseHint || seed?.useCaseHint,
+    trafficTb: t.trafficTb ?? seed?.trafficTb,
+  });
 
   return {
     id: String(t.id || name),
     name,
     description: t.description || seed?.description || name.toUpperCase(),
     family,
+    familyLabel: familyFields.familyLabel,
+    descriptionTr: familyFields.descriptionTr,
+    useCaseHint: familyFields.useCaseHint,
+    trafficTb: familyFields.trafficTb,
     cpuKind: t.cpuKind || seed?.cpuKind || cpuKindFromFamily(family),
     architecture: t.architecture || seed?.architecture || 'x86',
     cores,

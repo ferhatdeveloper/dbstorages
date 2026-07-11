@@ -20,6 +20,11 @@ export { default as ThemeToggle } from './components/ThemeToggle'
 export {
   formatEur,
   serverTypeShortSpecs,
+  serverTypeLabel,
+  familyDisplayLabel,
+  useCaseHintFor,
+  getFamilyMeta,
+  SIZE_FAMILIES,
   VPS_POPULAR_FALLBACK,
 } from './lib/vpsCatalog'
-export type { VpsServerType } from './lib/vpsCatalog'
+export type { VpsServerType, VpsFamilyMeta, VpsCatalog } from './lib/vpsCatalog'

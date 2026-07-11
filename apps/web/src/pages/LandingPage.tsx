@@ -550,10 +550,16 @@ const LandingPage: React.FC = () => {
                 {vpsPlans.map((p) => (
                   <li key={p.name} style={{ marginBottom: '0.35rem' }}>
                     <strong>{(p.description || p.name).toUpperCase()}</strong>
+                    {p.familyLabel ? (
+                      <span style={{ opacity: 0.75 }}> · {p.familyLabel}</span>
+                    ) : null}
                     {' — '}
                     {serverTypeShortSpecs(p)}
                     {' · '}
                     {formatEur(p.priceRetailMonthly)}/ay
+                    {p.useCaseHint ? (
+                      <div style={{ opacity: 0.7, fontSize: '0.9em' }}>{p.useCaseHint}</div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

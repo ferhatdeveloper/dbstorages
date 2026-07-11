@@ -218,10 +218,38 @@ export function CloudError({ message }: { message: string }) {
 }
 
 export const SIZE_FAMILIES = [
-  { id: 'cx', label: 'CX', hint: 'Paylaşımlı · Intel' },
-  { id: 'cpx', label: 'CPX', hint: 'Paylaşımlı · AMD' },
-  { id: 'cax', label: 'CAX', hint: 'ARM · Ampere' },
-  { id: 'ccx', label: 'CCX', hint: 'Dedicated' },
+  {
+    id: 'cx',
+    label: 'CX',
+    familyLabel: 'CX — Uygun maliyet / genel amaç',
+    hint: 'Paylaşımlı · Intel',
+    descriptionTr:
+      'Paylaşımlı Intel vCPU. Web, staging ve hafif uygulamalar için ekonomik seçenek.',
+  },
+  {
+    id: 'cpx',
+    label: 'CPX',
+    familyLabel: 'CPX — Daha yüksek performans',
+    hint: 'Paylaşımlı · AMD',
+    descriptionTr:
+      'Paylaşımlı AMD vCPU. Daha fazla disk ve daha yüksek performans ihtiyacı için.',
+  },
+  {
+    id: 'cax',
+    label: 'CAX',
+    familyLabel: 'CAX — ARM, fiyat/performans',
+    hint: 'ARM · Ampere',
+    descriptionTr:
+      'Ampere ARM mimarisi. Bulut-native iş yüklerinde güçlü fiyat/performans.',
+  },
+  {
+    id: 'ccx',
+    label: 'CCX',
+    familyLabel: 'CCX — Dedicated vCPU, üretim',
+    hint: 'Dedicated vCPU',
+    descriptionTr:
+      'Ayrılmış (dedicated) vCPU. Üretim, veritabanı ve tutarlı performans gereken iş yükleri.',
+  },
 ] as const
 
 export function detectSizeFamily(name: string, family?: string | null) {
