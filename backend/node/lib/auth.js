@@ -24,19 +24,23 @@ function verifyToken(token) {
 }
 
 /** Project (customer) JWT — signed with per-instance secret. */
-function signProjectToken(user, { secret, instanceId, projectId, expiresIn = '7d' }) {
+function signProjectToken(user, { secret, instanceId, projectId, expiresIn = '1h', role = 'authenticated' }) {
   return jwt.sign(
     {
       sub: user.id,
       email: user.email,
-      role: 'authenticated',
+      role,
       instanceId,
       projectId: projectId || null,
-      aud: 'authenticated',
+      aud: role === 'service_role' ? 'service_role' : 'authenticated',
     },
     secret,
     { expiresIn }
   );
+}
+
+function signRefreshToken() {
+  return require('crypto').randomBytes(48).toString('base64url');
 }
 
 function verifyProjectToken(token, secret) {
@@ -89,6 +93,7 @@ module.exports = {
   signToken,
   verifyToken,
   signProjectToken,
+  signRefreshToken,
   verifyProjectToken,
   hashPassword,
   comparePassword,

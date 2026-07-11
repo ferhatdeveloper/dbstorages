@@ -8,9 +8,25 @@ CREATE TABLE IF NOT EXISTS auth.users (
   email TEXT NOT NULL UNIQUE,
   encrypted_password TEXT NOT NULL,
   raw_user_meta_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  recovery_token TEXT,
+  recovery_sent_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS recovery_token TEXT;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS recovery_sent_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_token ON auth.refresh_tokens(token);
 
 CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS UUID

@@ -18,6 +18,7 @@ const PACKAGES = [
     vcpu: 0.5,
     ramMb: 512,
     diskGb: 1,
+    storageGb: 0.5,
     connections: 20,
     highlight: false,
     description: 'Geliştirme ve deneme için yerel Postgres.',
@@ -31,6 +32,7 @@ const PACKAGES = [
     vcpu: 2,
     ramMb: 4096,
     diskGb: 20,
+    storageGb: 5,
     connections: 100,
     highlight: true,
     description: 'Üretim yükleri için dengeli kiralama planı.',
@@ -45,6 +47,7 @@ const PACKAGES = [
     vcpu: 4,
     ramMb: 16384,
     diskGb: 100,
+    storageGb: 50,
     connections: 500,
     highlight: false,
     description: 'Yüksek bağlantı ve disk ihtiyacı olan ekipler.',
@@ -58,6 +61,13 @@ function getPackages() {
 
 function getPackage(planId) {
   return PACKAGES.find((p) => p.id === planId) || null;
+}
+
+/** Storage quota bytes for a plan id (MVP enforcement). */
+function storageQuotaBytes(planId) {
+  const pkg = getPackage(planId) || getPackage('free');
+  const gb = pkg?.storageGb ?? pkg?.diskGb ?? 0.5;
+  return Math.floor(Number(gb) * 1024 * 1024 * 1024);
 }
 
 /** @typedef {{ provider: string, checkoutUrl?: string, clientSecret?: string, paymentId: string, status: string, mock?: boolean }} CheckoutResult */
@@ -482,6 +492,7 @@ module.exports = {
   PACKAGES,
   getPackages,
   getPackage,
+  storageQuotaBytes,
   getProvider,
   listProviders,
   StripeProvider,

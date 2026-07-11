@@ -8,7 +8,7 @@ const express = require('express');
 const { authMiddleware } = require('../lib/auth');
 const { resolveTenantPool } = require('../lib/db');
 const { assertInstanceAccess } = require('../lib/rbac');
-const { quoteIdent, buildFromQuery } = require('../lib/restQuery');
+const { quoteIdent, buildFromQuery, hydrateEmbeds, parseRpcName } = require('../lib/restQuery');
 const { startListenerForInstanceRow } = require('../lib/realtime');
 
 const router = express.Router();
@@ -52,6 +52,7 @@ router.get('/:instanceId', async (req, res) => {
       instanceId,
       tables: rows.map((r) => r.name),
       hint: `GET /api/rest/${instanceId}/{table}?select=*&limit=10`,
+      rpc: `POST /api/rest/${instanceId}/rpc/{function_name}`,
     });
   } catch (err) {
     res.status(err.status || 400).json({
@@ -61,15 +62,64 @@ router.get('/:instanceId', async (req, res) => {
   }
 });
 
+/** RPC — POST /api/rest/:instanceId/rpc/:fnName  body = named args object */
+router.post('/:instanceId/rpc/:fnName', async (req, res) => {
+  try {
+    const { instanceId, fnName } = req.params;
+    const { pool } = await poolForInstance(req, instanceId);
+    const { schema, fn } = parseRpcName(fnName);
+    // Only allow public / auth schemas
+    if (!['public', 'auth'].includes(schema)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'RPC schema must be public or auth' },
+      });
+    }
+    quoteIdent(schema);
+    quoteIdent(fn);
+    const args = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body
+      : {};
+    const keys = Object.keys(args);
+    let sql;
+    let params = [];
+    if (!keys.length) {
+      sql = `SELECT * FROM ${quoteIdent(schema)}.${quoteIdent(fn)}()`;
+    } else {
+      // Named notation: SELECT * FROM fn(a := $1, b := $2)
+      const parts = keys.map((k, i) => {
+        quoteIdent(k);
+        return `${quoteIdent(k)} := $${i + 1}`;
+      });
+      params = keys.map((k) => args[k]);
+      sql = `SELECT * FROM ${quoteIdent(schema)}.${quoteIdent(fn)}(${parts.join(', ')})`;
+    }
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(err.status || 400).json({
+      success: false,
+      error: { code: err.code || 'rpc_error', message: err.message },
+    });
+  }
+});
+
 router.get('/:instanceId/:table', async (req, res) => {
   try {
     const { instanceId, table } = req.params;
+    if (table === 'rpc') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'Use POST /rpc/:fnName' },
+      });
+    }
     const { pool } = await poolForInstance(req, instanceId);
     const q = buildFromQuery(req.query);
     const sql = `SELECT ${q.selectSql} FROM ${quoteIdent(table)} ${q.whereSql} ${q.orderSql} LIMIT $${q.params.length + 1} OFFSET $${q.params.length + 2}`;
     const { rows } = await pool.query(sql, [...q.params, q.limit, q.offset]);
-    res.setHeader('Content-Range', `0-${Math.max(0, rows.length - 1)}/${rows.length}`);
-    res.json(rows);
+    const hydrated = await hydrateEmbeds(pool, table, rows, q.embeds);
+    res.setHeader('Content-Range', `0-${Math.max(0, hydrated.length - 1)}/${hydrated.length}`);
+    res.json(hydrated);
   } catch (err) {
     res.status(err.status || 400).json({
       success: false,
@@ -81,6 +131,12 @@ router.get('/:instanceId/:table', async (req, res) => {
 router.post('/:instanceId/:table', async (req, res) => {
   try {
     const { instanceId, table } = req.params;
+    if (table === 'rpc') {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'not_found', message: 'Use /rpc/:fnName' },
+      });
+    }
     const { pool } = await poolForInstance(req, instanceId);
     const body = req.body;
     const rowsIn = Array.isArray(body) ? body : [body];
@@ -104,8 +160,6 @@ router.post('/:instanceId/:table', async (req, res) => {
       );
       if (rows[0]) inserted.push(rows[0]);
     }
-
-    // Row CDC via DB triggers → LISTEN
 
     if (preferReturn(req) || inserted.length) {
       return res.status(201).json(Array.isArray(body) ? inserted : inserted[0] || null);

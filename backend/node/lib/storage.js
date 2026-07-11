@@ -1,11 +1,18 @@
 /**
  * S3-compatible object storage (MinIO) with local-disk fallback.
  * Objects are scoped under bucket `gc-{instanceId}` (sanitized).
+ * MVP: signed download URLs (JWT) + usage/quota helpers.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
+const jwt = require('jsonwebtoken');
+
+const SIGNING_SECRET =
+  process.env.STORAGE_SIGNING_SECRET ||
+  process.env.JWT_SECRET ||
+  'graphcore-dev-secret-change-me';
 
 const LOCAL_ROOT =
   process.env.STORAGE_LOCAL_PATH ||
@@ -281,6 +288,76 @@ function status() {
     backend: s3 ? 's3' : 'local',
     endpoint: s3 ? process.env.S3_ENDPOINT : LOCAL_ROOT,
     bucketPrefix: 'gc-',
+    signedUrls: true,
+  };
+}
+
+/** Recursively sum object bytes (local or S3 list-all). */
+async function usageBytes(instanceId) {
+  const { bucket, backend } = await ensureBucket(instanceId);
+  if (backend === 'local') {
+    const root = localDir(instanceId);
+    let total = 0;
+    function walk(dir) {
+      if (!fs.existsSync(dir)) return;
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) walk(full);
+        else total += fs.statSync(full).size;
+      }
+    }
+    walk(root);
+    return { bucket, backend, usedBytes: total };
+  }
+
+  const s3 = getS3();
+  let total = 0;
+  let token;
+  do {
+    const res = await s3.client.send(
+      new s3.ListObjectsV2Command({
+        Bucket: bucket,
+        ContinuationToken: token,
+      })
+    );
+    for (const obj of res.Contents || []) {
+      total += obj.Size || 0;
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return { bucket, backend, usedBytes: total };
+}
+
+/**
+ * Create a short-lived signed download token (not a full S3 presign —
+ * GraphCore verifies JWT then streams the object).
+ */
+function createSignedDownload({ instanceId, key, expiresIn = 900, secret }) {
+  const cleanKey = sanitizeKey(key);
+  const tok = jwt.sign(
+    {
+      typ: 'storage_download',
+      instanceId,
+      key: cleanKey,
+    },
+    secret || SIGNING_SECRET,
+    { expiresIn }
+  );
+  return {
+    token: tok,
+    key: cleanKey,
+    expiresIn: typeof expiresIn === 'number' ? expiresIn : 900,
+  };
+}
+
+function verifySignedDownload(token, secret) {
+  const payload = jwt.verify(token, secret || SIGNING_SECRET);
+  if (payload.typ !== 'storage_download' || !payload.instanceId || !payload.key) {
+    throw Object.assign(new Error('Invalid signed URL token'), { status: 400 });
+  }
+  return {
+    instanceId: payload.instanceId,
+    key: sanitizeKey(payload.key),
   };
 }
 
@@ -294,5 +371,8 @@ module.exports = {
   createFolder,
   getObject,
   deleteObject,
+  usageBytes,
+  createSignedDownload,
+  verifySignedDownload,
   status,
 };

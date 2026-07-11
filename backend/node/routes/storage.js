@@ -3,6 +3,7 @@ const multer = require('multer');
 const { authMiddleware } = require('../lib/auth');
 const { assertInstanceAccess } = require('../lib/rbac');
 const storage = require('../lib/storage');
+const { storageQuotaBytes } = require('../payments');
 
 const router = express.Router();
 const upload = multer({
@@ -24,8 +25,68 @@ async function requireInstance(req, res) {
   }
 }
 
+function publicBase(req) {
+  return (
+    process.env.PUBLIC_API_URL ||
+    `${req.protocol}://${req.get('host')}`
+  ).replace(/\/$/, '');
+}
+
+async function quotaForRow(row) {
+  const limit = storageQuotaBytes(row.plan || 'free');
+  const usage = await storage.usageBytes(row.id);
+  return {
+    plan: row.plan || 'free',
+    usedBytes: usage.usedBytes,
+    limitBytes: limit,
+    remainingBytes: Math.max(0, limit - usage.usedBytes),
+    backend: usage.backend,
+    bucket: usage.bucket,
+  };
+}
+
 router.get('/status', authMiddleware, (_req, res) => {
   res.json({ success: true, data: storage.status() });
+});
+
+/** Public signed download — no Bearer; JWT in query */
+router.get('/signed/:token', async (req, res) => {
+  try {
+    const claims = storage.verifySignedDownload(req.params.token);
+    const obj = await storage.getObject(claims.instanceId, claims.key);
+    const filename = String(claims.key).split('/').pop() || 'download';
+    res.setHeader('Content-Type', obj.contentType);
+    if (obj.size != null) res.setHeader('Content-Length', String(obj.size));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename.replace(/"/g, '')}"`
+    );
+    if (obj.body && typeof obj.body.pipe === 'function') {
+      obj.body.pipe(res);
+    } else {
+      res.send(obj.body);
+    }
+  } catch (err) {
+    const status = err.name === 'TokenExpiredError' ? 410 : err.status || 400;
+    res.status(status).json({
+      success: false,
+      error: { code: 'signed_url', message: err.message },
+    });
+  }
+});
+
+router.get('/:instanceId/quota', authMiddleware, async (req, res) => {
+  const row = await requireInstance(req, res);
+  if (!row) return;
+  try {
+    const q = await quotaForRow(row);
+    res.json({ success: true, data: q });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'storage_quota', message: err.message },
+    });
+  }
 });
 
 router.get('/:instanceId/objects', authMiddleware, async (req, res) => {
@@ -34,6 +95,7 @@ router.get('/:instanceId/objects', authMiddleware, async (req, res) => {
   try {
     const prefix = req.query.prefix || req.query.path || '';
     const result = await storage.listObjects(row.id, String(prefix));
+    const quota = await quotaForRow(row);
     const files = result.objects.map((o) => ({
       id: o.key,
       name: o.name,
@@ -55,6 +117,7 @@ router.get('/:instanceId/objects', authMiddleware, async (req, res) => {
         backend: result.backend,
         prefix: String(prefix || ''),
         files,
+        quota,
       },
     });
   } catch (err) {
@@ -80,6 +143,17 @@ router.post(
           error: { code: 'validation', message: 'file required (multipart field: file)' },
         });
       }
+      const quota = await quotaForRow(row);
+      if (quota.usedBytes + req.file.size > quota.limitBytes) {
+        return res.status(413).json({
+          success: false,
+          error: {
+            code: 'quota_exceeded',
+            message: `Storage quota exceeded (${quota.usedBytes}/${quota.limitBytes} bytes). Upgrade plan.`,
+            quota,
+          },
+        });
+      }
       const prefix = String(req.body.prefix || req.body.path || '')
         .replace(/^\/+/, '')
         .replace(/\/$/, '');
@@ -99,6 +173,7 @@ router.post(
           type: 'file',
           modified: new Date().toISOString(),
           path: `/${put.key}`,
+          quota: await quotaForRow(row),
         },
       });
     } catch (err) {
@@ -143,6 +218,50 @@ router.post('/:instanceId/folders', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       error: { code: 'storage_folder', message: err.message },
+    });
+  }
+});
+
+router.post('/:instanceId/sign', authMiddleware, async (req, res) => {
+  const row = await requireInstance(req, res);
+  if (!row) return;
+  try {
+    const key = req.body?.key || req.query.key;
+    if (!key) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'key required' },
+      });
+    }
+    const expiresIn = Math.min(
+      86400,
+      Math.max(60, Number(req.body?.expiresIn || 900))
+    );
+    const signed = storage.createSignedDownload({
+      instanceId: row.id,
+      key: String(key),
+      expiresIn,
+      secret: row.jwt_secret || undefined,
+    });
+    // Prefer platform secret for public route verify when instance secret used inconsistently
+    const signedPlatform = storage.createSignedDownload({
+      instanceId: row.id,
+      key: String(key),
+      expiresIn,
+    });
+    const url = `${publicBase(req)}/api/storage/signed/${signedPlatform.token}`;
+    res.json({
+      success: true,
+      data: {
+        url,
+        key: signed.key,
+        expiresIn,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'storage_sign', message: err.message },
     });
   }
 });

@@ -27,7 +27,10 @@ const { router: restRoutes } = require('./routes/rest');
 const projectAuthRoutes = require('./routes/projectAuth');
 const { router: billingRoutes, provisionInstanceAfterPayment, updatePaymentStatus } = require('./routes/billing');
 const storageRoutes = require('./routes/storage');
-const { getProvider } = require('./payments');
+const functionsRoutes = require('./routes/functions');
+const migrationsRoutes = require('./routes/migrations');
+const { getProvider, getPackage } = require('./payments');
+const provision = require('./lib/provision');
 
 const app = express();
 const server = http.createServer(app);
@@ -151,6 +154,8 @@ app.use('/api/rest', restRoutes);
 app.use('/api/project-auth', projectAuthRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/functions', functionsRoutes);
+app.use('/api/migrations', migrationsRoutes);
 
 // SQL alias used by SqlEditorPage (/api/sql/execute)
 app.post('/api/sql/execute', (req, res, next) => {
@@ -468,6 +473,166 @@ app.get('/api/instances/:id', authMiddleware, async (req, res) => {
   }
 });
 
+async function updateInstanceStatus(id, status, extra = {}) {
+  if (isMetaReady()) {
+    const sets = ['status = $2'];
+    const params = [id, status];
+    if (extra.paused_at !== undefined) {
+      params.push(extra.paused_at);
+      sets.push(`paused_at = $${params.length}`);
+    }
+    if (extra.deleted_at !== undefined) {
+      params.push(extra.deleted_at);
+      sets.push(`deleted_at = $${params.length}`);
+    }
+    if (extra.plan !== undefined) {
+      params.push(extra.plan);
+      sets.push(`plan = $${params.length}`);
+    }
+    await getMetaPool().query(
+      `UPDATE instances SET ${sets.join(', ')} WHERE id = $1`,
+      params
+    );
+  } else {
+    const row = store.instances.find((i) => i.id === id);
+    if (row) {
+      row.status = status;
+      Object.assign(row, extra);
+    }
+  }
+}
+
+app.post('/api/instances/:id/pause', authMiddleware, async (req, res) => {
+  try {
+    const row = await getInstanceForUser(req.user.sub, req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: { code: 'not_found', message: 'Instance not found' } });
+    }
+    if (row.status !== 'ready') {
+      return res.status(400).json({
+        error: { code: 'invalid_state', message: `Cannot pause from status=${row.status}` },
+      });
+    }
+    const result = await provision.pauseInstance({
+      database: row.database_name,
+      username: row.username,
+    });
+    await updateInstanceStatus(row.id, 'paused', {
+      paused_at: new Date().toISOString(),
+    });
+    res.json({ success: true, data: { id: row.id, ...result } });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
+  }
+});
+
+app.post('/api/instances/:id/resume', authMiddleware, async (req, res) => {
+  try {
+    const row = await getInstanceForUser(req.user.sub, req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: { code: 'not_found', message: 'Instance not found' } });
+    }
+    if (row.status !== 'paused') {
+      return res.status(400).json({
+        error: { code: 'invalid_state', message: `Cannot resume from status=${row.status}` },
+      });
+    }
+    const result = await provision.resumeInstance({
+      database: row.database_name,
+      username: row.username,
+      password: row.password,
+    });
+    await updateInstanceStatus(row.id, 'ready', { paused_at: null });
+    res.json({ success: true, data: { id: row.id, ...result } });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
+  }
+});
+
+app.post('/api/instances/:id/resize', authMiddleware, async (req, res) => {
+  try {
+    const planId = String(req.body?.planId || req.body?.plan || '').trim();
+    if (!planId || !getPackage(planId)) {
+      return res.status(400).json({
+        error: { code: 'validation', message: 'valid planId required (free|pro|scale)' },
+      });
+    }
+    const row = await getInstanceForUser(req.user.sub, req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: { code: 'not_found', message: 'Instance not found' } });
+    }
+    const result = await provision.resizeInstancePlan({
+      connectionString: row.connection_string,
+      planId,
+    });
+    await updateInstanceStatus(row.id, row.status === 'paused' ? 'paused' : row.status || 'ready', {
+      plan: planId,
+    });
+    if (isMetaReady()) {
+      await getMetaPool().query(`UPDATE instances SET plan = $2 WHERE id = $1`, [
+        row.id,
+        planId,
+      ]);
+    } else {
+      const s = store.instances.find((i) => i.id === row.id);
+      if (s) s.plan = planId;
+    }
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        plan: planId,
+        ...result,
+        note: 'Soft resize — plan/quota labels updated; no cgroup/RAM enforcement on shared host',
+      },
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
+  }
+});
+
+app.delete('/api/instances/:id', authMiddleware, async (req, res) => {
+  try {
+    const hard = String(req.query.hard || req.body?.hard || '') === '1';
+    const row = await getInstanceForUser(req.user.sub, req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: { code: 'not_found', message: 'Instance not found' } });
+    }
+    await updateInstanceStatus(row.id, 'deleting');
+    let dropResult = { dropped: false };
+    if (hard) {
+      dropResult = await provision.deleteInstanceDatabase({
+        database: row.database_name,
+        username: row.username,
+      });
+    }
+    await updateInstanceStatus(row.id, 'deleted', {
+      deleted_at: new Date().toISOString(),
+    });
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        status: 'deleted',
+        hard,
+        ...dropResult,
+        note: hard
+          ? 'Database dropped (unless shared demo)'
+          : 'Soft-deleted; pass ?hard=1 to DROP DATABASE',
+      },
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
+  }
+});
 app.get('/api/me/memberships', authMiddleware, async (req, res) => {
   try {
     const memberships = await listMemberships(req.user.sub);

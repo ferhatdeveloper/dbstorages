@@ -1,6 +1,9 @@
 -- GraphCore realtime CDC via trigger → NOTIFY (LISTEN channel: graphcore_changes).
 -- Applied on provision; re-run graphcore_attach_realtime_triggers() after CREATE TABLE
 -- if the event trigger is unavailable (non-superuser).
+--
+-- LIMIT: This is NOT wal2json / logical replication. Large row payloads are truncated
+-- to stay under pg_notify ~8KB. For full CDC, enable logical decoding separately.
 
 CREATE OR REPLACE FUNCTION public.graphcore_notify_change()
 RETURNS trigger
@@ -9,6 +12,7 @@ AS $$
 DECLARE
   payload jsonb;
   row_data jsonb;
+  payload_text text;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     row_data := to_jsonb(OLD);
@@ -22,10 +26,25 @@ BEGIN
     'schema', TG_TABLE_SCHEMA,
     'details', TG_OP || ' on ' || TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME,
     'data', row_data,
-    'at', now()
+    'at', now(),
+    'cdc', 'trigger_notify'
   );
 
-  PERFORM pg_notify('graphcore_changes', payload::text);
+  payload_text := payload::text;
+  IF octet_length(payload_text) > 7800 THEN
+    payload := jsonb_build_object(
+      'type', lower(TG_OP),
+      'table', TG_TABLE_NAME,
+      'schema', TG_TABLE_SCHEMA,
+      'details', TG_OP || ' on ' || TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME,
+      'data', jsonb_build_object('_truncated', true),
+      'at', now(),
+      'cdc', 'trigger_notify'
+    );
+    payload_text := payload::text;
+  END IF;
+
+  PERFORM pg_notify('graphcore_changes', payload_text);
 
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;

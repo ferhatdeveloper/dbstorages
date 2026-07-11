@@ -5,7 +5,9 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test": "node scripts/smoke-mvp.js",
+    "smoke": "node scripts/smoke-mvp.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",
