@@ -25,6 +25,7 @@ import ConnectionsPage from './pages/ConnectionsPage';
 import AIPage from './pages/AIPage';
 import DashboardPage from './pages/DashboardPage';
 import MigrationPage from './pages/MigrationPage';
+import BillingHistoryPage from './pages/BillingHistoryPage';
 
 function App() {
   return (
@@ -68,6 +69,7 @@ function App() {
         <Route path="ai" element={<AIPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="migration" element={<MigrationPage />} />
+        <Route path="billing" element={<BillingHistoryPage />} />
         <Route path="pricing" element={<PricingPage />} />
       </Route>
 

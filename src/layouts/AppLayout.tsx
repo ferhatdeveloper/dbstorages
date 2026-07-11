@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import ProjectSwitcher from '../components/ProjectSwitcher'
 import {
   Database,
   Table,
@@ -11,12 +12,9 @@ import {
   BarChart3,
   Settings,
   Lock,
-  FileText,
   Layers,
   ChevronRight,
-  List,
   BookOpen,
-  LogOut,
   AlertCircle,
   FileText as FileTextIcon,
   Activity,
@@ -25,6 +23,7 @@ import {
   Brain,
   BarChart,
   GitBranch,
+  Receipt,
 } from 'lucide-react'
 
 const menu = [
@@ -53,6 +52,7 @@ const menu = [
     category: 'Billing',
     items: [
       { to: '/pricing', icon: <Sliders className="h-5 w-5" />, label: 'Paketler' },
+      { to: '/app/billing', icon: <Receipt className="h-5 w-5" />, label: 'Ödeme geçmişi' },
     ],
   },
   {
@@ -70,7 +70,7 @@ const menu = [
     ],
   },
   {
-    category: 'Project',
+    category: 'Settings',
     items: [
       { to: '/app/settings', icon: <Settings className="h-5 w-5" />, label: 'Project Settings' },
     ],
@@ -89,17 +89,17 @@ const AppLayout = () => {
 
   return (
     <div className="h-screen flex bg-[#f8fafb]">
-      {/* Sidebar */}
       <aside className="w-56 border-r bg-white flex flex-col py-4 space-y-2">
-        <div className="mb-4 flex flex-col items-center justify-center">
+        <div className="mb-2 flex flex-col items-center justify-center">
           <NavLink to="/app/dashboard">
             <Database className="h-7 w-7 text-teal-700" />
           </NavLink>
           <span className="mt-2 text-xl font-extrabold tracking-tight text-teal-800 select-none" style={{fontFamily: 'Syne, sans-serif'}}>GraphCore</span>
         </div>
-        <nav className="flex flex-col gap-2 flex-1">
-          {menu.map((section, idx) => (
-            <div key={section.category} className="mb-2">
+        <ProjectSwitcher />
+        <nav className="flex flex-col gap-2 flex-1 overflow-y-auto">
+          {menu.map((section) => (
+            <div key={section.category + section.items[0].to} className="mb-2">
               <div className="px-4 py-1 text-xs text-gray-400 uppercase tracking-wider select-none">
                 {section.category}
               </div>
@@ -117,7 +117,6 @@ const AppLayout = () => {
                     <span>{item.label}</span>
                     {item.submenu && <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />}
                   </NavLink>
-                  {/* Alt menü */}
                   {item.submenu && hoveredMenu === item.label && (
                     <div className="absolute left-full top-0 mt-0 ml-1 bg-white border rounded shadow-lg min-w-[180px] z-20 animate-fade-in">
                       {item.submenu.map(sub => (
@@ -148,12 +147,11 @@ const AppLayout = () => {
           </button>
         </div>
       </aside>
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col overflow-hidden">
         <Outlet />
       </main>
     </div>
   )
 }
 
-export default AppLayout 
+export default AppLayout

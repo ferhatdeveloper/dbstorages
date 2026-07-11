@@ -39,6 +39,8 @@
     "start:all": "node start-all.js",
     "start:node": "npm --prefix backend/node start",
     "start:go": "go run main.go",
-    "dev:node": "npm --prefix backend/node run dev"
+    "dev:node": "npm --prefix backend/node run dev",
+    "test:backend": "npm --prefix backend/node test",
+    "test": "npm run test:backend"
   }
 }

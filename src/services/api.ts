@@ -322,17 +322,12 @@ class ApiService {
   }
 
   async createMigration(_data: any) {
-    return { success: false, error: 'Migrations henüz bağlanmadı' };
-  }
-
-  async applyMigration(_id: string) {
-    return { success: false, error: 'Migrations henüz bağlanmadı' };
+    return { success: false, error: 'Use applyMigration(instanceId, { name, sql })' };
   }
 
   async rollbackMigration(_id: string) {
-    return { success: false, error: 'Migrations henüz bağlanmadı' };
+    return { success: false, error: 'Rollback henüz desteklenmiyor' };
   }
-
   async getCurrentUser() {
     return this.request<{ success?: boolean; user: any }>(
       `${NODE_API_BASE}/auth/me`
@@ -530,6 +525,100 @@ class ApiService {
   async billingHistory() {
     return this.request<{ success: boolean; data: any[] }>(
       `${NODE_API_BASE}/billing/history`
+    );
+  }
+
+  async listFunctions(instanceId: string) {
+    return this.request<{ success: boolean; data: { functions: any[] } }>(
+      `${NODE_API_BASE}/functions/${encodeURIComponent(instanceId)}`
+    );
+  }
+
+  async getFunction(instanceId: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/functions/${encodeURIComponent(instanceId)}/${encodeURIComponent(name)}`
+    );
+  }
+
+  async deployFunction(instanceId: string, name: string, source: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/functions/${encodeURIComponent(instanceId)}/${encodeURIComponent(name)}`,
+      { method: 'PUT', body: JSON.stringify({ source }) }
+    );
+  }
+
+  async deleteFunction(instanceId: string, name: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/functions/${encodeURIComponent(instanceId)}/${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async invokeFunction(
+    instanceId: string,
+    name: string,
+    body: { body?: unknown; method?: string; query?: Record<string, string> }
+  ) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/functions/${encodeURIComponent(instanceId)}/${encodeURIComponent(name)}/invoke`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async listMigrations(instanceId: string) {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/migrations/${encodeURIComponent(instanceId)}`
+    );
+  }
+
+  async applyMigration(
+    instanceId: string,
+    body: { name: string; sql: string; id?: string }
+  ) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/migrations/${encodeURIComponent(instanceId)}/apply`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async pauseInstance(id: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/instances/${encodeURIComponent(id)}/pause`,
+      { method: 'POST' }
+    );
+  }
+
+  async resumeInstance(id: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/instances/${encodeURIComponent(id)}/resume`,
+      { method: 'POST' }
+    );
+  }
+
+  async resizeInstance(id: string, planId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/instances/${encodeURIComponent(id)}/resize`,
+      { method: 'POST', body: JSON.stringify({ planId }) }
+    );
+  }
+
+  async deleteInstance(id: string, hard = false) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/instances/${encodeURIComponent(id)}${hard ? '?hard=1' : ''}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async storageSign(instanceId: string, key: string, expiresIn = 900) {
+    return this.request<{ success: boolean; data: { url: string } }>(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/sign`,
+      { method: 'POST', body: JSON.stringify({ key, expiresIn }) }
+    );
+  }
+
+  async storageQuota(instanceId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/quota`
     );
   }
 }

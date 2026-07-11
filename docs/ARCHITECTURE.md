@@ -37,6 +37,8 @@
 ## Bilinçli borç
 
 - K8s / container-per-tenant yok — MVP: shared Postgres’te `CREATE DATABASE` / `ROLE`
-- iyzico/PayTR SDK wire eksik (interface + env hazır; stub checkout)
+- Realtime: trigger + NOTIFY (wal2json / logical CDC yok)
+- Edge Functions: Node `vm` worker (Deno Deploy değil)
+- Soft resize (plan/kota etiketi); cgroup yok
 - İki backend uzun vadede tek gateway
-- Bu geliştirme makinesinde Docker CLI yoksa compose smoke atlanır; Dosyalar Dokploy için hazır
+- Bu geliştirme makinesinde Docker CLI yoksa compose smoke atlanır; dosyalar Dokploy için hazır

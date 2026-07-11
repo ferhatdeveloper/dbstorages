@@ -30,4 +30,5 @@ backend/go/graphcore-go
 
 # Local storage fallback
 backend/node/.storage/
+backend/node/.functions/
 
