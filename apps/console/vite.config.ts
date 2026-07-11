@@ -5,6 +5,10 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   base: process.env.VITE_BASE || '/',
+  css: {
+    // Search PostCSS config in this app dir (avoid monorepo root postcss.config.js).
+    postcss: __dirname,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
