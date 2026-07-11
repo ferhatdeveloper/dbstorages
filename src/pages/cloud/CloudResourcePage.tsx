@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link2, Link2Off, Loader2, Plus, RefreshCw, RotateCcw } from 'lucide-react'
+import { Link2, Link2Off, Loader2, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { apiService } from '../../services/api'
 
 type Kind =
@@ -183,6 +183,31 @@ const CloudResourcePage: React.FC<Props> = ({
   const detach = async (volumeId: string) => {
     try {
       await apiService.cloudDetachVolume(volumeId)
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const removeRow = async (id: string) => {
+    if (!window.confirm('Silinsin mi?')) return
+    try {
+      if (kind === 'volumes') await apiService.cloudDeleteVolume(id)
+      else if (kind === 'snapshots') await apiService.cloudDeleteSnapshot(id)
+      else if (kind === 'firewalls') await apiService.cloudDeleteFirewall(id)
+      else if (kind === 'ssh-keys') await apiService.cloudDeleteSshKey(id)
+      else if (kind === 'networks') await apiService.cloudDeleteNetwork(id)
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const resizeVol = async (id: string, current: number) => {
+    const next = window.prompt('Yeni boyut (GB)', String((current || 10) + 10))
+    if (!next) return
+    try {
+      await apiService.cloudResizeVolume(id, Number(next))
       await load()
     } catch (err: any) {
       setError(err.message)
@@ -504,18 +529,21 @@ const CloudResourcePage: React.FC<Props> = ({
                   <th className="px-3 py-2">Ad</th>
                   <th className="px-3 py-2">Durum</th>
                   <th className="px-3 py-2">Kurallar</th>
+                  <th className="px-3 py-2">İşlem</th>
                 </tr>
               ) : kind === 'ssh-keys' ? (
                 <tr>
                   <th className="px-3 py-2">Ad</th>
                   <th className="px-3 py-2">Durum</th>
                   <th className="px-3 py-2">Fingerprint</th>
+                  <th className="px-3 py-2">İşlem</th>
                 </tr>
               ) : (
                 <tr>
                   <th className="px-3 py-2">Ad</th>
                   <th className="px-3 py-2">Durum</th>
                   <th className="px-3 py-2">IP Range</th>
+                  <th className="px-3 py-2">İşlem</th>
                 </tr>
               )}
             </thead>
@@ -574,6 +602,22 @@ const CloudResourcePage: React.FC<Props> = ({
                           >
                             <Link2Off className="h-3.5 w-3.5" />
                           </button>
+                          <button
+                            type="button"
+                            title="Resize"
+                            onClick={() => resizeVol(r.id, r.size_gb || r.sizeGb || 10)}
+                            className="rounded px-1 text-[10px] hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            Resize
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete"
+                            onClick={() => removeRow(r.id)}
+                            className="rounded p-1 text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -586,17 +630,26 @@ const CloudResourcePage: React.FC<Props> = ({
                       <td className="px-3 py-2 text-xs">{r.status}</td>
                       <td className="px-3 py-2 font-mono text-xs">{r.server_id || '—'}</td>
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          title="Restore"
-                          onClick={() => {
-                            setRestoreFor(r.id)
-                            setForm((f) => ({ ...f, name: `${r.name || 'snap'}-restore` }))
-                          }}
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" /> Restore
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            title="Restore"
+                            onClick={() => {
+                              setRestoreFor(r.id)
+                              setForm((f) => ({ ...f, name: `${r.name || 'snap'}-restore` }))
+                            }}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Restore
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeRow(r.id)}
+                            className="rounded p-1 text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -607,6 +660,39 @@ const CloudResourcePage: React.FC<Props> = ({
                       <td className="px-3 py-2 font-medium">{r.name}</td>
                       <td className="px-3 py-2 text-xs">{r.status}</td>
                       <td className="px-3 py-2 font-mono text-xs">{rulesSummary(r)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            className="rounded border px-2 py-0.5 text-[10px] dark:border-slate-700"
+                            onClick={async () => {
+                              if (!form.serverId && servers[0]) {
+                                setForm((f) => ({ ...f, serverId: servers[0].id }))
+                              }
+                              const sid = form.serverId || servers[0]?.id
+                              if (!sid) {
+                                setError('Önce sunucu oluşturun')
+                                return
+                              }
+                              try {
+                                await apiService.cloudApplyFirewall(r.id, [sid])
+                                await load()
+                              } catch (err: any) {
+                                setError(err.message)
+                              }
+                            }}
+                          >
+                            Apply
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeRow(r.id)}
+                            className="rounded p-1 text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   )
                 }
@@ -614,9 +700,18 @@ const CloudResourcePage: React.FC<Props> = ({
                   return (
                     <tr key={r.id} className="border-t dark:border-slate-800">
                       <td className="px-3 py-2 font-medium">{r.name}</td>
-                      <td className="px-3 py-2 text-xs">{r.status}</td>
+                      <td className="px-3 py-2 text-xs">{r.status || '—'}</td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {r.fingerprint || '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(r.id)}
+                          className="rounded p-1 text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </td>
                     </tr>
                   )
@@ -627,6 +722,56 @@ const CloudResourcePage: React.FC<Props> = ({
                     <td className="px-3 py-2 text-xs">{r.status}</td>
                     <td className="px-3 py-2 font-mono text-xs">
                       {r.ip_range || r.ipRange || '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-[10px] dark:border-slate-700"
+                          onClick={async () => {
+                            const range = window.prompt('Subnet CIDR', '10.0.1.0/24')
+                            if (!range) return
+                            try {
+                              await apiService.cloudNetworkAction(r.id, 'add-subnet', {
+                                subnet: { ipRange: range, networkZone: 'eu-central' },
+                              })
+                              await load()
+                            } catch (err: any) {
+                              setError(err.message)
+                            }
+                          }}
+                        >
+                          +Subnet
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-[10px] dark:border-slate-700"
+                          onClick={async () => {
+                            const sid = form.serverId || servers[0]?.id
+                            if (!sid) {
+                              setError('Sunucu seçin/oluşturun')
+                              return
+                            }
+                            try {
+                              await apiService.cloudNetworkAction(r.id, 'attach', {
+                                serverId: sid,
+                              })
+                              await load()
+                            } catch (err: any) {
+                              setError(err.message)
+                            }
+                          }}
+                        >
+                          Attach srv
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeRow(r.id)}
+                          className="rounded p-1 text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

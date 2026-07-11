@@ -51,8 +51,17 @@ Create body:
 
 ## Other resources
 
-- `GET/POST /volumes`, `/firewalls`, `/snapshots`, `/ssh-keys`, `/networks`
-- `GET /operations`, `GET /operations/:id` — poll async jobs
+- `GET/POST /volumes`, `DELETE /volumes/:id`, `POST /volumes/:id/resize|attach|detach`
+- `GET/POST /firewalls`, `PUT /firewalls/:id/rules`, `POST /firewalls/:id/apply`, `DELETE`
+- `GET/POST /snapshots`, `POST /snapshots/:id/restore`, `DELETE`
+- `GET/POST /ssh-keys`, `DELETE`
+- `GET/POST /networks`, `POST /networks/:id/:action` (`add-subnet|attach|detach|add-route`), `DELETE`
+- `GET/POST/DELETE /primary-ips`, `POST …/assign|unassign`
+- `GET/POST/DELETE /floating-ips`, `POST …/assign|unassign`
+- `POST /dns/reverse` — `{ providerId, ip, ptr }`
+- `GET/POST/DELETE /load-balancers`, `/placement-groups`, `/certificates`
+- `POST /servers/:id/actions/:action` — reset, resize, rebuild, rescue, console, backups, labels, protect, ISO, metrics (501 stub)
+- `GET /operations`, `GET /operations/:id`, `GET /parity`
 
 ## Errors
 
@@ -60,4 +69,4 @@ Create body:
 { "success": false, "error": { "code": "validation", "message": "…" } }
 ```
 
-Never returns decrypted API keys.
+`coming_soon` / HTTP **501** = dürüst stub (metrics). Never returns decrypted API keys.

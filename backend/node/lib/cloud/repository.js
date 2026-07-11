@@ -199,6 +199,9 @@ async function updateServer(id, patch) {
     ipv4: patch.ipv4 ?? row.ipv4,
     ipv6: patch.ipv6 ?? row.ipv6,
     server_type: patch.serverType ?? row.server_type,
+    name: patch.name ?? row.name,
+    image: patch.image ?? row.image,
+    labels: patch.labels ?? row.labels,
     metadata: patch.metadata ?? row.metadata,
     updated_at: nowIso(),
   });
@@ -317,6 +320,7 @@ async function updateVolume(id, patch) {
         server_id = COALESCE($3, server_id),
         status = COALESCE($4, status),
         metadata = COALESCE($5::jsonb, metadata),
+        size_gb = COALESCE($6, size_gb),
         updated_at = NOW()
        WHERE id = $1`,
       [
@@ -325,6 +329,7 @@ async function updateVolume(id, patch) {
         patch.serverId ?? null,
         patch.status ?? null,
         patch.metadata ? JSON.stringify(patch.metadata) : null,
+        patch.sizeGb ?? patch.size_gb ?? null,
       ]
     );
     return getVolume(id);
@@ -336,6 +341,7 @@ async function updateVolume(id, patch) {
     server_id: 'serverId' in patch ? patch.serverId : row.server_id,
     status: patch.status ?? row.status,
     metadata: patch.metadata ?? row.metadata,
+    size_gb: patch.sizeGb ?? patch.size_gb ?? row.size_gb,
     updated_at: nowIso(),
   });
   return row;

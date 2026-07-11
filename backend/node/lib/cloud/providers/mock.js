@@ -209,17 +209,271 @@ class MockCloudProvider extends CloudProvider {
   }
 
   async createPlacementGroup(spec) {
-    return {
-      placementGroup: {
-        externalId: this._id(),
-        name: spec.name,
-        type: spec.type || 'spread',
-      },
+    const externalId = this._id();
+    const pg = {
+      externalId,
+      name: spec.name,
+      type: spec.type || 'spread',
     };
+    if (!this.placementGroups) this.placementGroups = new Map();
+    this.placementGroups.set(externalId, pg);
+    return { placementGroup: pg };
+  }
+
+  async deletePlacementGroup(externalId) {
+    this.placementGroups?.delete(String(externalId));
+    return { ok: true };
+  }
+
+  async listPlacementGroups() {
+    return [...(this.placementGroups?.values() || [])].map((g) => ({
+      id: g.externalId,
+      name: g.name,
+      type: g.type,
+      servers: [],
+    }));
+  }
+
+  async reset(externalId) {
+    return { action: this._action() };
+  }
+
+  async rebuild(externalId, image) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.image = image;
+    return { action: this._action(), rootPassword: 'mock-rebuild' };
+  }
+
+  async enableRescue(externalId) {
+    return { action: this._action(), rootPassword: 'mock-rescue' };
+  }
+
+  async disableRescue(externalId) {
+    return { action: this._action() };
+  }
+
+  async renameServer(externalId, name) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.name = name;
+    return { server: s };
+  }
+
+  async changeServerProtection(externalId, opts) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.protection = opts;
+    return { action: this._action() };
+  }
+
+  async updateServerLabels(externalId, labels) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.labels = labels || {};
+    return { server: s };
+  }
+
+  async attachIso(externalId, iso) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.iso = iso;
+    return { action: this._action() };
+  }
+
+  async detachIso(externalId) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.iso = null;
+    return { action: this._action() };
+  }
+
+  async requestConsole(externalId) {
+    return {
+      action: this._action(),
+      wssUrl: `wss://mock.console/${externalId}`,
+      password: 'mock-console',
+    };
+  }
+
+  async enableBackup(externalId) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.backup = true;
+    return { action: this._action() };
+  }
+
+  async disableBackup(externalId) {
+    const s = this.servers.get(String(externalId));
+    if (s) s.backup = false;
+    return { action: this._action() };
+  }
+
+  async getServerMetrics() {
+    const err = new Error(
+      'Server metrics charts are coming soon (use provider console for live graphs)'
+    );
+    err.status = 501;
+    err.code = 'coming_soon';
+    throw err;
+  }
+
+  async listIsos() {
+    return [
+      { id: '1', name: 'ubuntu-22.04-live', description: 'Ubuntu Live', type: 'public' },
+    ];
+  }
+
+  async resizeVolume(externalId, sizeGb) {
+    const v = this.volumes.get(String(externalId));
+    if (v) v.sizeGb = sizeGb;
+    return { action: this._action() };
+  }
+
+  async setFirewallRules(externalId, rules) {
+    const f = this.firewalls.get(String(externalId));
+    if (f) f.rules = rules || [];
+    return { action: this._action() };
+  }
+
+  async applyFirewallToResources() {
+    return { action: this._action() };
+  }
+
+  async addNetworkSubnet() {
+    return { action: this._action() };
+  }
+
+  async attachServerToNetwork() {
+    return { action: this._action() };
+  }
+
+  async detachServerFromNetwork() {
+    return { action: this._action() };
+  }
+
+  async addNetworkRoute() {
+    return { action: this._action() };
+  }
+
+  async createPrimaryIp(spec) {
+    if (!this.primaryIps) this.primaryIps = new Map();
+    const externalId = this._id();
+    const primaryIp = {
+      externalId,
+      name: spec.name,
+      ip: `203.0.113.${100 + Number(externalId)}`,
+      type: spec.type || 'ipv4',
+    };
+    this.primaryIps.set(externalId, primaryIp);
+    return { primaryIp };
+  }
+
+  async deletePrimaryIp(externalId) {
+    this.primaryIps?.delete(String(externalId));
+    return { ok: true };
+  }
+
+  async assignPrimaryIp() {
+    return { action: this._action() };
+  }
+
+  async unassignPrimaryIp() {
+    return { action: this._action() };
+  }
+
+  async listPrimaryIps() {
+    return [...(this.primaryIps?.values() || [])].map((p) => ({
+      id: p.externalId,
+      name: p.name,
+      ip: p.ip,
+      type: p.type,
+    }));
+  }
+
+  async createFloatingIp(spec) {
+    if (!this.floatingIps) this.floatingIps = new Map();
+    const externalId = this._id();
+    const floatingIp = {
+      externalId,
+      name: spec.name,
+      ip: `198.51.100.${externalId}`,
+      type: spec.type || 'ipv4',
+    };
+    this.floatingIps.set(externalId, floatingIp);
+    return { floatingIp };
+  }
+
+  async deleteFloatingIp(externalId) {
+    this.floatingIps?.delete(String(externalId));
+    return { ok: true };
+  }
+
+  async assignFloatingIp() {
+    return { action: this._action() };
+  }
+
+  async unassignFloatingIp() {
+    return { action: this._action() };
+  }
+
+  async listFloatingIps() {
+    return [...(this.floatingIps?.values() || [])].map((f) => ({
+      id: f.externalId,
+      name: f.name,
+      ip: f.ip,
+      type: f.type,
+    }));
   }
 
   async setReverseDns(ip, ptr) {
     return { ok: true, ip, ptr };
+  }
+
+  async createLoadBalancer(spec) {
+    if (!this.loadBalancers) this.loadBalancers = new Map();
+    const externalId = this._id();
+    const loadBalancer = {
+      externalId,
+      name: spec.name,
+      publicIpv4: `203.0.113.${50 + Number(externalId)}`,
+      type: spec.type || 'lb11',
+    };
+    this.loadBalancers.set(externalId, loadBalancer);
+    return { loadBalancer };
+  }
+
+  async deleteLoadBalancer(externalId) {
+    this.loadBalancers?.delete(String(externalId));
+    return { ok: true };
+  }
+
+  async listLoadBalancers() {
+    return [...(this.loadBalancers?.values() || [])].map((lb) => ({
+      id: lb.externalId,
+      name: lb.name,
+      publicIpv4: lb.publicIpv4,
+      type: lb.type,
+    }));
+  }
+
+  async createCertificate(spec) {
+    if (!this.certificates) this.certificates = new Map();
+    const externalId = this._id();
+    const certificate = {
+      externalId,
+      name: spec.name,
+      type: spec.type || 'uploaded',
+    };
+    this.certificates.set(externalId, certificate);
+    return { certificate };
+  }
+
+  async deleteCertificate(externalId) {
+    this.certificates?.delete(String(externalId));
+    return { ok: true };
+  }
+
+  async listCertificates() {
+    return [...(this.certificates?.values() || [])].map((c) => ({
+      id: c.externalId,
+      name: c.name,
+      type: c.type,
+      domainNames: [],
+    }));
   }
 
   async getAction(actionId) {

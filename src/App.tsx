@@ -38,6 +38,15 @@ import {
   CloudActivityPage,
   CloudJobsPage,
 } from './pages/cloud/CloudResourcePage'
+import {
+  CloudPrimaryIpsPage,
+  CloudFloatingIpsPage,
+  CloudLoadBalancersPage,
+  CloudPlacementGroupsPage,
+  CloudCertificatesPage,
+  CloudDnsPage,
+  CloudParityPage,
+} from './pages/cloud/CloudExtraPages'
 
 function App() {
   return (
@@ -92,6 +101,13 @@ function App() {
           <Route path="firewalls" element={<CloudFirewallsPage />} />
           <Route path="ssh-keys" element={<CloudSshKeysPage />} />
           <Route path="networks" element={<CloudNetworksPage />} />
+          <Route path="primary-ips" element={<CloudPrimaryIpsPage />} />
+          <Route path="floating-ips" element={<CloudFloatingIpsPage />} />
+          <Route path="load-balancers" element={<CloudLoadBalancersPage />} />
+          <Route path="placement-groups" element={<CloudPlacementGroupsPage />} />
+          <Route path="certificates" element={<CloudCertificatesPage />} />
+          <Route path="dns" element={<CloudDnsPage />} />
+          <Route path="parity" element={<CloudParityPage />} />
           <Route path="activity" element={<CloudActivityPage />} />
           <Route path="jobs" element={<CloudJobsPage />} />
         </Route>

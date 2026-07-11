@@ -243,6 +243,64 @@ async function main() {
     'catalog server-types retail'
   );
 
+  // Parity ops: reset / resize / primary IP / LB / metrics stub
+  const resetOp = await CloudService.serverAction({
+    tenantId: 'ten_demo',
+    serverId: server.id,
+    action: 'reset',
+    createdBy: 'usr_demo',
+  });
+  assert(resetOp.id, 'reset operation');
+  await new Promise((r) => setTimeout(r, 60));
+  assert(
+    (await CloudService.getOperation(resetOp.id)).status === 'completed',
+    'reset completed'
+  );
+
+  const pip = await CloudService.createPrimaryIp({
+    tenantId: 'ten_demo',
+    providerId: provider.id,
+    name: 'pip-1',
+    type: 'ipv4',
+    createdBy: 'usr_demo',
+  });
+  assert(pip.primaryIp.id, 'primary ip created');
+  await new Promise((r) => setTimeout(r, 60));
+  const pipRow = (await CloudService.listPrimaryIps('ten_demo')).find(
+    (p) => p.id === pip.primaryIp.id
+  );
+  assert(pipRow?.external_id || pipRow?.status, 'primary ip provisioned');
+
+  const lb = await CloudService.createLoadBalancer({
+    tenantId: 'ten_demo',
+    providerId: provider.id,
+    name: 'lb-1',
+    location: 'nbg1',
+    createdBy: 'usr_demo',
+  });
+  assert(lb.loadBalancer.id, 'load balancer created');
+
+  let metricsStub = false;
+  try {
+    await CloudService.serverAction({
+      tenantId: 'ten_demo',
+      serverId: server.id,
+      action: 'metrics',
+      createdBy: 'usr_demo',
+    });
+  } catch (e) {
+    metricsStub = e.status === 501 || e.code === 'coming_soon';
+  }
+  assert(metricsStub, 'metrics is honest stub 501');
+
+  const matrix = CloudService.capabilityMatrix();
+  assert(Array.isArray(matrix) && matrix.length >= 10, 'parity matrix');
+  assert(
+    matrix.some((m) => m.status === 'stub' && /metrics/i.test(m.action)),
+    'metrics listed as stub'
+  );
+  assert(getPackage('pro').priceCents === 3400, 'pro still $34 after parity');
+
   if (failed) {
     console.error(`\ntest-cloud: ${failed} failure(s)`);
     process.exit(1);

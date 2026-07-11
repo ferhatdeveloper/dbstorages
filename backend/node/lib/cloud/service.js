@@ -197,6 +197,9 @@ function ensureHandlers() {
       action: out.action,
     };
   });
+
+  const { wireExtraHandlers } = require('./ops');
+  wireExtraHandlers(queue, resolveDriver, newId);
 }
 
 ensureHandlers();
@@ -713,5 +716,12 @@ const CloudService = {
     return repo.listOperations(tenantId, opts);
   },
 };
+
+const { attachServiceMethods } = require('./ops');
+attachServiceMethods(CloudService, {
+  enqueueAction,
+  newId,
+  resolveDriver,
+});
 
 module.exports = { CloudService, ensureHandlers, resolveDriver };

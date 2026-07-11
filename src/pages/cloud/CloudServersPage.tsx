@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Power, PowerOff, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  Loader2,
+  Plus,
+  Power,
+  PowerOff,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  MoreHorizontal,
+} from 'lucide-react'
 import { apiService } from '../../services/api'
 import {
   formatEur,
@@ -160,6 +169,48 @@ const CloudServersPage: React.FC = () => {
       await load()
     } catch (err: any) {
       setError(err.message)
+    }
+  }
+
+  const advancedAct = async (id: string, action: string) => {
+    try {
+      let body: Record<string, unknown> = {}
+      if (action === 'resize') {
+        const serverType = window.prompt('Yeni server type (örn. cx33)', 'cx33')
+        if (!serverType) return
+        body = { serverType }
+      } else if (action === 'rebuild') {
+        const image = window.prompt('Image (örn. ubuntu-22.04)', 'ubuntu-22.04')
+        if (!image) return
+        body = { image }
+      } else if (action === 'rename') {
+        const name = window.prompt('Yeni ad')
+        if (!name) return
+        body = { name }
+      } else if (action === 'attach_iso') {
+        const iso = window.prompt('ISO adı / id')
+        if (!iso) return
+        body = { iso }
+      } else if (action === 'change_protection') {
+        body = { delete: true, rebuild: true }
+      } else if (action === 'labels') {
+        body = { labels: { managed_by: 'dbstorages' } }
+      } else if (action === 'metrics') {
+        await apiService.cloudServerAction(id, 'metrics', {})
+        return
+      }
+      const res = await apiService.cloudServerAction(id, action, body)
+      if (action === 'request_console' || action === 'console') {
+        const opId = (res as any).operationId
+        window.alert(
+          opId
+            ? `Console isteği kuyruğa alındı (${opId}). Activity’den sonucu kontrol edin (wssUrl).`
+            : 'Console isteği gönderildi'
+        )
+      }
+      await load()
+    } catch (err: any) {
+      setError(err.message || 'İşlem başarısız')
     }
   }
 
@@ -383,7 +434,7 @@ const CloudServersPage: React.FC = () => {
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{r.ipv4 || '—'}</td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       <button type="button" title="Reboot" onClick={() => act(r.id, 'reboot')} className="rounded p-1 hover:bg-slate-100 dark:hover:bg-slate-800">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </button>
@@ -396,6 +447,38 @@ const CloudServersPage: React.FC = () => {
                       <button type="button" title="Delete" onClick={() => act(r.id, 'delete')} className="rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      <details className="relative">
+                        <summary className="list-none cursor-pointer rounded p-1 hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </summary>
+                        <div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border bg-white py-1 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                          {[
+                            ['reset', 'Reset (hard)'],
+                            ['resize', 'Resize type'],
+                            ['rebuild', 'Rebuild OS'],
+                            ['enable_rescue', 'Enable rescue'],
+                            ['disable_rescue', 'Disable rescue'],
+                            ['rename', 'Rename'],
+                            ['labels', 'Set labels'],
+                            ['change_protection', 'Protect delete'],
+                            ['attach_iso', 'Attach ISO'],
+                            ['detach_iso', 'Detach ISO'],
+                            ['request_console', 'Console / VNC'],
+                            ['enable_backup', 'Enable backups'],
+                            ['disable_backup', 'Disable backups'],
+                            ['metrics', 'Metrics (stub)'],
+                          ].map(([a, label]) => (
+                            <button
+                              key={a}
+                              type="button"
+                              className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                              onClick={() => advancedAct(r.id, a)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </details>
                     </div>
                   </td>
                 </tr>

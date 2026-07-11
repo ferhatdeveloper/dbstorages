@@ -227,6 +227,95 @@ CREATE INDEX IF NOT EXISTS idx_cloud_operations_status ON cloud_operations(statu
 ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS cost_provider NUMERIC(12,4);
 ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS price_retail NUMERIC(12,4);
 ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EUR';
+
+CREATE TABLE IF NOT EXISTS cloud_primary_ips (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  ip TEXT,
+  type TEXT NOT NULL DEFAULT 'ipv4',
+  server_id TEXT REFERENCES cloud_servers(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_floating_ips (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  ip TEXT,
+  type TEXT NOT NULL DEFAULT 'ipv4',
+  location TEXT,
+  server_id TEXT REFERENCES cloud_servers(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_load_balancers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  lb_type TEXT DEFAULT 'lb11',
+  location TEXT,
+  public_ipv4 TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_placement_groups (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  pg_type TEXT DEFAULT 'spread',
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_certificates (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  cert_type TEXT DEFAULT 'uploaded',
+  domain_names JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_primary_ips_tenant ON cloud_primary_ips(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_floating_ips_tenant ON cloud_floating_ips(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_lbs_tenant ON cloud_load_balancers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_pg_tenant ON cloud_placement_groups(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_certs_tenant ON cloud_certificates(tenant_id);
 `;
 
 async function ensureMetaSchema(pool) {

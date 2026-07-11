@@ -10,6 +10,13 @@ import {
   Activity,
   ListTodo,
   CloudCog,
+  Globe,
+  Share2,
+  Scale,
+  Layers,
+  FileKey,
+  AtSign,
+  TableProperties,
 } from 'lucide-react'
 
 const tabs = [
@@ -20,8 +27,15 @@ const tabs = [
   { to: '/app/cloud/firewalls', label: 'Firewalls', icon: Shield },
   { to: '/app/cloud/ssh-keys', label: 'SSH Keys', icon: Key },
   { to: '/app/cloud/networks', label: 'Networks', icon: Network },
+  { to: '/app/cloud/primary-ips', label: 'Primary IPs', icon: Globe },
+  { to: '/app/cloud/floating-ips', label: 'Floating IPs', icon: Share2 },
+  { to: '/app/cloud/load-balancers', label: 'Load Balancers', icon: Scale },
+  { to: '/app/cloud/placement-groups', label: 'Placement', icon: Layers },
+  { to: '/app/cloud/certificates', label: 'Certificates', icon: FileKey },
+  { to: '/app/cloud/dns', label: 'DNS / PTR', icon: AtSign },
   { to: '/app/cloud/activity', label: 'Activity', icon: Activity },
-  { to: '/app/cloud/jobs', label: 'Provisioning Jobs', icon: ListTodo },
+  { to: '/app/cloud/jobs', label: 'Jobs', icon: ListTodo },
+  { to: '/app/cloud/parity', label: 'Parity', icon: TableProperties },
 ]
 
 const CloudLayout: React.FC = () => {
@@ -35,8 +49,8 @@ const CloudLayout: React.FC = () => {
           Cloud Infrastructure
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Provider-bağımsız sunucu, volume, firewall ve ağ yönetimi. DB
-          planlarından ayrı ek hizmet.
+          Hetzner Console parity — sunucu, IP, volume, firewall, ağ, LB, snapshot.
+          Perakende fiyat ×1.20 EUR. DB planlarından ayrı.
         </p>
         <nav className="mt-4 flex flex-wrap gap-1">
           {tabs.map(({ to, label, icon: Icon }) => (

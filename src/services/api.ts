@@ -694,6 +694,181 @@ class ApiService {
     );
   }
 
+  async cloudServerAction(id: string, action: string, body: Record<string, unknown> = {}) {
+    return this.request<{ success: boolean; operationId?: string; data?: any; operation?: any }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}/actions/${encodeURIComponent(action)}`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudDeleteVolume(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/volumes/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudResizeVolume(id: string, sizeGb: number) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/volumes/${encodeURIComponent(id)}/resize`,
+      { method: 'POST', body: JSON.stringify({ sizeGb }) }
+    );
+  }
+
+  async cloudDeleteFirewall(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/firewalls/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudSetFirewallRules(id: string, rules: any[]) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/firewalls/${encodeURIComponent(id)}/rules`,
+      { method: 'PUT', body: JSON.stringify({ rules }) }
+    );
+  }
+
+  async cloudApplyFirewall(id: string, serverIds: string[]) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/firewalls/${encodeURIComponent(id)}/apply`,
+      { method: 'POST', body: JSON.stringify({ serverIds }) }
+    );
+  }
+
+  async cloudDeleteSnapshot(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/snapshots/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudDeleteSshKey(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/ssh-keys/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudDeleteNetwork(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/networks/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudNetworkAction(id: string, action: string, body: Record<string, unknown> = {}) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/networks/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListPrimaryIps() {
+    return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/primary-ips`);
+  }
+  async cloudCreatePrimaryIp(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(`${NODE_API_BASE}/cloud/primary-ips`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+  async cloudDeletePrimaryIp(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/primary-ips/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+  async cloudAssignPrimaryIp(id: string, serverId: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/primary-ips/${encodeURIComponent(id)}/assign`,
+      { method: 'POST', body: JSON.stringify({ serverId }) }
+    );
+  }
+
+  async cloudListFloatingIps() {
+    return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/floating-ips`);
+  }
+  async cloudCreateFloatingIp(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(`${NODE_API_BASE}/cloud/floating-ips`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+  async cloudDeleteFloatingIp(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/floating-ips/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+  async cloudAssignFloatingIp(id: string, serverId: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/floating-ips/${encodeURIComponent(id)}/assign`,
+      { method: 'POST', body: JSON.stringify({ serverId }) }
+    );
+  }
+
+  async cloudSetReverseDns(body: { providerId: string; ip: string; ptr: string }) {
+    return this.request<{ success: boolean }>(`${NODE_API_BASE}/cloud/dns/reverse`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async cloudListLoadBalancers() {
+    return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/load-balancers`);
+  }
+  async cloudCreateLoadBalancer(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(`${NODE_API_BASE}/cloud/load-balancers`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+  async cloudDeleteLoadBalancer(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/load-balancers/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudListPlacementGroups() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/placement-groups`
+    );
+  }
+  async cloudCreatePlacementGroup(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/placement-groups`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+  async cloudDeletePlacementGroup(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/placement-groups/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudListCertificates() {
+    return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/certificates`);
+  }
+  async cloudCreateCertificate(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(`${NODE_API_BASE}/cloud/certificates`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+  async cloudDeleteCertificate(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/certificates/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudParity() {
+    return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/parity`);
+  }
+
   async cloudListVolumes() {
     return this.request<{ success: boolean; data: any[] }>(
       `${NODE_API_BASE}/cloud/volumes`

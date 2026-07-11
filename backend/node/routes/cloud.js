@@ -209,6 +209,29 @@ function powerRoute(action) {
 router.post('/servers/:id/reboot', powerRoute('reboot'));
 router.post('/servers/:id/power-on', powerRoute('power_on'));
 router.post('/servers/:id/power-off', powerRoute('power_off'));
+router.post('/servers/:id/reset', powerRoute('reset'));
+router.post('/servers/:id/actions/:action', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const operation = await CloudService.serverAction({
+      tenantId,
+      serverId: req.params.id,
+      action: req.params.action,
+      body: req.body || {},
+      createdBy: req.user.sub,
+    });
+    if (operation?.data && !operation.id) {
+      return res.json({ success: true, data: operation.data });
+    }
+    res.status(202).json({
+      success: true,
+      operationId: operation.id,
+      operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
 
 router.get('/volumes', async (req, res) => {
   try {
@@ -486,5 +509,527 @@ async function catalogAlias(kind, req, res) {
 router.get('/images', (req, res) => catalogAlias('images', req, res));
 router.get('/regions', (req, res) => catalogAlias('regions', req, res));
 router.get('/server-types', (req, res) => catalogAlias('server-types', req, res));
+
+router.get('/parity', (_req, res) => {
+  res.json({ success: true, data: CloudService.capabilityMatrix() });
+});
+
+// --- Volume delete / resize ---
+router.delete('/volumes/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteVolume({
+      tenantId,
+      volumeId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/volumes/:id/resize', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.resizeVolume({
+      tenantId,
+      volumeId: req.params.id,
+      sizeGb: req.body.sizeGb,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// --- Firewall extras ---
+router.delete('/firewalls/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteFirewall({
+      tenantId,
+      firewallId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.put('/firewalls/:id/rules', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.setFirewallRules({
+      tenantId,
+      firewallId: req.params.id,
+      rules: req.body.rules,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/firewalls/:id/apply', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.applyFirewall({
+      tenantId,
+      firewallId: req.params.id,
+      serverIds: req.body.serverIds,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.delete('/snapshots/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteSnapshot({
+      tenantId,
+      snapshotId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.delete('/ssh-keys/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteSshKey({
+      tenantId,
+      keyId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.delete('/networks/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteNetwork({
+      tenantId,
+      networkId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/networks/:id/:action', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.networkAction({
+      tenantId,
+      networkId: req.params.id,
+      action: req.params.action,
+      body: req.body,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+function resourceCrud(listFn, createFn, deleteFn, extras = {}) {
+  return { listFn, createFn, deleteFn, ...extras };
+}
+
+const primaryIpApi = resourceCrud(
+  (t) => CloudService.listPrimaryIps(t),
+  (opts) => CloudService.createPrimaryIp(opts),
+  (opts) => CloudService.deletePrimaryIp(opts)
+);
+const floatingIpApi = resourceCrud(
+  (t) => CloudService.listFloatingIps(t),
+  (opts) => CloudService.createFloatingIp(opts),
+  (opts) => CloudService.deleteFloatingIp(opts)
+);
+
+router.get('/primary-ips', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    res.json({ success: true, data: await primaryIpApi.listFn(tenantId) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/primary-ips', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await primaryIpApi.createFn({
+      tenantId,
+      projectId: req.body.projectId,
+      providerId: req.body.providerId,
+      name: req.body.name,
+      type: req.body.type,
+      datacenter: req.body.datacenter,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      data: result.primaryIp,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.delete('/primary-ips/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await primaryIpApi.deleteFn({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/primary-ips/:id/assign', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.assignPrimaryIp({
+      tenantId,
+      id: req.params.id,
+      serverId: req.body.serverId,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/primary-ips/:id/unassign', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.unassignPrimaryIp({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/floating-ips', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    res.json({ success: true, data: await floatingIpApi.listFn(tenantId) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/floating-ips', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await floatingIpApi.createFn({
+      tenantId,
+      projectId: req.body.projectId,
+      providerId: req.body.providerId,
+      name: req.body.name,
+      type: req.body.type,
+      location: req.body.location,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      data: result.floatingIp,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.delete('/floating-ips/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await floatingIpApi.deleteFn({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/floating-ips/:id/assign', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.assignFloatingIp({
+      tenantId,
+      id: req.params.id,
+      serverId: req.body.serverId,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/floating-ips/:id/unassign', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.unassignFloatingIp({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/dns/reverse', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.setReverseDns({
+      tenantId,
+      providerId: req.body.providerId,
+      projectId: req.body.projectId,
+      ip: req.body.ip,
+      ptr: req.body.ptr,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/load-balancers', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    res.json({ success: true, data: await CloudService.listLoadBalancers(tenantId) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/load-balancers', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.createLoadBalancer({
+      tenantId,
+      projectId: req.body.projectId,
+      providerId: req.body.providerId,
+      name: req.body.name,
+      type: req.body.type,
+      location: req.body.location,
+      services: req.body.services,
+      targets: req.body.targets,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      data: result.loadBalancer,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.delete('/load-balancers/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteLoadBalancer({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/placement-groups', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    res.json({ success: true, data: await CloudService.listPlacementGroups(tenantId) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/placement-groups', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.createPlacementGroup({
+      tenantId,
+      projectId: req.body.projectId,
+      providerId: req.body.providerId,
+      name: req.body.name,
+      type: req.body.type,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      data: result.placementGroup,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.delete('/placement-groups/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deletePlacementGroup({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/certificates', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    res.json({ success: true, data: await CloudService.listCertificates(tenantId) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.post('/certificates', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.createCertificate({
+      tenantId,
+      projectId: req.body.projectId,
+      providerId: req.body.providerId,
+      name: req.body.name,
+      type: req.body.type,
+      certificate: req.body.certificate,
+      privateKey: req.body.privateKey,
+      domainNames: req.body.domainNames,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      data: result.certificate,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+router.delete('/certificates/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.deleteCertificate({
+      tenantId,
+      id: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
 
 module.exports = router;
