@@ -306,6 +306,56 @@ async function main() {
   );
   assert(getPackage('pro').priceCents === 3400, 'pro still $34 after parity');
 
+  // WireGuard VPN add-on
+  const VpnService = require(path.join(root, 'lib/cloud/vpn'));
+  const vpnAddon = getAddon('vpn');
+  assert(vpnAddon && vpnAddon.id === 'vpn', 'vpn addon registered');
+  assert(vpnAddon.priceCents === 599, 'vpn €5.99');
+  assert(vpnAddon.currency === 'eur', 'vpn currency EUR');
+  assert(getPackage('pro').priceCents === 3400, 'pro untouched by vpn');
+  assert(getPackage('scale').priceCents === 5000, 'scale untouched');
+  assert(getPackage('max').priceCents === 9900, 'max untouched');
+
+  const kp = VpnService.generateKeyPair();
+  assert(kp.privateKey && kp.publicKey, 'wg keypair');
+  assert(kp.privateKey !== kp.publicKey, 'wg keys distinct');
+  const addr = VpnService.nextClientAddress('10.66.0.0/24', ['10.66.0.2/32']);
+  assert(addr === '10.66.0.3/32', 'next address skips used');
+
+  const enabled = await VpnService.enable({
+    tenantId: 'ten_demo',
+    createdBy: 'usr_demo',
+  });
+  assert(enabled && enabled.id, 'vpn enable network');
+  assert(enabled.subnetCidr === '10.66.0.0/24' || enabled.subnetCidr, 'vpn subnet');
+
+  const createdPeer = await VpnService.createPeer({
+    tenantId: 'ten_demo',
+    userId: 'usr_demo',
+    createdBy: 'usr_demo',
+    name: 'test-laptop',
+    serverId: server.id,
+  });
+  assert(createdPeer.peer?.id, 'vpn peer created');
+  assert(createdPeer.config?.config?.includes('[Interface]'), 'wg config text');
+  assert(createdPeer.config?.config?.includes('PrivateKey'), 'wg private key in conf');
+  assert(
+    createdPeer.config?.config?.includes('10.66.0.'),
+    'wg address in subnet'
+  );
+
+  const st = await VpnService.status('ten_demo');
+  assert(st.enabled === true, 'vpn status enabled');
+  assert(st.addon.priceCents === 599, 'status exposes addon price');
+  assert(st.peers.length >= 1, 'status lists peers');
+
+  const cfg = await VpnService.peerConfig('ten_demo', createdPeer.peer.id);
+  assert(cfg.filename?.endsWith('.conf'), 'config filename');
+  assert(cfg.qrDataUrl == null || String(cfg.qrDataUrl).startsWith('data:image'), 'qr optional data url');
+
+  const revoked = await VpnService.revokePeer('ten_demo', createdPeer.peer.id);
+  assert(revoked.status === 'revoked', 'peer revoked');
+
   if (failed) {
     console.error(`\ntest-cloud: ${failed} failure(s)`);
     process.exit(1);

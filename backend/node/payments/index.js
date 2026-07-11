@@ -184,6 +184,28 @@ const ADDONS = [
     stripePriceEnv: 'STRIPE_PRICE_VPS',
     stripePriceYearEnv: 'STRIPE_PRICE_VPS_YEAR',
   },
+  {
+    id: 'vpn',
+    name: 'WireGuard VPN',
+    priceCents: 599,
+    priceYearCents: 7188, // €5.99 × 12
+    currency: 'eur',
+    interval: 'month',
+    billingNote:
+      'Ayrı ek hizmet · EUR €5.99/ay (VPS kataloğu ile aynı para birimi; DB planlarından bağımsız)',
+    description:
+      'Güvenli erişim: peer config + QR ile WireGuard bağlantısı; ardından RDP (3389) / SSH. Studio → Cloud → VPN.',
+    contactOnly: true,
+    studioPath: '/cloud/vpn',
+    messaging: [
+      'Peer oluştur → .conf indir veya QR tara',
+      'WireGuard istemcisi ile bağlan',
+      'Özel / firewall arkası sunucuya RDP veya SSH',
+      'Mock mod: WIREGUARD_ENDPOINT yoksa da config üretilir',
+    ],
+    stripePriceEnv: 'STRIPE_PRICE_VPN',
+    stripePriceYearEnv: 'STRIPE_PRICE_VPN_YEAR',
+  },
 ];
 
 function getVpsCatalog() {

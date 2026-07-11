@@ -161,6 +161,8 @@ assert(listed.some((f) => f.name === 'hello'), 'function listed');
   assert(!!ms.server.externalId, 'mock cloud createServer');
   const { getAddon } = require(path.join(root, 'payments'));
   assert(getAddon('vps')?.id === 'vps', 'vps ek hizmet addon');
+  assert(getAddon('vpn')?.priceCents === 599, 'vpn ek hizmet €5.99');
+  assert(getAddon('vpn')?.currency === 'eur', 'vpn currency EUR');
 
   if (failed) {
     console.error(`\nsmoke-mvp: ${failed} failure(s)`);

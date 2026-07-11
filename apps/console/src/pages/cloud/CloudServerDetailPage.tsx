@@ -111,9 +111,15 @@ const CloudServerDetailPage: React.FC = () => {
     if (windows) {
       items.push(
         {
+          id: 'vpn-first',
+          label: 'VPN ile bağlan (önerilir)',
+          hint: 'Cloud → VPN / WireGuard: peer oluştur → .conf veya QR → WireGuard’a bağlan; ardından RDP’yi VPN üzerinden açın.',
+          done: checked['vpn-first'],
+        },
+        {
           id: 'rdp-fw',
           label: 'Firewall: RDP TCP 3389',
-          hint: 'Firewalls sekmesinde inbound TCP 3389 kuralı ekleyin ve sunucuya uygulayın.',
+          hint: 'Mümkünse RDP’yi yalnızca VPN subnet’ine (ör. 10.66.0.0/24) açın; aksi halde inbound TCP 3389.',
           done: checked['rdp-fw'],
         },
         {
@@ -126,8 +132,8 @@ const CloudServerDetailPage: React.FC = () => {
           id: 'rdp-connect',
           label: 'RDP ile bağlan',
           hint: server.ipv4
-            ? `mstsc / RDP istemcisi → ${server.ipv4}:3389 (kullanıcı: Administrator).`
-            : 'IP hazır olunca RDP ile bağlanın.',
+            ? `VPN açıkken mstsc → ${server.ipv4}:3389 (veya VPN rota IP’si). Kullanıcı: Administrator.`
+            : 'IP hazır olunca VPN sonrası RDP ile bağlanın.',
           done: checked['rdp-connect'],
         },
         {
@@ -140,6 +146,12 @@ const CloudServerDetailPage: React.FC = () => {
     } else {
       items.push(
         {
+          id: 'vpn-first',
+          label: 'VPN ile bağlan (önerilir)',
+          hint: 'Cloud → VPN / WireGuard peer → bağlan; SSH’i özel ağ üzerinden kullanın.',
+          done: checked['vpn-first'],
+        },
+        {
           id: 'ssh',
           label: 'SSH erişimini doğrula',
           hint: server.ipv4
@@ -150,7 +162,7 @@ const CloudServerDetailPage: React.FC = () => {
         {
           id: 'fw-ssh',
           label: 'Firewall: SSH TCP 22',
-          hint: 'Gerekirse Firewalls’ta 22/tcp kuralı ekleyin.',
+          hint: 'Gerekirse Firewalls’ta 22/tcp kuralı ekleyin (tercihen VPN subnet).',
           done: checked['fw-ssh'],
         }
       )

@@ -15,6 +15,7 @@ price_retail = round(hetzner_list_price × 1.20, 2)
 | Retail | Provider × **1.20** (20% markup) |
 | DB plans | Pro **$34** / Scale **$50** / Max **$99** — **unchanged** |
 | Backup addon | **$10**/mo — **unchanged** |
+| WireGuard VPN | **€5.99**/mo (EUR ek hizmet) — see [VPN.md](./VPN.md) |
 
 VPS is a separate **ek hizmet** (not Stripe checkout metered yet). Quotes and server rows store `cost_provider` + `price_retail`.
 
@@ -64,5 +65,8 @@ Mapped from Hetzner Cloud Console concepts:
 ## Where to see in UI
 
 - Landing → **VPS & Cloud Infrastructure** (`#cloud-vps`) — popular plans with retail EUR
+- Landing → **WireGuard VPN** (`#cloud-vpn`) — €5.99/mo ek hizmet
 - Pricing → **VPS Kiralama** ek hizmet (`#vps-addon`) — same catalog
+- Pricing → **WireGuard VPN** (`#vpn-addon`)
 - Studio → **Cloud → Servers → Provision** — size dropdown with specs + retail quote
+- Studio → **Cloud → VPN / WireGuard** — peers, .conf, QR

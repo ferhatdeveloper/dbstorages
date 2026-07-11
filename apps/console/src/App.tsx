@@ -25,6 +25,7 @@ import CloudLayout from './pages/cloud/CloudLayout'
 import CloudProvidersPage from './pages/cloud/CloudProvidersPage'
 import CloudServersPage from './pages/cloud/CloudServersPage'
 import CloudServerDetailPage from './pages/cloud/CloudServerDetailPage'
+import CloudVpnPage from './pages/cloud/CloudVpnPage'
 import {
   CloudVolumesPage,
   CloudSnapshotsPage,
@@ -99,6 +100,7 @@ function App() {
           <Route path="firewalls" element={<CloudFirewallsPage />} />
           <Route path="ssh-keys" element={<CloudSshKeysPage />} />
           <Route path="networks" element={<CloudNetworksPage />} />
+          <Route path="vpn" element={<CloudVpnPage />} />
           <Route path="primary-ips" element={<CloudPrimaryIpsPage />} />
           <Route path="floating-ips" element={<CloudFloatingIpsPage />} />
           <Route path="load-balancers" element={<CloudLoadBalancersPage />} />

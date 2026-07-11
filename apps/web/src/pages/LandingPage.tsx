@@ -137,6 +137,15 @@ const VPS_ADDON = {
   studioPath: `${CONSOLE_URL}/cloud/servers`,
 };
 
+const VPN_ADDON = {
+  id: 'vpn',
+  name: 'WireGuard VPN',
+  priceLabel: '€5.99/ay',
+  description:
+    'Güvenli erişim ek hizmeti: peer config + QR ile bağlanın; ardından RDP (3389) veya SSH.',
+  studioPath: `${CONSOLE_URL}/cloud/vpn`,
+};
+
 const SNIPPETS = [
   {
     id: 'sql',
@@ -579,13 +588,47 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* WireGuard VPN — ek hizmet */}
+        <section id="cloud-vpn" className="landing-cloud-vps">
+          <div className="landing-section-head">
+            <p className="landing-cloud-eyebrow">Ek hizmet</p>
+            <h2>
+              WireGuard <em>VPN</em>
+            </h2>
+            <p>
+              Provision edilen VPS / Windows sunuculara daha güvenli erişim:
+              VPN aç → peer alın → bağlanın → RDP veya SSH.
+            </p>
+          </div>
+          <div className="landing-cloud-cta">
+            <div>
+              <h3>
+                {VPN_ADDON.name} · {VPN_ADDON.priceLabel}
+              </h3>
+              <p>
+                {VPN_ADDON.description} DB planlarından ve VPS kiralama
+                fiyatından bağımsız (EUR).
+              </p>
+            </div>
+            <div className="landing-actions">
+              <Link to="/pricing#vpn-addon" className="landing-btn-primary">
+                Fiyatlandırma
+                <ArrowRight size={18} />
+              </Link>
+              <a href={VPN_ADDON.studioPath} className="landing-btn-ghost">
+                Studio VPN
+              </a>
+            </div>
+          </div>
+        </section>
+
         {/* Pricing CTA */}
         <section id="packages" className="landing-packages">
           <div className="landing-section-head">
             <h2>Kiralama paketleri</h2>
             <p className="landing-packages-sub">
               Trial 15 gün ücretsiz. Pro $34 · Scale $50 · Max $99 / ay. Yıllık =
-              aylık × 12. Yedekleme +$10/ay. VPS ayrı ek hizmet.
+              aylık × 12. Yedekleme +$10/ay. VPS ve VPN ayrı ek hizmetler.
             </p>
           </div>
 
@@ -703,6 +746,7 @@ const LandingPage: React.FC = () => {
             <a href="#features">API</a>
             <Link to="/pricing">Paketler</Link>
             <a href="#cloud-vps">VPS / Cloud</a>
+            <a href="#cloud-vpn">VPN</a>
           </div>
           <div>
             <h4>Hesap</h4>

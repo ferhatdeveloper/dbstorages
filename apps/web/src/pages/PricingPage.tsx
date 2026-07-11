@@ -155,6 +155,19 @@ const FALLBACK_ADDONS: Addon[] = [
     contactOnly: true,
     studioPath: `${CONSOLE_URL}/cloud/servers`,
   },
+  {
+    id: 'vpn',
+    name: 'WireGuard VPN',
+    priceCents: 599,
+    priceYearCents: 7188,
+    currency: 'eur',
+    interval: 'month',
+    billingNote: 'Ayrı ek hizmet · EUR €5.99/ay',
+    description:
+      'Güvenli erişim: peer config + QR → WireGuard → RDP/SSH. Studio → Cloud → VPN.',
+    contactOnly: true,
+    studioPath: `${CONSOLE_URL}/cloud/vpn`,
+  },
 ];
 
 const VPS_MESSAGING = [
@@ -253,6 +266,9 @@ const PricingPage: React.FC = () => {
   const vpsAddon =
     addons.find((a) => a.id === 'vps') ||
     FALLBACK_ADDONS.find((a) => a.id === 'vps')!;
+  const vpnAddon =
+    addons.find((a) => a.id === 'vpn') ||
+    FALLBACK_ADDONS.find((a) => a.id === 'vpn')!;
   const canAddBackup = Boolean(selectedPlan && selectedPlan.priceCents > 0);
   // Trial is always monthly; paid plans follow the Aylık/Yıllık toggle
   const effectiveInterval: BillingInterval =
@@ -479,6 +495,47 @@ const PricingPage: React.FC = () => {
               style={{ whiteSpace: 'nowrap' }}
             >
               Cloud UI
+            </a>
+          </div>
+        </div>
+
+        <div id="vpn-addon" className="pricing-addon pricing-addon-contact pricing-vps-block">
+          <span>
+            <strong>{vpnAddon.name}</strong> — ek hizmet · €
+            {(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/ay
+            <em>{vpnAddon.billingNote || 'EUR · DB ve VPS’ten ayrı'}</em>
+            <small>{vpnAddon.description}</small>
+            <ul className="pricing-vps-fields">
+              <li>Peer oluştur → .conf indir veya QR tara</li>
+              <li>WireGuard istemcisi ile bağlan</li>
+              <li>Ardından RDP (3389) / SSH — özellikle firewall arkası sunucular</li>
+              <li>Yıllık: €{(addonAmount(vpnAddon, 'year') / 100).toFixed(2)}</li>
+            </ul>
+          </span>
+          <div className="pricing-vps-actions">
+            {isAuthenticated ? (
+              <a
+                href={vpnAddon.studioPath || `${CONSOLE_URL}/cloud/vpn`}
+                className="landing-btn-primary"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                VPN paneline git
+              </a>
+            ) : (
+              <Link
+                to="/register"
+                className="landing-btn-primary"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                Kayıt ol → VPN
+              </Link>
+            )}
+            <a
+              href={vpnAddon.studioPath || `${CONSOLE_URL}/cloud/vpn`}
+              className="landing-btn-ghost"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Studio VPN
             </a>
           </div>
         </div>

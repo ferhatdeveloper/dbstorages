@@ -11,6 +11,7 @@ const {
   listMemberships,
 } = require('../lib/rbac');
 const { CloudService } = require('../lib/cloud');
+const VpnService = require('../lib/cloud/vpn');
 
 const router = express.Router();
 
@@ -1027,6 +1028,110 @@ router.delete('/certificates/:id', async (req, res) => {
       operationId: result.operation.id,
       operation: result.operation,
     });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// --- WireGuard VPN add-on ---
+router.get('/vpn/status', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const data = await VpnService.status(tenantId);
+    res.json({ success: true, data });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/vpn/enable', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const network = await VpnService.enable({
+      tenantId,
+      createdBy: req.user.sub,
+      name: req.body?.name || 'default',
+    });
+    res.status(201).json({ success: true, data: network });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/vpn/peers', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const data = await VpnService.listPeers(tenantId);
+    res.json({ success: true, data });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/vpn/peers', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await VpnService.createPeer({
+      tenantId,
+      userId: req.user.sub,
+      createdBy: req.user.sub,
+      name: req.body?.name,
+      serverId: req.body?.serverId,
+      allowedIps: req.body?.allowedIps,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/vpn/peers/:id/config', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const data = await VpnService.peerConfig(tenantId, req.params.id);
+    if (req.query.download === '1' || req.query.download === 'true') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${data.filename || 'wg.conf'}"`
+      );
+      return res.send(data.config);
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/vpn/peers/:id/qr', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const data = await VpnService.peerConfig(tenantId, req.params.id);
+    if (!data.qrDataUrl) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'qr_unavailable',
+          message: 'QR üretilemedi — qrcode paketi veya config eksik',
+        },
+      });
+    }
+    if (req.query.format === 'json') {
+      return res.json({ success: true, data: { qrDataUrl: data.qrDataUrl } });
+    }
+    const b64 = data.qrDataUrl.replace(/^data:image\/png;base64,/, '');
+    res.setHeader('Content-Type', 'image/png');
+    res.send(Buffer.from(b64, 'base64'));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.delete('/vpn/peers/:id', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const data = await VpnService.revokePeer(tenantId, req.params.id);
+    res.json({ success: true, data });
   } catch (err) {
     sendError(res, err);
   }

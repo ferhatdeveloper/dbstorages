@@ -316,6 +316,48 @@ CREATE INDEX IF NOT EXISTS idx_cloud_floating_ips_tenant ON cloud_floating_ips(t
 CREATE INDEX IF NOT EXISTS idx_cloud_lbs_tenant ON cloud_load_balancers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_pg_tenant ON cloud_placement_groups(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_certs_tenant ON cloud_certificates(tenant_id);
+
+-- WireGuard VPN add-on (ek hizmet; separate from DB plans / Hetzner VPS)
+CREATE TABLE IF NOT EXISTS vpn_networks (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  name TEXT NOT NULL DEFAULT 'default',
+  subnet_cidr TEXT NOT NULL DEFAULT '10.66.0.0/24',
+  server_public_key TEXT,
+  server_endpoint TEXT,
+  dns TEXT DEFAULT '1.1.1.1',
+  status TEXT NOT NULL DEFAULT 'active',
+  enabled_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS vpn_peers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  network_id TEXT NOT NULL REFERENCES vpn_networks(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES platform_users(id),
+  server_id TEXT REFERENCES cloud_servers(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  public_key TEXT NOT NULL,
+  private_key_enc TEXT,
+  address_cidr TEXT NOT NULL,
+  allowed_ips TEXT NOT NULL DEFAULT '10.66.0.0/24',
+  persistent_keepalive INT DEFAULT 25,
+  status TEXT NOT NULL DEFAULT 'active',
+  revoked_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vpn_networks_tenant ON vpn_networks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vpn_peers_tenant ON vpn_peers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vpn_peers_network ON vpn_peers(network_id);
 `;
 
 async function ensureMetaSchema(pool) {

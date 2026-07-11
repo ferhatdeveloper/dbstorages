@@ -17,6 +17,7 @@ import {
   FileKey,
   AtSign,
   TableProperties,
+  Lock,
 } from 'lucide-react'
 
 type Tab = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
@@ -54,6 +55,7 @@ const groups: { id: string; label: string; tabs: Tab[] }[] = [
     id: 'security',
     label: 'Security',
     tabs: [
+      { to: '/cloud/vpn', label: 'VPN / WireGuard', icon: Lock },
       { to: '/cloud/firewalls', label: 'Firewalls', icon: Shield },
       { to: '/cloud/certificates', label: 'Certificates', icon: FileKey },
       { to: '/cloud/ssh-keys', label: 'SSH Keys', icon: Key },

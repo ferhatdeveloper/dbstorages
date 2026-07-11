@@ -1008,6 +1008,44 @@ class ApiService {
       `${NODE_API_BASE}/cloud/quote${qs}`
     );
   }
+
+  // --- WireGuard VPN add-on ---
+  async cloudVpnStatus() {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/vpn/status`
+    );
+  }
+
+  async cloudVpnEnable(body: { name?: string } = {}) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/vpn/enable`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudVpnCreatePeer(body: {
+    name: string;
+    serverId?: string;
+    allowedIps?: string;
+  }) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/vpn/peers`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudVpnPeerConfig(peerId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/vpn/peers/${encodeURIComponent(peerId)}/config`
+    );
+  }
+
+  async cloudVpnRevokePeer(peerId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/vpn/peers/${encodeURIComponent(peerId)}`,
+      { method: 'DELETE' }
+    );
+  }
 }
 
 export const apiService = new ApiService();

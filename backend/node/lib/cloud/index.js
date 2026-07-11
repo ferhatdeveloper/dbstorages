@@ -17,4 +17,5 @@ module.exports = {
   queue,
   catalog: require('./catalog'),
   markup: require('./catalog/markup'),
+  vpn: require('./vpn'),
 };
