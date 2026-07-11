@@ -41,7 +41,10 @@ import {
   HardDrive,
   Cloud,
   Shield,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
+import { apiService } from '../services/api';
 
 // File type icons mapping
 const getFileIcon = (fileName: string) => {
@@ -434,74 +437,13 @@ const StoragePage: React.FC = () => {
   const [shareItem, setShareItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showToast, setShowToast] = useState<{type: 'success' | 'error', message: string} | null>(null);
-  
+  const [instances, setInstances] = useState<any[]>([]);
+  const [instanceId, setInstanceId] = useState('');
+  const [storageBackend, setStorageBackend] = useState('');
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
-
-  // Mock data for demonstration
-  const mockFiles = [
-    {
-      id: '1',
-      name: 'Documents',
-      type: 'folder',
-      size: 0,
-      modified: '2024-01-15T10:30:00Z',
-      owner: 'admin',
-      permissions: 'rwx',
-      isPublic: false,
-      isStarred: true,
-      path: '/Documents'
-    },
-    {
-      id: '2',
-      name: 'Images',
-      type: 'folder',
-      size: 0,
-      modified: '2024-01-14T15:45:00Z',
-      owner: 'admin',
-      permissions: 'rwx',
-      isPublic: true,
-      isStarred: false,
-      path: '/Images'
-    },
-    {
-      id: '3',
-      name: 'report.pdf',
-      type: 'file',
-      size: 2048576,
-      modified: '2024-01-15T09:20:00Z',
-      owner: 'admin',
-      permissions: 'rw',
-      isPublic: false,
-      isStarred: true,
-      path: '/report.pdf'
-    },
-    {
-      id: '4',
-      name: 'photo.jpg',
-      type: 'file',
-      size: 1048576,
-      modified: '2024-01-14T12:30:00Z',
-      owner: 'admin',
-      permissions: 'rw',
-      isPublic: true,
-      isStarred: false,
-      path: '/photo.jpg'
-    },
-    {
-      id: '5',
-      name: 'video.mp4',
-      type: 'file',
-      size: 52428800,
-      modified: '2024-01-13T16:15:00Z',
-      owner: 'admin',
-      permissions: 'rw',
-      isPublic: false,
-      isStarred: false,
-      path: '/video.mp4'
-    }
-  ];
 
   // Toast notification
   const showNotification = useCallback((type: 'success' | 'error', message: string) => {
@@ -509,20 +451,45 @@ const StoragePage: React.FC = () => {
     setTimeout(() => setShowToast(null), 3000);
   }, []);
 
-  // Load files on mount
+  useEffect(() => {
+    apiService
+      .getInstances()
+      .then((res) => {
+        const list = res.instances || [];
+        setInstances(list);
+        const ready = list.find((i: any) => i.status === 'ready');
+        if (ready) setInstanceId(ready.id);
+      })
+      .catch((e: any) => showNotification('error', e.message || 'Instance listesi alınamadı'));
+    apiService
+      .storageStatus()
+      .then((res) => setStorageBackend(res.data?.backend || ''))
+      .catch(() => {});
+  }, [showNotification]);
+
+  // Load files when path / instance changes
   useEffect(() => {
     loadFiles();
-  }, [currentPath]);
+  }, [currentPath, instanceId]);
 
-  // Load files from API
+  const prefixOf = (path: string) =>
+    path === '/' ? '' : path.replace(/^\/+/, '').replace(/\/$/, '');
+
+  // Load files from Storage API (MinIO / local)
   const loadFiles = async () => {
+    if (!instanceId) {
+      setFiles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setFiles(mockFiles);
-    } catch (error) {
-      showNotification('error', 'Dosyalar yüklenirken hata oluştu');
+      const res = await apiService.listStorageObjects(instanceId, prefixOf(currentPath));
+      setFiles(res.data?.files || []);
+      if (res.data?.backend) setStorageBackend(res.data.backend);
+    } catch (error: any) {
+      showNotification('error', error.message || 'Dosyalar yüklenirken hata oluştu');
+      setFiles([]);
     } finally {
       setLoading(false);
     }
@@ -574,85 +541,65 @@ const StoragePage: React.FC = () => {
   };
 
   const handleFileDelete = async (id: string) => {
+    if (!instanceId) return;
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setFiles(prev => prev.filter(file => file.id !== id));
-      setSelectedItems(prev => prev.filter(itemId => itemId !== id));
+      await apiService.deleteFile(id, instanceId);
+      setFiles((prev) => prev.filter((file) => file.id !== id));
+      setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
       showNotification('success', 'Dosya başarıyla silindi');
-    } catch (error) {
-      showNotification('error', 'Dosya silinirken hata oluştu');
+    } catch (error: any) {
+      showNotification('error', error.message || 'Dosya silinirken hata oluştu');
     }
   };
 
   const handleFileRename = async (id: string, newName: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setFiles(prev => prev.map(file => 
-        file.id === id ? { ...file, name: newName } : file
-      ));
-      showNotification('success', 'Dosya başarıyla yeniden adlandırıldı');
-    } catch (error) {
-      showNotification('error', 'Dosya yeniden adlandırılırken hata oluştu');
-    }
+    showNotification('error', 'Yeniden adlandırma henüz desteklenmiyor');
+    void id;
+    void newName;
   };
 
   const handleFileMove = async (id: string, newPath: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setFiles(prev => prev.map(file => 
-        file.id === id ? { ...file, path: newPath } : file
-      ));
-      showNotification('success', 'Dosya başarıyla taşındı');
-    } catch (error) {
-      showNotification('error', 'Dosya taşınırken hata oluştu');
-    }
+    showNotification('error', 'Taşıma henüz desteklenmiyor');
+    void id;
+    void newPath;
   };
 
   const handleToggleStar = async (id: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setFiles(prev => prev.map(file => 
+    setFiles((prev) =>
+      prev.map((file) =>
         file.id === id ? { ...file, isStarred: !file.isStarred } : file
-      ));
-      showNotification('success', 'Favori durumu güncellendi');
-    } catch (error) {
-      showNotification('error', 'Favori durumu güncellenirken hata oluştu');
-    }
+      )
+    );
   };
 
   const handleTogglePublic = async (id: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setFiles(prev => prev.map(file => 
+    setFiles((prev) =>
+      prev.map((file) =>
         file.id === id ? { ...file, isPublic: !file.isPublic } : file
-      ));
-      showNotification('success', 'Gizlilik durumu güncellendi');
-    } catch (error) {
-      showNotification('error', 'Gizlilik durumu güncellenirken hata oluştu');
-    }
+      )
+    );
   };
 
   const handleFileDownload = async (id: string) => {
+    if (!instanceId) return;
     try {
-      const file = files.find(f => f.id === id);
+      const file = files.find((f) => f.id === id);
       if (!file) return;
-      
-      // Simulate download
+      const res = await apiService.downloadFile(id, instanceId);
+      if (!res.success || !('blob' in res) || !res.blob) {
+        throw new Error((res as any).error || 'İndirme başarısız');
+      }
+      const url = URL.createObjectURL(res.blob);
       const link = document.createElement('a');
-      link.href = `/api/storage/download/${id}`;
-      link.download = file.name;
+      link.href = url;
+      link.download = res.filename || file.name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+      URL.revokeObjectURL(url);
       showNotification('success', 'Dosya indirme başlatıldı');
-    } catch (error) {
-      showNotification('error', 'Dosya indirilirken hata oluştu');
+    } catch (error: any) {
+      showNotification('error', error.message || 'Dosya indirilirken hata oluştu');
     }
   };
 
@@ -670,46 +617,52 @@ const StoragePage: React.FC = () => {
   };
 
   // Upload functionality
-  const handleFileUpload = async (files: FileList) => {
-    const uploadPromises = Array.from(files).map(async (file) => {
-      const uploadId = Date.now().toString();
-      setUploadProgress(prev => ({ ...prev, [uploadId]: 0 }));
-      
+  const handleFileUpload = async (fileList: FileList) => {
+    if (!instanceId) {
+      showNotification('error', 'Önce bir instance seçin');
+      return;
+    }
+    const uploadPromises = Array.from(fileList).map(async (file) => {
+      const uploadId = `${Date.now()}-${file.name}`;
+      setUploadProgress((prev) => ({ ...prev, [uploadId]: 30 }));
       try {
-        // Simulate upload with progress
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          setUploadProgress(prev => ({ ...prev, [uploadId]: i }));
-        }
-        
-        // Add to files list
-        const newFile = {
-          id: uploadId,
-          name: file.name,
-          type: 'file' as const,
-          size: file.size,
-          modified: new Date().toISOString(),
-          owner: 'admin',
-          permissions: 'rw',
-          isPublic: false,
-          isStarred: false,
-          path: `/${file.name}`
-        };
-        
-        setFiles(prev => [newFile, ...prev]);
+        const res = await apiService.uploadFile(
+          file,
+          instanceId,
+          prefixOf(currentPath)
+        );
+        setUploadProgress((prev) => ({ ...prev, [uploadId]: 100 }));
+        const data = res.data || {};
+        setFiles((prev) => [
+          {
+            id: data.id || data.key || uploadId,
+            name: data.name || file.name,
+            type: 'file' as const,
+            size: data.size || file.size,
+            modified: data.modified || new Date().toISOString(),
+            owner: 'you',
+            permissions: 'rw',
+            isPublic: false,
+            isStarred: false,
+            path: data.path || `/${file.name}`,
+            key: data.key,
+          },
+          ...prev,
+        ]);
         showNotification('success', `${file.name} başarıyla yüklendi`);
-      } catch (error) {
-        showNotification('error', `${file.name} yüklenirken hata oluştu`);
+      } catch (error: any) {
+        showNotification('error', error.message || `${file.name} yüklenirken hata oluştu`);
       } finally {
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[uploadId];
-          return newProgress;
+        setUploadProgress((prev) => {
+          const next = { ...prev };
+          delete next[uploadId];
+          return next;
         });
       }
     });
-    
+
     await Promise.all(uploadPromises);
+    await loadFiles();
   };
 
   // Create folder
@@ -718,30 +671,23 @@ const StoragePage: React.FC = () => {
       showNotification('error', 'Klasör adı boş olamaz');
       return;
     }
-    
+    if (!instanceId) {
+      showNotification('error', 'Önce bir instance seçin');
+      return;
+    }
+
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newFolder = {
-        id: Date.now().toString(),
-        name: newFolderName.trim(),
-        type: 'folder' as const,
-        size: 0,
-        modified: new Date().toISOString(),
-        owner: 'admin',
-        permissions: 'rwx',
-        isPublic: false,
-        isStarred: false,
-        path: `${currentPath}/${newFolderName.trim()}`
-      };
-      
-      setFiles(prev => [newFolder, ...prev]);
+      await apiService.createStorageFolder(
+        instanceId,
+        newFolderName.trim(),
+        prefixOf(currentPath)
+      );
       setNewFolderName('');
       setShowCreateFolder(false);
       showNotification('success', 'Klasör başarıyla oluşturuldu');
-    } catch (error) {
-      showNotification('error', 'Klasör oluşturulurken hata oluştu');
+      await loadFiles();
+    } catch (error: any) {
+      showNotification('error', error.message || 'Klasör oluşturulurken hata oluştu');
     }
   };
 
@@ -792,11 +738,28 @@ const StoragePage: React.FC = () => {
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-semibold text-gray-900">Dosya Yöneticisi</h1>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <HardDrive size={16} />
-                <span>2.5 GB kullanıldı / 10 GB</span>
-              </div>
+              <h1 className="text-xl font-semibold text-gray-900">Storage</h1>
+              <select
+                value={instanceId}
+                onChange={(e) => {
+                  setInstanceId(e.target.value);
+                  setCurrentPath('/');
+                }}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Instance seçin…</option>
+                {instances.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name || i.id} ({i.status})
+                  </option>
+                ))}
+              </select>
+              {storageBackend && (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <Cloud size={14} />
+                  {storageBackend === 's3' ? 'MinIO/S3' : 'yerel disk'}
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">

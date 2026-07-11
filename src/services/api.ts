@@ -237,16 +237,82 @@ class ApiService {
     return this.request<{ files: any[]; message?: string }>(`${GO_API_BASE}/files`);
   }
 
-  async uploadFile(_file: File) {
-    return { success: false, error: 'Storage henüz bağlanmadı' };
+  async storageStatus() {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/storage/status`
+    );
   }
 
-  async downloadFile(_fileId: string) {
-    return { success: false, error: 'Storage henüz bağlanmadı' };
+  async listStorageObjects(instanceId: string, prefix = '') {
+    const qs = prefix
+      ? `?prefix=${encodeURIComponent(prefix.replace(/^\/+/, ''))}`
+      : '';
+    return this.request<{
+      success: boolean;
+      data: { files: any[]; bucket: string; backend: string; prefix: string };
+    }>(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/objects${qs}`
+    );
   }
 
-  async deleteFile(_fileId: string) {
-    return { success: false, error: 'Storage henüz bağlanmadı' };
+  async uploadFile(file: File, instanceId?: string, prefix = '') {
+    if (!instanceId) {
+      return { success: false, error: 'instanceId gerekli' };
+    }
+    const form = new FormData();
+    form.append('file', file);
+    if (prefix) form.append('prefix', prefix.replace(/^\/+/, ''));
+    const token = localStorage.getItem('token');
+    const response = await fetch(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/upload`,
+      {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      }
+    );
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(normalizeError(payload, response.status));
+    }
+    return payload;
+  }
+
+  async downloadFile(fileId: string, instanceId?: string) {
+    if (!instanceId) {
+      return { success: false, error: 'instanceId gerekli' };
+    }
+    const token = localStorage.getItem('token');
+    const url = `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/download?key=${encodeURIComponent(fileId)}`;
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(normalizeError(payload, response.status));
+    }
+    const blob = await response.blob();
+    return { success: true, blob, filename: fileId.split('/').pop() || 'download' };
+  }
+
+  async deleteFile(fileId: string, instanceId?: string) {
+    if (!instanceId) {
+      return { success: false, error: 'instanceId gerekli' };
+    }
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/objects?key=${encodeURIComponent(fileId)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async createStorageFolder(instanceId: string, name: string, prefix = '') {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/folders`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, prefix: prefix.replace(/^\/+/, '') }),
+      }
+    );
   }
 
   async getMigrations() {

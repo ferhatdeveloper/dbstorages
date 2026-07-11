@@ -28,3 +28,6 @@ coverage/
 backend/go/*.exe
 backend/go/graphcore-go
 
+# Local storage fallback
+backend/node/.storage/
+

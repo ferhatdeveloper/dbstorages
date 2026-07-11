@@ -54,7 +54,7 @@ const PricingPage: React.FC = () => {
         provider,
       });
       const data = res.data;
-      if (data?.checkoutUrl && !data.mock && provider === 'stripe' && data.status === 'pending') {
+      if (data?.checkoutUrl && !data.mock && data.status === 'pending') {
         window.location.href = data.checkoutUrl;
         return;
       }

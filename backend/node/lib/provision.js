@@ -10,6 +10,12 @@ const path = require('path');
 const { Pool } = require('pg');
 
 const RLS_TEMPLATE_PATH = path.join(__dirname, '..', 'sql', 'enable_rls_template.sql');
+const REALTIME_TEMPLATE_PATH = path.join(
+  __dirname,
+  '..',
+  'sql',
+  'realtime_notify_template.sql'
+);
 
 function quoteIdent(name) {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
@@ -171,6 +177,14 @@ async function provisionPostgresDatabase({ instanceId, planId }) {
         );
       } catch (rlsErr) {
         console.warn('[provision] RLS/auth template:', rlsErr.message);
+      }
+
+      // Realtime CDC: AFTER ROW triggers → pg_notify('graphcore_changes')
+      try {
+        const rtSql = fs.readFileSync(REALTIME_TEMPLATE_PATH, 'utf8');
+        await grantPool.query(rtSql);
+      } catch (rtErr) {
+        console.warn('[provision] realtime notify template:', rtErr.message);
       }
     } finally {
       await grantPool.end().catch(() => {});

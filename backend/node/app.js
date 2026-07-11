@@ -26,6 +26,7 @@ const dbRoutes = require('./routes/db');
 const { router: restRoutes } = require('./routes/rest');
 const projectAuthRoutes = require('./routes/projectAuth');
 const { router: billingRoutes, provisionInstanceAfterPayment, updatePaymentStatus } = require('./routes/billing');
+const storageRoutes = require('./routes/storage');
 const { getProvider } = require('./payments');
 
 const app = express();
@@ -149,6 +150,7 @@ app.use('/api/db', dbRoutes);
 app.use('/api/rest', restRoutes);
 app.use('/api/project-auth', projectAuthRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/storage', storageRoutes);
 
 // SQL alias used by SqlEditorPage (/api/sql/execute)
 app.post('/api/sql/execute', (req, res, next) => {
@@ -769,6 +771,12 @@ async function start() {
       `  stripeWebhook=${process.env.STRIPE_WEBHOOK_SECRET ? 'secret-set' : 'dev-fallback'}`
     );
     console.log('  rest=/api/rest/:instanceId/:table  realtime=socket.io');
+    console.log(
+      `  storage=${require('./lib/storage').status().backend}  payments=${require('./payments')
+        .listProviders()
+        .map((p) => `${p.id}:${p.configured ? 'on' : 'off'}`)
+        .join(',')}`
+    );
   });
 }
 

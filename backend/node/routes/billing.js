@@ -292,7 +292,14 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       user,
       successUrl,
       cancelUrl,
-      metadata: { projectId: projectId || '', projectName: projectName || '' },
+      metadata: {
+        projectId: projectId || '',
+        projectName: projectName || '',
+        clientIp:
+          (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+          req.socket?.remoteAddress ||
+          '85.34.78.112',
+      },
     });
 
     await savePayment({
@@ -436,6 +443,127 @@ router.get('/history', authMiddleware, async (req, res) => {
       success: false,
       error: { code: 'server', message: err.message },
     });
+  }
+});
+
+async function findPayment(paymentId) {
+  if (!paymentId) return null;
+  if (isMetaReady()) {
+    const { rows } = await getMetaPool().query(
+      `SELECT * FROM payments WHERE id = $1 OR external_id = $1 LIMIT 1`,
+      [paymentId]
+    );
+    return rows[0] || null;
+  }
+  return (
+    store.payments.find((p) => p.id === paymentId || p.externalId === paymentId) ||
+    null
+  );
+}
+
+function paymentMeta(row) {
+  let meta = row?.metadata || {};
+  if (typeof meta === 'string') {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      meta = {};
+    }
+  }
+  return meta || {};
+}
+
+/** iyzico Checkout Form callback (token POST). */
+router.post('/webhook/iyzico', async (req, res) => {
+  try {
+    const token = req.body?.token;
+    if (!token) {
+      return res.status(400).send('token required');
+    }
+    const provider = getProvider('iyzico');
+    if (!provider.isConfigured()) {
+      return res.status(503).send('iyzico not configured');
+    }
+    const result = await provider.retrieveCheckoutForm(token);
+    if (result.status !== 'success' || result.paymentStatus !== 'SUCCESS') {
+      console.warn('[iyzico] callback not success', result.status, result.paymentStatus);
+      return res.redirect(
+        `${FRONTEND}/pricing?canceled=1&provider=iyzico`
+      );
+    }
+    const paymentId =
+      result.basketId || result.conversationId || result.paymentId;
+    const payment = await findPayment(paymentId);
+    if (payment) {
+      const userId = payment.user_id || payment.userId;
+      const planId = payment.plan_id || payment.planId || 'pro';
+      const meta = paymentMeta(payment);
+      await updatePaymentStatus(paymentId, 'succeeded', result.paymentId || token);
+      await provisionInstanceAfterPayment({
+        userId,
+        planId,
+        projectId: meta.projectId || null,
+        provider: 'iyzico',
+        paymentId,
+        externalId: result.paymentId || token,
+      });
+    }
+    res.redirect(
+      `${FRONTEND}/billing/success?provider=iyzico&paymentId=${encodeURIComponent(paymentId || '')}`
+    );
+  } catch (err) {
+    console.error('[iyzico] webhook', err.message);
+    res.status(400).send(`iyzico error: ${err.message}`);
+  }
+});
+
+/** PayTR server-to-server notification (must respond "OK"). */
+router.post('/webhook/paytr', async (req, res) => {
+  try {
+    const provider = getProvider('paytr');
+    if (!provider.isConfigured()) {
+      return res.status(503).send('paytr not configured');
+    }
+    if (!provider.verifyNotification(req.body || {})) {
+      return res.status(400).send('bad hash');
+    }
+    const merchantOid = req.body.merchant_oid;
+    const status = req.body.status;
+    if (status !== 'success') {
+      if (merchantOid) await updatePaymentStatus(merchantOid, 'failed', merchantOid);
+      return res.send('OK');
+    }
+    const payment =
+      (await findPayment(merchantOid)) ||
+      (await findPayment(`pay_pt_${merchantOid}`));
+    // merchant_oid was sanitized paymentId
+    let payRow = payment;
+    if (!payRow && isMetaReady()) {
+      const { rows } = await getMetaPool().query(
+        `SELECT * FROM payments WHERE id LIKE $1 OR external_id = $2 ORDER BY created_at DESC LIMIT 1`,
+        [`%${merchantOid}%`, merchantOid]
+      );
+      payRow = rows[0] || null;
+    }
+    if (payRow) {
+      const paymentId = payRow.id;
+      const userId = payRow.user_id || payRow.userId;
+      const planId = payRow.plan_id || payRow.planId || 'pro';
+      const meta = paymentMeta(payRow);
+      await updatePaymentStatus(paymentId, 'succeeded', merchantOid);
+      await provisionInstanceAfterPayment({
+        userId,
+        planId,
+        projectId: meta.projectId || null,
+        provider: 'paytr',
+        paymentId,
+        externalId: merchantOid,
+      });
+    }
+    res.send('OK');
+  } catch (err) {
+    console.error('[paytr] webhook', err.message);
+    res.status(400).send('ERROR');
   }
 });
 

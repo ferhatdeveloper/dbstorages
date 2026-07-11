@@ -5,42 +5,40 @@
 
 ---
 
-## Bu oturumda tamamlananlar (2026-07 — izolasyon + Data API + Realtime MVP)
+## Bu oturumda tamamlananlar (2026-07 — Storage + Realtime CDC + TR POS)
 
 | Alan | Durum |
 |------|--------|
-| Tenant/RBAC: `/api/tenants|projects|instances` membership filtresi | ✅ |
-| `resolveTenantPool` + Studio: auth + instance membership | ✅ |
-| Process-wide `setTenantConnection` kaldırıldı → per-request pool | ✅ |
-| JWT claims: `tenantId` / `projectId` (hint; SoT = memberships) | ✅ |
-| PostgREST-compatible `/api/rest/:instanceId/:table` | ✅ (select/filter/CRUD) |
-| Realtime: Socket.IO rooms + LISTEN/NOTIFY + Studio NOTIFY | ✅ |
-| Project Auth: `auth.users` + signup/login + instance JWT secret | ✅ MVP |
-| RLS helper template (`enable_rls_template.sql`) on provision | ✅ |
-| Compose PostgREST (demo DB) | ✅ opsiyonel, ayrı |
+| MinIO (S3) `docker-compose.yml` + `docker-compose.prod.yml` | ✅ |
+| Storage API `/api/storage/:instanceId/*` (list/upload/download/folder/delete) | ✅ |
+| Instance-scoped bucket `gc-{instanceId}`; S3 yoksa yerel `.storage` fallback | ✅ |
+| StoragePage → gerçek API (mock kaldırıldı) | ✅ |
+| Realtime CDC: provision + listener’da AFTER ROW trigger → `pg_notify` | ✅ |
+| Studio/REST yazmaları trigger üzerinden RealtimePage’e düşer | ✅ |
+| iyzico Checkout Form (`iyzipay` SDK) + `/api/billing/webhook/iyzico` | ✅ env key ile |
+| PayTR get-token + `/api/billing/webhook/paytr` | ✅ env key ile |
+| Stripe Checkout (önceki oturum) | ✅ korunuyor |
 
-**Dürüst sınır:** Tam PostgREST RPC/embed yok. Realtime CDC (wal2json) yok — Studio/REST yazmaları + NOTIFY. GoTrue/Storage/Edge yok.
+**Dürüst sınır:** Full Supabase Storage (CDN/image transform/RLS policies) yok. Realtime hâlâ wal2json/logical replication değil — trigger+NOTIFY. Edge Functions / GoTrue parity yok. TR POS sandbox’ta merchant hesabı + public callback URL gerekir.
 
 ### Kardeş repo incelemesi (reuse kararı)
 
 | Repo | Sonuç | Not |
 |------|--------|-----|
-| [api_servis](https://github.com/ferhatdeveloper/api_servis) | **Doğrudan reuse yok** | FastAPI + Logo/Retail/PDKS domain. `TenantManager` (central DB → per-tenant engine cache) fikri GraphCore’da zaten `instancePools` + `resolveTenantPool` ile karşılık buluyor. Python JWT/refresh kodu Node stack’e taşınmadı. |
-| [Berqenas](https://github.com/ferhatdeveloper/Berqenas) | **Doğrudan reuse yok** | WireGuard/Hasura/VPN gateway odaklı; realtime/gateway rotalarının çoğu TODO stub. Hasura metadata API GraphCore’un Node PostgREST-proxy yaklaşımıyla çakışır. Introspect/LISTEN niyeti GraphCore’da zaten var. |
-
-Özet: Mimari *fikirler* doğrulandı; kod kopyalanmadı (yanlış stack / domain / stub).
+| [api_servis](https://github.com/ferhatdeveloper/api_servis) | **Doğrudan reuse yok** | FastAPI domain; TenantManager fikri zaten `resolveTenantPool` ile karşılanıyor. |
+| [Berqenas](https://github.com/ferhatdeveloper/Berqenas) | **Doğrudan reuse yok** | Bu sprint’te bilinçli skip. |
 
 ---
 
-## Önceki oturumda tamamlananlar (Dokploy kritik yol)
+## Önceki oturumda tamamlananlar (izolasyon + Data API + Realtime MVP)
 
 | Alan | Durum |
 |------|--------|
-| Dockerfile + `docker-compose.prod.yml` | ✅ |
-| Meta DB migrate + fail-fast | ✅ |
-| Per-instance provisioning (`CREATE DATABASE` / `ROLE`) | ✅ |
-| Stripe webhook prod secret | ✅ |
-| iyzico / PayTR | stub |
+| Tenant/RBAC membership | ✅ |
+| PostgREST-compatible `/api/rest` | ✅ |
+| Realtime Socket.IO + LISTEN/NOTIFY | ✅ → CDC trigger ile güçlendirildi |
+| Project Auth signup/login | ✅ MVP |
+| Compose PostgREST (demo) | ✅ |
 
 ---
 
@@ -48,11 +46,12 @@
 
 | # | Madde | Not |
 |---|--------|-----|
-| 1 | iyzico / PayTR gerçek SDK | Env + stub |
-| 2 | K8s / container-per-tenant | Bilinçli yok |
-| 3 | Full PostgREST / Realtime CDC | Kısmi MVP |
-| 4 | Kota / Storage / Edge | Yok |
-| 5 | GoTrue parity | Sadece signup/login JWT |
+| 1 | K8s / container-per-tenant | Bilinçli yok (shared multi-DB) |
+| 2 | Full PostgREST (RPC/embed) + wal2json CDC | Kısmi |
+| 3 | Kota / Storage RLS / signed URLs | Kota yok; Storage MVP only |
+| 4 | GoTrue parity | Sadece signup/login JWT |
+| 5 | Edge Functions | Yok |
+| 6 | Provisioning pause/delete/resize | Yok |
 
 ---
 
@@ -64,36 +63,38 @@
 - [ ] Provisioning yaşam döngüsü (pause / delete / resize)
 - [x] Gerçek connection string (per-DB)
 - [x] Data API URL (`restUrl`) per instance
-- [x] Faturalama iskeleti (Stripe gerçek; TR POS stub)
+- [x] Faturalama: Stripe gerçek; iyzico/PayTR SDK (env key)
 - [ ] Kota / limitler enforcement
 - [x] Dashboard health (meta/tenant DB)
 - [x] Auth ürünü (müşteri DB Auth) — minimal signup/login
-- [ ] Storage / Edge
-- [x] Realtime MVP (Socket.IO + NOTIFY)
+- [x] Storage MVP (MinIO / local)
+- [ ] Edge Functions
+- [x] Realtime (Socket.IO + trigger NOTIFY)
 
 ---
 
 ## 2. Backend
 
-- [x] Meta şema (`init.sql` + runtime `migrate.js` + jwt_secret/rest_url)
-- [x] JWT register/login/me (+ tenant/project claims)
-- [x] RBAC middleware (tenant scope / membership)
+- [x] Meta şema + migrate
+- [x] JWT register/login/me
+- [x] RBAC middleware
 - [x] Postgres driver + per-instance pools
-- [x] Table/SQL Editor API (auth zorunlu)
+- [x] Table/SQL Editor API
 - [ ] Migration motoru (kiracı şema versiyonlama)
-- [x] Provisioning (shared multi-DB + auth schema template)
-- [ ] Storage MinIO
-- [x] Stripe webhook prod path
-- [x] Vite proxy / nginx `/api` + `/socket.io` proxy
+- [x] Provisioning + auth + realtime trigger templates
+- [x] Storage MinIO / S3 routes
+- [x] Stripe + iyzico + PayTR webhook paths
+- [x] Vite proxy / nginx `/api` + `/socket.io`
 
 ---
 
 ## 3. Frontend
 
-- [x] Landing + `/pricing` + `/billing/success` (restUrl gösterimi)
+- [x] Landing + `/pricing` + `/billing/success`
 - [x] Auth + Studio `/app/*`
-- [x] RealtimePage → gerçek Socket.IO
-- [x] Connections → instance restUrl / projectAuthUrl
+- [x] RealtimePage → Socket.IO + DB yazma olayları
+- [x] StoragePage → API (instance seçici)
+- [x] Connections → restUrl / projectAuthUrl
 - [ ] Onboarding wizard / project switcher
 - [ ] Billing history UI
 
@@ -101,10 +102,10 @@
 
 ## 4. Infra
 
-- [x] docker-compose.yml (dev: postgres + postgrest demo)
-- [x] docker-compose.prod.yml + Dockerfiles
+- [x] docker-compose.yml (postgres + postgrest + minio)
+- [x] docker-compose.prod.yml (+ minio + S3 env)
 - [ ] Bu ortamda Docker smoke
-- [x] `.env.example` / `env.example`
+- [x] `.env.example` / `env.example` (S3 + TR POS dokümante)
 - [ ] CI/CD
 - [x] Dokploy deploy notları (README)
 
@@ -120,17 +121,24 @@ npm install && npm run dev
 
 Demo: `demo@graphcore.com` / `demo123`
 
+### Storage
+
+```bash
+# MinIO console: http://localhost:9001 (minioadmin / minioadmin)
+# API: S3_ENDPOINT=http://localhost:9000
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:4000/api/storage/$INSTANCE_ID/objects"
+```
+
+S3 env yoksa dosyalar `backend/node/.storage/` altına yazılır.
+
+### Realtime CDC
+
+Provision sırasında (ve listener açılışında) `public` tablolara AFTER ROW trigger + `pg_notify('graphcore_changes')` uygulanır. Studio/REST/SQL yazmaları RealtimePage’de görünür. Yeni tabloda event trigger yoksa: `SELECT graphcore_attach_realtime_triggers();`
+
 ### Data API örneği
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:4000/api/rest/$INSTANCE_ID/users?select=*&limit=10"
-```
-
-### Project Auth örneği
-
-```bash
-curl -X POST http://localhost:4000/api/project-auth/$INSTANCE_ID/signup \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"user@app.com","password":"secret123"}'
 ```

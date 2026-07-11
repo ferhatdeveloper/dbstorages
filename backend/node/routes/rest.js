@@ -9,7 +9,7 @@ const { authMiddleware } = require('../lib/auth');
 const { resolveTenantPool } = require('../lib/db');
 const { assertInstanceAccess } = require('../lib/rbac');
 const { quoteIdent, buildFromQuery } = require('../lib/restQuery');
-const { notifyChange, startListenerForInstanceRow } = require('../lib/realtime');
+const { startListenerForInstanceRow } = require('../lib/realtime');
 
 const router = express.Router();
 
@@ -105,13 +105,7 @@ router.post('/:instanceId/:table', async (req, res) => {
       if (rows[0]) inserted.push(rows[0]);
     }
 
-    await notifyChange(pool, instanceId, {
-      type: 'insert',
-      table,
-      details: `REST insert into ${table}`,
-      data: { count: inserted.length },
-      user: req.user.email,
-    });
+    // Row CDC via DB triggers → LISTEN
 
     if (preferReturn(req) || inserted.length) {
       return res.status(201).json(Array.isArray(body) ? inserted : inserted[0] || null);
@@ -152,14 +146,6 @@ router.patch('/:instanceId/:table', async (req, res) => {
       [...values, ...q.params]
     );
 
-    await notifyChange(pool, instanceId, {
-      type: 'update',
-      table,
-      details: `REST update on ${table}`,
-      data: { count: rows.length },
-      user: req.user.email,
-    });
-
     res.json(preferReturn(req) ? rows : rows);
   } catch (err) {
     res.status(err.status || 400).json({
@@ -184,14 +170,6 @@ router.delete('/:instanceId/:table', async (req, res) => {
       `DELETE FROM ${quoteIdent(table)} ${q.whereSql} RETURNING *`,
       q.params
     );
-
-    await notifyChange(pool, instanceId, {
-      type: 'delete',
-      table,
-      details: `REST delete on ${table}`,
-      data: { count: rows.length },
-      user: req.user.email,
-    });
 
     res.json(rows);
   } catch (err) {

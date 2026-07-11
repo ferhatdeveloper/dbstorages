@@ -1,9 +1,19 @@
 /**
- * Instance-scoped realtime via Socket.IO rooms + optional Postgres LISTEN/NOTIFY.
+ * Instance-scoped realtime via Socket.IO rooms + Postgres LISTEN/NOTIFY.
+ * CDC: provision installs AFTER ROW triggers on public tables (see sql/realtime_notify_template.sql).
  */
 
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('pg');
 const { internalConnFromInstanceRow, getMetaPool, isMetaReady } = require('./db');
+
+const REALTIME_TEMPLATE_PATH = path.join(
+  __dirname,
+  '..',
+  'sql',
+  'realtime_notify_template.sql'
+);
 
 /** @type {import('socket.io').Server | null} */
 let ioRef = null;
@@ -33,9 +43,17 @@ function emitInstanceEvent(instanceId, event) {
   ioRef.to(roomName(instanceId)).emit('realtime_event', payload);
 }
 
-async function notifyChange(pool, instanceId, event) {
-  emitInstanceEvent(instanceId, event);
-  if (!pool || !instanceId) return;
+/**
+ * Explicit Socket.IO emit + optional NOTIFY.
+ * Prefer DB triggers for row CDC (avoids duplicate events on Studio/REST writes).
+ * Use this for non-row / fallback events when triggers are absent.
+ */
+async function notifyChange(pool, instanceId, event, opts = {}) {
+  const viaNotify = opts.viaNotify === true;
+  if (!viaNotify) {
+    emitInstanceEvent(instanceId, event);
+  }
+  if (!pool || !instanceId || !viaNotify) return;
   try {
     await pool.query(`SELECT pg_notify('graphcore_changes', $1)`, [
       JSON.stringify({
@@ -48,9 +66,27 @@ async function notifyChange(pool, instanceId, event) {
       }),
     ]);
   } catch (err) {
-    // Channel may not exist / role lack notify — emission already sent via Socket.IO
+    emitInstanceEvent(instanceId, event);
     if (process.env.DEBUG_REALTIME) {
       console.warn('[realtime] NOTIFY failed:', err.message);
+    }
+  }
+}
+
+/** Best-effort: install / refresh trigger CDC on an already-provisioned DB. */
+async function ensureRealtimeTriggers(pool) {
+  if (!pool) return;
+  try {
+    const sql = fs.readFileSync(REALTIME_TEMPLATE_PATH, 'utf8');
+    await pool.query(sql);
+  } catch (err) {
+    // Older DBs may lack privileges for event triggers — attach function may still work
+    try {
+      await pool.query(`SELECT public.graphcore_attach_realtime_triggers()`);
+    } catch (err2) {
+      if (process.env.DEBUG_REALTIME) {
+        console.warn('[realtime] ensureTriggers:', err.message, err2.message);
+      }
     }
   }
 }
@@ -61,19 +97,26 @@ async function ensureListener(instanceId, connectionString) {
   const client = new Client({ connectionString });
   try {
     await client.connect();
+    try {
+      await ensureRealtimeTriggers(client);
+    } catch {
+      /* non-fatal */
+    }
     await client.query('LISTEN graphcore_changes');
     client.on('notification', (msg) => {
       if (msg.channel !== 'graphcore_changes' || !msg.payload) return;
       try {
         const data = JSON.parse(msg.payload);
-        // Only re-broadcast if payload instance matches (or missing)
+        // Only re-broadcast if payload instance matches (or missing — trigger payloads omit it)
         if (data.instanceId && data.instanceId !== instanceId) return;
+        const type = String(data.type || 'info').toLowerCase();
         emitInstanceEvent(instanceId, {
-          type: data.type || 'info',
+          type,
           table: data.table,
           details: data.details || 'Database change',
           data: data.data,
           user: data.user,
+          source: data.source || 'database',
         });
       } catch {
         /* ignore bad payload */
@@ -117,6 +160,7 @@ module.exports = {
   roomName,
   emitInstanceEvent,
   notifyChange,
+  ensureRealtimeTriggers,
   ensureListener,
   startListenerForInstanceRow,
   warmListeners,

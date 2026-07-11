@@ -1,7 +1,7 @@
 const express = require('express');
 const { isTenantReady, resolveTenantPool } = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { notifyChange } = require('../lib/realtime');
+const { notifyChange, ensureRealtimeTriggers } = require('../lib/realtime');
 
 const router = express.Router();
 
@@ -204,13 +204,7 @@ router.post('/tables/:table/rows', async (req, res) => {
       `INSERT INTO ${quoteIdent(table)} (${cols}) VALUES (${placeholders}) RETURNING *`,
       values
     );
-    await notifyChange(pool, instanceIdOf(req), {
-      type: 'insert',
-      table,
-      details: `Studio insert into ${table}`,
-      data: rows[0],
-      user: req.user?.email,
-    });
+    // Row CDC: trigger → NOTIFY (see realtime_notify_template.sql)
     res.status(201).json(ok(rows[0]));
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'insert_failed');
@@ -236,13 +230,6 @@ router.put('/tables/:table/rows/:id', async (req, res) => {
       values
     );
     if (!rows[0]) return fail(res, 404, 'row not found', 'not_found');
-    await notifyChange(pool, instanceIdOf(req), {
-      type: 'update',
-      table,
-      details: `Studio update on ${table}`,
-      data: rows[0],
-      user: req.user?.email,
-    });
     res.json(ok(rows[0]));
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'update_failed');
@@ -260,13 +247,6 @@ router.delete('/tables/:table/rows/:id', async (req, res) => {
       [id]
     );
     if (!rowCount) return fail(res, 404, 'row not found', 'not_found');
-    await notifyChange(pool, instanceIdOf(req), {
-      type: 'delete',
-      table,
-      details: `Studio delete on ${table}`,
-      data: { id },
-      user: req.user?.email,
-    });
     res.json(ok({ deleted: true }));
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'delete_failed');
@@ -286,13 +266,6 @@ router.post('/tables/:table/rows/delete', async (req, res) => {
       `DELETE FROM ${quoteIdent(table)} WHERE id = ANY($1::int[])`,
       [ids.map(Number)]
     );
-    await notifyChange(pool, instanceIdOf(req), {
-      type: 'delete',
-      table,
-      details: `Studio bulk delete on ${table}`,
-      data: { ids, deleted: rowCount },
-      user: req.user?.email,
-    });
     res.json(ok({ deleted: rowCount }));
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'delete_failed');
@@ -319,11 +292,12 @@ router.post('/sql/execute', async (req, res) => {
         : (result.fields || []).map((f) => f.name);
 
     const cmd = String(result.command || '').toUpperCase();
-    if (['INSERT', 'UPDATE', 'DELETE'].includes(cmd)) {
+    // DML CDC via triggers. Refresh triggers after DDL CREATE TABLE.
+    if (cmd === 'CREATE' || /create\s+table/i.test(query)) {
+      await ensureRealtimeTriggers(pool).catch(() => {});
       await notifyChange(pool, instanceIdOf(req), {
-        type: cmd.toLowerCase(),
-        details: `SQL ${cmd}`,
-        data: { rowCount: result.rowCount },
+        type: 'create',
+        details: `SQL ${cmd || 'DDL'}`,
         user: req.user?.email,
       });
     }
