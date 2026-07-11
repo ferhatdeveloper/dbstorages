@@ -5,7 +5,11 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
+
+const RLS_TEMPLATE_PATH = path.join(__dirname, '..', 'sql', 'enable_rls_template.sql');
 
 function quoteIdent(name) {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
@@ -146,6 +150,28 @@ async function provisionPostgresDatabase({ instanceId, planId }) {
       await grantPool.query(
         `GRANT ALL ON TABLE _graphcore_meta TO ${quoteIdent(username)}`
       );
+
+      // Project Auth schema + RLS helpers (gen_random_uuid needs pgcrypto)
+      try {
+        await grantPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+      } catch (extErr) {
+        console.warn('[provision] pgcrypto:', extErr.message);
+      }
+      try {
+        const sql = fs.readFileSync(RLS_TEMPLATE_PATH, 'utf8');
+        await grantPool.query(sql);
+        await grantPool.query(
+          `GRANT USAGE ON SCHEMA auth TO ${quoteIdent(username)}`
+        );
+        await grantPool.query(
+          `GRANT ALL ON ALL TABLES IN SCHEMA auth TO ${quoteIdent(username)}`
+        );
+        await grantPool.query(
+          `GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO ${quoteIdent(username)}`
+        );
+      } catch (rlsErr) {
+        console.warn('[provision] RLS/auth template:', rlsErr.message);
+      }
     } finally {
       await grantPool.end().catch(() => {});
     }
@@ -164,6 +190,7 @@ async function provisionPostgresDatabase({ instanceId, planId }) {
       port: adminPort,
       database,
     });
+    const jwtSecret = crypto.randomBytes(32).toString('base64url');
 
     console.log(
       `[provision] created database=${database} role=${username} plan=${planId || 'n/a'}`
@@ -177,6 +204,7 @@ async function provisionPostgresDatabase({ instanceId, planId }) {
       port,
       connectionString,
       internalConnectionString,
+      jwtSecret,
       region: process.env.PROVISION_REGION || 'shared',
       status: 'ready',
     };
@@ -199,6 +227,7 @@ function demoPlaceholder() {
     internalConnectionString:
       process.env.TENANT_DATABASE_URL ||
       `postgresql://graphcore:graphcore@${internalHost()}:${internalPort()}/graphcore_demo`,
+    jwtSecret: crypto.randomBytes(32).toString('base64url'),
     region: 'local',
     status: 'ready',
     placeholder: true,

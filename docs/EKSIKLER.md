@@ -1,88 +1,90 @@
 # GraphCore — Eksik Listesi
 
 > Hedef: PostgreSQL veritabanı kiralama platformu / Supabase benzeri BaaS.
-> Bu liste abartılı “%95 tamam” iddiasını taşımaz.
+> Bu liste abartılı “%95 tamam” veya “full Supabase parity” iddiası taşımaz.
 
 ---
 
-## Bu oturumda tamamlananlar (2026-07 — Dokploy kritik yol)
+## Bu oturumda tamamlananlar (2026-07 — izolasyon + Data API + Realtime MVP)
 
 | Alan | Durum |
 |------|--------|
-| Dockerfile frontend (Vite + nginx) + Node API | ✅ |
-| `docker-compose.prod.yml` (web + api + postgres + postgrest) | ✅ |
-| Reverse-proxy friendly (`HOST=0.0.0.0`, `PORT`/`NODE_PORT`) | ✅ |
-| README Dokploy env tablosu | ✅ |
-| Meta DB: `ensureMetaSchema` + `DATABASE_URL` prod’da fail-fast | ✅ |
+| Tenant/RBAC: `/api/tenants|projects|instances` membership filtresi | ✅ |
+| `resolveTenantPool` + Studio: auth + instance membership | ✅ |
+| Process-wide `setTenantConnection` kaldırıldı → per-request pool | ✅ |
+| JWT claims: `tenantId` / `projectId` (hint; SoT = memberships) | ✅ |
+| PostgREST-compatible `/api/rest/:instanceId/:table` | ✅ (select/filter/CRUD) |
+| Realtime: Socket.IO rooms + LISTEN/NOTIFY + Studio NOTIFY | ✅ |
+| Project Auth: `auth.users` + signup/login + instance JWT secret | ✅ MVP |
+| RLS helper template (`enable_rls_template.sql`) on provision | ✅ |
+| Compose PostgREST (demo DB) | ✅ opsiyonel, ayrı |
+
+**Dürüst sınır:** Tam PostgREST RPC/embed/RPC yok. Realtime CDC (wal2json) yok — Studio/REST yazmaları + NOTIFY. GoTrue/Storage/Edge yok.
+
+---
+
+## Önceki oturumda tamamlananlar (Dokploy kritik yol)
+
+| Alan | Durum |
+|------|--------|
+| Dockerfile + `docker-compose.prod.yml` | ✅ |
+| Meta DB migrate + fail-fast | ✅ |
 | Per-instance provisioning (`CREATE DATABASE` / `ROLE`) | ✅ |
-| Studio tenant pool → provisioned instance | ✅ |
-| Stripe webhook: prod’da `STRIPE_WEBHOOK_SECRET` zorunlu | ✅ |
-| iyzico / PayTR | stub (env hazır, SDK wire yok — Dokploy’u bloklamaz) |
-
-**Çalıştırma notu (bu makine):** Docker CLI yok → `docker compose` smoke burada koşturulamadı. Dosyalar Dokploy/sunucu için hazır. Yerel doğrulama: `npm run build` + Node module require.
+| Stripe webhook prod secret | ✅ |
+| iyzico / PayTR | stub |
 
 ---
 
-## Önceki oturumda tamamlananlar
-
-| Alan | Durum |
-|------|--------|
-| Portlar (Vite 5173 / Node 4000 / Go 8080) | ✅ |
-| Landing + paketler UI | ✅ |
-| Register / Login JWT | ✅ (meta DB yoksa in-memory, yalnızca dev) |
-| Stripe Checkout + PaymentIntent | ✅ |
-| Node `/api/db/*` + SQL | ✅ |
-| Go data-plane + CORS | ✅ |
-| docker-compose (Postgres + PostgREST) | ✅ |
-
----
-
-## P0 — Hâlâ açık / stub
+## P0 — Hâlâ açık
 
 | # | Madde | Not |
 |---|--------|-----|
-| 1 | iyzico / PayTR gerçek SDK | Env + stub URL; HTTP initialize yok |
-| 2 | K8s / container-per-tenant | Bilinçli olarak yok; shared multi-DB MVP yeterli |
-| 3 | Bu ortamda Docker smoke | Docker CLI kurulu değil |
-| 4 | Go gateway birleştirme | Opsiyonel |
-| 5 | Kota / RBAC / Storage / Edge / Realtime | Sonraki |
+| 1 | iyzico / PayTR gerçek SDK | Env + stub |
+| 2 | K8s / container-per-tenant | Bilinçli yok |
+| 3 | Full PostgREST / Realtime CDC | Kısmi MVP |
+| 4 | Kota / Storage / Edge | Yok |
+| 5 | GoTrue parity | Sadece signup/login JWT |
 
 ---
 
 ## 1. Ürün / Platform
 
 - [x] Organizasyon (tenant) + register’da auto-create
-- [x] Proje modeli API
+- [x] Proje modeli API (membership scoped)
 - [x] DB instance kiralama + shared-server provisioning
 - [ ] Provisioning yaşam döngüsü (pause / delete / resize)
 - [x] Gerçek connection string (per-DB)
+- [x] Data API URL (`restUrl`) per instance
 - [x] Faturalama iskeleti (Stripe gerçek; TR POS stub)
 - [ ] Kota / limitler enforcement
 - [x] Dashboard health (meta/tenant DB)
-- [ ] Auth ürünü (müşteri DB Auth)
-- [ ] Storage / Edge / Realtime
+- [x] Auth ürünü (müşteri DB Auth) — minimal signup/login
+- [ ] Storage / Edge
+- [x] Realtime MVP (Socket.IO + NOTIFY)
 
 ---
 
 ## 2. Backend
 
-- [x] Meta şema (`init.sql` + runtime `migrate.js`)
-- [x] JWT register/login/me
-- [ ] RBAC middleware (tenant scope)
-- [x] Postgres driver
-- [x] Table/SQL Editor API
+- [x] Meta şema (`init.sql` + runtime `migrate.js` + jwt_secret/rest_url)
+- [x] JWT register/login/me (+ tenant/project claims)
+- [x] RBAC middleware (tenant scope / membership)
+- [x] Postgres driver + per-instance pools
+- [x] Table/SQL Editor API (auth zorunlu)
 - [ ] Migration motoru (kiracı şema versiyonlama)
-- [x] Provisioning (shared multi-DB)
+- [x] Provisioning (shared multi-DB + auth schema template)
 - [ ] Storage MinIO
 - [x] Stripe webhook prod path
-- [x] Vite proxy / nginx `/api` proxy
+- [x] Vite proxy / nginx `/api` + `/socket.io` proxy
 
 ---
 
 ## 3. Frontend
 
-- [x] Landing + `/pricing` + `/billing/success`
+- [x] Landing + `/pricing` + `/billing/success` (restUrl gösterimi)
 - [x] Auth + Studio `/app/*`
+- [x] RealtimePage → gerçek Socket.IO
+- [x] Connections → instance restUrl / projectAuthUrl
 - [ ] Onboarding wizard / project switcher
 - [ ] Billing history UI
 
@@ -90,7 +92,7 @@
 
 ## 4. Infra
 
-- [x] docker-compose.yml (dev: postgres + postgrest)
+- [x] docker-compose.yml (dev: postgres + postgrest demo)
 - [x] docker-compose.prod.yml + Dockerfiles
 - [ ] Bu ortamda Docker smoke
 - [x] `.env.example` / `env.example`
@@ -102,14 +104,24 @@
 ## Nasıl çalıştırılır
 
 ```bash
-# Dev data
 docker compose up -d
-
-# Prod-benzeri (Dokploy)
-docker compose -f docker-compose.prod.yml up -d --build
-
 cd backend/node && cp env.example .env && npm install && npm start
 npm install && npm run dev
 ```
 
 Demo: `demo@graphcore.com` / `demo123`
+
+### Data API örneği
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:4000/api/rest/$INSTANCE_ID/users?select=*&limit=10"
+```
+
+### Project Auth örneği
+
+```bash
+curl -X POST http://localhost:4000/api/project-auth/$INSTANCE_ID/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@app.com","password":"secret123"}'
+```

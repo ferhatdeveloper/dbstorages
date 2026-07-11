@@ -4,16 +4,43 @@ const bcrypt = require('bcryptjs');
 const JWT_SECRET = process.env.JWT_SECRET || 'graphcore-dev-secret-change-me';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
-function signToken(user) {
-  return jwt.sign(
-    { sub: user.id, email: user.email, role: user.role || 'member' },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES }
-  );
+/**
+ * Platform (dashboard) JWT.
+ * Optional tenantId/projectId are claim hints; membership checks remain SoT.
+ */
+function signToken(user, scope = {}) {
+  const payload = {
+    sub: user.id,
+    email: user.email,
+    role: user.role || scope.role || 'member',
+  };
+  if (scope.tenantId) payload.tenantId = scope.tenantId;
+  if (scope.projectId) payload.projectId = scope.projectId;
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
+}
+
+/** Project (customer) JWT — signed with per-instance secret. */
+function signProjectToken(user, { secret, instanceId, projectId, expiresIn = '7d' }) {
+  return jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: 'authenticated',
+      instanceId,
+      projectId: projectId || null,
+      aud: 'authenticated',
+    },
+    secret,
+    { expiresIn }
+  );
+}
+
+function verifyProjectToken(token, secret) {
+  return jwt.verify(token, secret);
 }
 
 async function hashPassword(password) {
@@ -61,6 +88,8 @@ function optionalAuth(req, _res, next) {
 module.exports = {
   signToken,
   verifyToken,
+  signProjectToken,
+  verifyProjectToken,
   hashPassword,
   comparePassword,
   authMiddleware,

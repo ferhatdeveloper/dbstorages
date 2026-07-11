@@ -3,6 +3,7 @@ const { authMiddleware, optionalAuth } = require('../lib/auth');
 const { isMetaReady, getMetaPool, setTenantConnection } = require('../lib/db');
 const store = require('../lib/store');
 const { provisionOrFallback } = require('../lib/provision');
+const { startListenerForInstanceRow } = require('../lib/realtime');
 const {
   getPackages,
   getPackage,
@@ -15,9 +16,19 @@ const router = express.Router();
 const FRONTEND =
   process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 
+function publicApiBase() {
+  return (process.env.PUBLIC_API_URL || `http://localhost:${process.env.NODE_PORT || process.env.PORT || 4000}`).replace(
+    /\/$/,
+    ''
+  );
+}
+
 function mapInstance(row) {
+  const id = row.id;
+  const restUrl =
+    row.rest_url || row.restUrl || (id ? `${publicApiBase()}/api/rest/${id}` : null);
   return {
-    id: row.id,
+    id,
     projectId: row.project_id || row.projectId,
     name: row.name,
     plan: row.plan,
@@ -28,6 +39,8 @@ function mapInstance(row) {
     database: row.database_name || row.database,
     username: row.username,
     connectionString: row.connection_string || row.connectionString,
+    restUrl,
+    jwtSecretConfigured: Boolean(row.jwt_secret || row.jwtSecret),
     paymentProvider: row.payment_provider || row.paymentProvider,
     createdAt: row.created_at || row.createdAt,
   };
@@ -90,6 +103,7 @@ async function provisionInstanceAfterPayment({
     planId: plan.id,
   });
 
+  const restUrl = `${publicApiBase()}/api/rest/${instanceId}`;
   const instance = {
     id: instanceId,
     project_id: projectId || 'prj_demo',
@@ -103,6 +117,8 @@ async function provisionInstanceAfterPayment({
     username: provisioned.username,
     password: provisioned.password,
     connection_string: provisioned.connectionString,
+    jwt_secret: provisioned.jwtSecret || null,
+    rest_url: restUrl,
     payment_provider: provider,
     payment_ref: paymentId,
     stripe_session_id: externalId || null,
@@ -141,8 +157,9 @@ async function provisionInstanceAfterPayment({
     await getMetaPool().query(
       `INSERT INTO instances (
         id, project_id, name, plan, region, status, host, port, database_name,
-        username, password, connection_string, stripe_session_id, payment_provider, payment_ref, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        username, password, connection_string, jwt_secret, rest_url,
+        stripe_session_id, payment_provider, payment_ref, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         instance.id,
         instance.project_id,
@@ -156,6 +173,8 @@ async function provisionInstanceAfterPayment({
         instance.username,
         instance.password,
         instance.connection_string,
+        instance.jwt_secret,
+        instance.rest_url,
         instance.stripe_session_id,
         instance.payment_provider,
         instance.payment_ref,
@@ -173,6 +192,11 @@ async function provisionInstanceAfterPayment({
           owner_user_id: userId,
           created_at: now,
         });
+        store.memberships.push({
+          user_id: userId,
+          tenant_id: tenantId,
+          role: 'owner',
+        });
         project = {
           id: store.newId('prj'),
           tenant_id: tenantId,
@@ -187,10 +211,11 @@ async function provisionInstanceAfterPayment({
     store.instances.push(instance);
   }
 
-  // Wire Studio default tenant pool to the new instance (internal URL)
+  // Warm per-instance pool only (no process-wide tenant rewire)
   const internal =
     provisioned.internalConnectionString || provisioned.connectionString;
   await setTenantConnection(internal);
+  startListenerForInstanceRow(instance).catch(() => {});
 
   return mapInstance(instance);
 }
@@ -376,16 +401,17 @@ router.get('/success', optionalAuth, async (req, res) => {
       if (found) instance = mapInstance(found);
     }
 
-    res.json({
-      success: true,
-      data: {
-        plan: plan || instance?.plan || null,
-        sessionId: sessionId || null,
-        paymentId: paymentId || null,
-        instance,
-        connectionString: instance?.connectionString || null,
-      },
-    });
+        res.json({
+          success: true,
+          data: {
+            plan: plan || instance?.plan || null,
+            sessionId: sessionId || null,
+            paymentId: paymentId || null,
+            instance,
+            connectionString: instance?.connectionString || null,
+            restUrl: instance?.restUrl || null,
+          },
+        });
   } catch (err) {
     res.status(500).json({
       success: false,

@@ -48,11 +48,16 @@ CREATE TABLE IF NOT EXISTS instances (
   username TEXT,
   password TEXT,
   connection_string TEXT,
+  jwt_secret TEXT,
+  rest_url TEXT,
   stripe_session_id TEXT,
   payment_provider TEXT,
   payment_ref TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS jwt_secret TEXT;
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS rest_url TEXT;
 
 CREATE TABLE IF NOT EXISTS payments (
   id TEXT PRIMARY KEY,

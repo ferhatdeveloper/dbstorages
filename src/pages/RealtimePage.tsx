@@ -1,110 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { apiService } from '../services/api';
 import {
   Activity,
-  Zap,
   Wifi,
   WifiOff,
   Play,
   Pause,
-  Square,
   RefreshCw,
   Filter,
   Search,
   Eye,
-  EyeOff,
-  Settings,
-  Download,
-  Upload,
-  Trash2,
   Copy,
   Share2,
-  MoreVertical,
+  Trash2,
+  Plus,
   Edit,
-  Star,
-  StarOff,
   AlertCircle,
   CheckCircle,
   Clock,
   User,
   Database,
-  Table,
   FileText,
-  MessageSquare,
-  Bell,
-  BellOff,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  Monitor,
-  Smartphone,
-  Tablet,
-  Laptop,
   Server,
-  Cloud,
-  HardDrive,
-  Network,
-  Globe,
-  Shield,
-  ShieldCheck,
   AlertTriangle,
   Info,
-  HelpCircle,
-  ExternalLink,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
+  Download,
   X,
-  Plus,
-  Minus,
-  Target,
-  Flag,
-  Award,
-  Crown,
-  Badge,
-  Star as StarIcon,
-  Heart,
-  ThumbsUp,
-  ThumbsDown,
-  MessageSquare as Chat,
-  Bell as Notification,
-  BellOff as NotificationOff,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Key,
-  Fingerprint,
-  Smartphone as Mobile,
-  Monitor as Desktop,
-  Laptop as LaptopIcon,
-  Tablet as TabletIcon,
-  SmartphoneIcon as MobileIcon,
-  Cloud as CloudIcon,
-  CloudOff,
-  Sun,
-  Moon,
-  Palette,
-  Layers,
-  Layout,
-  Grid3X3,
-  Columns,
-  Rows,
-  Maximize,
-  Minimize,
-  Move,
-  RotateCcw,
-  RotateCw,
-  ZoomIn,
-  ZoomOut,
-  Fullscreen,
-  FullscreenExit,
-  Save,
-  Loader2 as Spinner,
+  Loader2,
 } from 'lucide-react';
 
 // Event Item Component
@@ -431,7 +354,6 @@ const EventFilter: React.FC<{
 };
 
 const RealtimePage: React.FC = () => {
-  // State management
   const [events, setEvents] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -439,8 +361,8 @@ const RealtimePage: React.FC = () => {
     types: ['insert', 'update', 'delete', 'create', 'drop', 'connect', 'disconnect', 'error', 'warning', 'info'],
     sources: ['database', 'file', 'user', 'system'],
     severity: ['low', 'medium', 'high', 'critical'],
-    databases: [],
-    tables: []
+    databases: [] as string[],
+    tables: [] as string[],
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
@@ -448,155 +370,110 @@ const RealtimePage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [maxEvents, setMaxEvents] = useState(1000);
-  const [loading, setLoading] = useState(false);
   const [showToast, setShowToast] = useState<{type: 'success' | 'error', message: string} | null>(null);
-  
-  // Refs
+  const [instances, setInstances] = useState<any[]>([]);
+  const [instanceId, setInstanceId] = useState<string>('');
+  const [connError, setConnError] = useState('');
+
   const eventsContainerRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const pausedRef = useRef(isPaused);
+  pausedRef.current = isPaused;
 
-  // Mock data
-  const mockEvents = [
-    {
-      id: '1',
-      type: 'insert' as const,
-      table: 'users',
-      database: 'production',
-      user: 'admin',
-      timestamp: new Date().toISOString(),
-      details: 'Yeni kullanıcı eklendi: john.doe@example.com',
-      data: { id: 123, email: 'john.doe@example.com', name: 'John Doe' },
-      severity: 'low' as const,
-      source: 'database' as const
-    },
-    {
-      id: '2',
-      type: 'update' as const,
-      table: 'products',
-      database: 'production',
-      user: 'manager',
-      timestamp: new Date(Date.now() - 5000).toISOString(),
-      details: 'Ürün fiyatı güncellendi: Product #123',
-      data: { id: 123, oldPrice: 100, newPrice: 120 },
-      severity: 'medium' as const,
-      source: 'database' as const
-    },
-    {
-      id: '3',
-      type: 'connect' as const,
-      database: 'development',
-      user: 'developer',
-      timestamp: new Date(Date.now() - 10000).toISOString(),
-      details: 'Veritabanı bağlantısı kuruldu',
-      data: { host: '192.168.1.100', port: 5432 },
-      severity: 'low' as const,
-      source: 'system' as const
-    },
-    {
-      id: '4',
-      type: 'error' as const,
-      table: 'orders',
-      database: 'production',
-      user: 'system',
-      timestamp: new Date(Date.now() - 15000).toISOString(),
-      details: 'Sipariş işleme hatası: Foreign key constraint failed',
-      data: { orderId: 456, error: 'FK_CONSTRAINT_FAILED' },
-      severity: 'high' as const,
-      source: 'database' as const
-    },
-    {
-      id: '5',
-      type: 'delete' as const,
-      table: 'temp_data',
-      database: 'staging',
-      user: 'cleanup_job',
-      timestamp: new Date(Date.now() - 20000).toISOString(),
-      details: 'Geçici veriler temizlendi',
-      data: { deletedRows: 1500 },
-      severity: 'low' as const,
-      source: 'system' as const
-    }
-  ];
-
-  // Toast notification
   const showNotification = useCallback((type: 'success' | 'error', message: string) => {
     setShowToast({ type, message });
     setTimeout(() => setShowToast(null), 3000);
   }, []);
 
-  // WebSocket connection
   useEffect(() => {
-    // Simulate WebSocket connection
-    const connectWebSocket = () => {
+    apiService
+      .getInstances()
+      .then((res) => {
+        const list = res.instances || [];
+        setInstances(list);
+        const ready = list.find((i: any) => i.status === 'ready');
+        if (ready) setInstanceId(ready.id);
+      })
+      .catch((e) => setConnError(e.message));
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !instanceId) {
+      setIsConnected(false);
+      return;
+    }
+
+    const socket = io(apiService.getSocketIoUrl(), {
+      path: '/socket.io',
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
       setIsConnected(true);
-      showNotification('success', 'Gerçek zamanlı bağlantı kuruldu');
-      
-      // Simulate incoming events
-      const interval = setInterval(() => {
-        if (!isPaused) {
-          const newEvent = {
-            id: Date.now().toString(),
-            type: ['insert', 'update', 'delete', 'connect', 'disconnect', 'error', 'warning', 'info'][Math.floor(Math.random() * 8)] as any,
-            table: ['users', 'products', 'orders', 'customers'][Math.floor(Math.random() * 4)],
-            database: ['production', 'development', 'staging'][Math.floor(Math.random() * 3)],
-            user: ['admin', 'manager', 'developer', 'system'][Math.floor(Math.random() * 4)],
-            timestamp: new Date().toISOString(),
-            details: 'Simulated real-time event',
-            data: { id: Math.floor(Math.random() * 1000) },
-            severity: ['low', 'medium', 'high', 'critical'][Math.floor(Math.random() * 4)] as any,
-            source: ['database', 'file', 'user', 'system'][Math.floor(Math.random() * 4)] as any
-          };
-          
-          setEvents(prev => {
-            const newEvents = [newEvent, ...prev];
-            if (newEvents.length > maxEvents) {
-              return newEvents.slice(0, maxEvents);
-            }
-            return newEvents;
-          });
+      setConnError('');
+      socket.emit('subscribe', { instanceId }, (ack: any) => {
+        if (ack?.ok) {
+          showNotification('success', `Realtime: ${instanceId}`);
+        } else {
+          setConnError(ack?.error || 'subscribe failed');
+          showNotification('error', ack?.error || 'Abonelik reddedildi');
         }
-      }, 2000);
+      });
+    });
 
-      return () => clearInterval(interval);
+    socket.on('connect_error', (err) => {
+      setIsConnected(false);
+      setConnError(err.message);
+    });
+
+    socket.on('disconnect', () => setIsConnected(false));
+
+    const onEvent = (event: any) => {
+      if (pausedRef.current) return;
+      setEvents((prev) => {
+        const next = [event, ...prev];
+        return next.length > maxEvents ? next.slice(0, maxEvents) : next;
+      });
     };
+    socket.on('realtime_event', onEvent);
+    socket.on('db_change', onEvent);
 
-    const cleanup = connectWebSocket();
-    return cleanup;
-  }, [isPaused, maxEvents, showNotification]);
+    return () => {
+      socket.emit('unsubscribe', { instanceId });
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [instanceId, maxEvents, showNotification]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (autoScroll && eventsContainerRef.current) {
-      eventsContainerRef.current.scrollTop = eventsContainerRef.current.scrollHeight;
+      eventsContainerRef.current.scrollTop = 0;
     }
   }, [events, autoScroll]);
 
-  // Filter events
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = events.filter((event) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      return event.details.toLowerCase().includes(query) ||
-             event.table?.toLowerCase().includes(query) ||
-             event.database?.toLowerCase().includes(query) ||
-             event.user?.toLowerCase().includes(query);
+      if (
+        !(
+          event.details?.toLowerCase().includes(query) ||
+          event.table?.toLowerCase().includes(query) ||
+          event.database?.toLowerCase().includes(query) ||
+          event.user?.toLowerCase().includes(query)
+        )
+      ) {
+        return false;
+      }
     }
-    
-    if (filters.types.length > 0 && !filters.types.includes(event.type)) {
-      return false;
-    }
-    
-    if (filters.sources.length > 0 && !filters.sources.includes(event.source)) {
-      return false;
-    }
-    
-    if (filters.severity.length > 0 && !filters.severity.includes(event.severity)) {
-      return false;
-    }
-    
+    if (filters.types.length > 0 && !filters.types.includes(event.type)) return false;
+    if (filters.sources.length > 0 && !filters.sources.includes(event.source)) return false;
+    if (filters.severity.length > 0 && !filters.severity.includes(event.severity)) return false;
     return true;
   });
 
-  // Event handlers
   const handleViewDetails = (event: any) => {
     setSelectedEvent(event);
     setShowEventDetails(true);
@@ -607,8 +484,7 @@ const RealtimePage: React.FC = () => {
     showNotification('success', 'Olay kopyalandı');
   };
 
-  const handleShareEvent = (event: any) => {
-    // Simulate sharing
+  const handleShareEvent = (_event: any) => {
     showNotification('success', 'Olay paylaşıldı');
   };
 
@@ -630,9 +506,13 @@ const RealtimePage: React.FC = () => {
     showNotification('success', 'Olaylar dışa aktarıldı');
   };
 
+  const handleReconnect = () => {
+    socketRef.current?.disconnect();
+    setInstanceId((id) => id);
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Toast Notification */}
       {showToast && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
           showToast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
@@ -647,41 +527,54 @@ const RealtimePage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
         <div className="bg-white border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center space-x-4 flex-wrap">
               <h1 className="text-xl font-semibold text-gray-900">Gerçek Zamanlı Olaylar</h1>
-              
-              <div className="flex items-center space-x-2">
-                <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
-                  isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span>{isConnected ? 'Bağlı' : 'Bağlantı Yok'}</span>
-                </div>
-                
-                <span className="text-sm text-gray-500">
-                  {filteredEvents.length} olay
-                </span>
+              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
+                isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span>{isConnected ? 'Bağlı' : 'Bağlantı Yok'}</span>
               </div>
+              <select
+                value={instanceId}
+                onChange={(e) => setInstanceId(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Instance seçin</option>
+                {instances.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name} ({i.status})
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">{filteredEvents.length} olay</span>
+              {connError && (
+                <span className="text-sm text-red-600">{connError}</span>
+              )}
             </div>
-            
+
             <div className="flex items-center space-x-2">
+              <button
+                onClick={handleReconnect}
+                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                title="Yeniden bağlan"
+              >
+                <RefreshCw size={16} />
+              </button>
               <button
                 onClick={() => setIsPaused(!isPaused)}
                 className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${
-                  isPaused 
-                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                  isPaused
+                    ? 'bg-green-600 text-white hover:bg-green-700'
                     : 'bg-red-600 text-white hover:bg-red-700'
                 }`}
               >
                 {isPaused ? <Play size={16} /> : <Pause size={16} />}
                 <span>{isPaused ? 'Devam Et' : 'Duraklat'}</span>
               </button>
-              
               <button
                 onClick={handleClearEvents}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center space-x-2"
@@ -689,7 +582,6 @@ const RealtimePage: React.FC = () => {
                 <Trash2 size={16} />
                 <span>Temizle</span>
               </button>
-              
               <button
                 onClick={handleExportEvents}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
@@ -697,7 +589,6 @@ const RealtimePage: React.FC = () => {
                 <Download size={16} />
                 <span>Dışa Aktar</span>
               </button>
-              
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -706,16 +597,17 @@ const RealtimePage: React.FC = () => {
               </button>
             </div>
           </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Studio veya Data API yazmaları Socket.IO + LISTEN/NOTIFY ile bu odaya düşer. Mock olay üretilmez.
+          </p>
         </div>
 
-        {/* Filters */}
         {showFilters && (
           <div className="p-4 border-b border-gray-200">
             <EventFilter filters={filters} onFilterChange={setFilters} />
           </div>
         )}
 
-        {/* Search */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center space-x-4">
             <div className="flex-1">
@@ -730,7 +622,6 @@ const RealtimePage: React.FC = () => {
                 />
               </div>
             </div>
-            
             <div className="flex items-center space-x-4">
               <label className="flex items-center">
                 <input
@@ -741,7 +632,6 @@ const RealtimePage: React.FC = () => {
                 />
                 <span className="ml-2 text-sm text-gray-700">Otomatik Kaydır</span>
               </label>
-              
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700">Maks. Olay:</span>
                 <select
@@ -759,18 +649,23 @@ const RealtimePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Events List */}
         <div className="flex-1 overflow-auto">
-          <div 
-            ref={eventsContainerRef}
-            className="p-4 space-y-4"
-          >
-            {filteredEvents.length === 0 ? (
+          <div ref={eventsContainerRef} className="p-4 space-y-4">
+            {!instanceId ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <Loader2 className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
+                  <p className="mt-2 text-sm text-gray-500">Hazır instance seçin veya paket kiralayın.</p>
+                </div>
+              </div>
+            ) : filteredEvents.length === 0 ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <Activity className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Olay bulunamadı</h3>
-                  <p className="mt-1 text-sm text-gray-500">Filtrelerinizi kontrol edin veya bekleyin.</p>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz olay yok</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Table Editor veya Data API ile yazma yapınca burada görünür.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -788,7 +683,6 @@ const RealtimePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Event Details Modal */}
       {showEventDetails && selectedEvent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
@@ -801,7 +695,6 @@ const RealtimePage: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            
             <div className="p-4 overflow-y-auto max-h-96">
               <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
                 {JSON.stringify(selectedEvent, null, 2)}

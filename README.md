@@ -2,9 +2,23 @@
 
 PostgreSQL veritabanı kiralama / Supabase benzeri BaaS hedefleyen ürün.
 
-**Dürüst durum:** Landing + paket kiralama + JWT auth + Stripe çalışır. Ödeme sonrası instance için shared Postgres üzerinde `CREATE DATABASE` / `ROLE` provisioning vardır. Table/SQL Editor gerçek Postgres’e bağlanır. iyzico/PayTR hâlâ stub. Storage / Edge / Realtime ürün servisleri yok.
+**Dürüst durum:** Landing + paket kiralama + platform JWT + Stripe çalışır. Ödeme sonrası shared Postgres üzerinde `CREATE DATABASE` / `ROLE` provisioning vardır. **Tenant izolasyonu (membership RBAC)**, instance başına **PostgREST-compatible Data API** (`/api/rest/:instanceId`), **Socket.IO Realtime MVP** ve **minimal project Auth** (`auth.users` + JWT) vardır. Tam Supabase parity yok (GoTrue/Storage/Edge/CDC yok). iyzico/PayTR hâlâ stub. Compose PostgREST yalnızca demo DB içindir.
 
 Detay: [`docs/EKSIKLER.md`](docs/EKSIKLER.md) · [`docs/DOMAIN_MODEL.md`](docs/DOMAIN_MODEL.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/API.md`](docs/API.md)
+
+---
+
+## Supabase karşılaştırması (özet)
+
+| Yetenek | Supabase | GraphCore (şimdi) |
+|---------|----------|-------------------|
+| Hosted Postgres | ✅ | ✅ shared multi-DB |
+| Dashboard auth | ✅ | ✅ platform JWT |
+| End-user Auth | GoTrue | ✅ minimal signup/login + JWT |
+| Auto REST | PostgREST | ✅ uyumlu proxy (kısmi) |
+| Realtime | CDC | ✅ Socket.IO + NOTIFY MVP |
+| RLS | ✅ | ✅ helper template |
+| Storage / Edge | ✅ | ❌ |
 
 ---
 
@@ -72,6 +86,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 | `STRIPE_WEBHOOK_SECRET` | **prod webhook** | Yoksa production webhook 503; dev’de unsigned fallback |
 | `STRIPE_PUBLISHABLE_KEY` | opsiyonel | Frontend Elements (ileride) |
 | `PROVISION_PUBLIC_HOST` | önerilir | Müşteri connection string host’u |
+| `PUBLIC_API_URL` | önerilir | `restUrl` üretimi (örn. `https://api.example.com`) |
 | `PROVISION_PUBLIC_PORT` | opsiyonel | Varsayılan 5432 |
 | `IYZICO_*` / `PAYTR_*` | opsiyonel | TR POS — hâlâ stub |
 | `WEB_PUBLISH_PORT` | opsiyonel | Host’ta web portu (varsayılan 80) |

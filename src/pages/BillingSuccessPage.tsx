@@ -44,13 +44,26 @@ const BillingSuccessPage: React.FC = () => {
                   Instance: <strong>{data.instance.name}</strong> (
                   {data.instance.status})
                 </p>
-                <p className="billing-conn-label">Bağlantı (yerel placeholder)</p>
+                <p className="billing-conn-label">Postgres connection string</p>
                 <code className="billing-conn">
                   {data.instance.connectionString || data.connectionString}
                 </code>
+                {(data.instance.restUrl || data.restUrl) && (
+                  <>
+                    <p className="billing-conn-label" style={{ marginTop: '1rem' }}>
+                      Data API (PostgREST-compatible)
+                    </p>
+                    <code className="billing-conn">
+                      {data.instance.restUrl || data.restUrl}
+                    </code>
+                    <p className="billing-note">
+                      Örnek: <code>GET {'{restUrl}'}/users?select=*&limit=10</code> —
+                      Bearer platform JWT + membership gerekir.
+                    </p>
+                  </>
+                )}
                 <p className="billing-note">
-                  Gerçek provisioning henüz stub: yerel Docker Postgres
-                  (graphcore_demo) gösterilir.
+                  Project Auth: <code>/api/project-auth/{'{instanceId}'}/signup|login</code>
                 </p>
               </>
             ) : (

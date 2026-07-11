@@ -6,6 +6,7 @@ const {
   authMiddleware,
 } = require('../lib/auth');
 const { isMetaReady, getMetaPool } = require('../lib/db');
+const { primaryScopeForUser } = require('../lib/rbac');
 const store = require('../lib/store');
 
 const router = express.Router();
@@ -142,13 +143,14 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const token = signToken(user);
+    const scope = await primaryScopeForUser(user.id);
+    const token = signToken(user, scope);
     res.status(201).json({
       success: true,
       token,
       user: publicUser(user),
-      tenantId,
-      projectId,
+      tenantId: scope.tenantId || tenantId,
+      projectId: scope.projectId || projectId,
     });
   } catch (err) {
     console.error('register error', err);
@@ -196,8 +198,15 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const token = signToken(user);
-    res.json({ success: true, token, user: publicUser(user) });
+    const scope = await primaryScopeForUser(user.id);
+    const token = signToken(user, scope);
+    res.json({
+      success: true,
+      token,
+      user: publicUser(user),
+      tenantId: scope.tenantId,
+      projectId: scope.projectId,
+    });
   } catch (err) {
     console.error('login error', err);
     res.status(500).json({

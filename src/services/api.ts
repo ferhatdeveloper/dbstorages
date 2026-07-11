@@ -370,6 +370,11 @@ class ApiService {
     return new WebSocket(`${base}/api/v1/realtime`);
   }
 
+  /** Socket.IO URL for realtime (proxied via Vite in dev). */
+  getSocketIoUrl() {
+    return import.meta.env.VITE_SOCKET_URL || window.location.origin;
+  }
+
   async getTenants() {
     return this.request<{ tenants: any[] }>(`${NODE_API_BASE}/tenants`);
   }
@@ -382,6 +387,51 @@ class ApiService {
   async getInstances(projectId?: string) {
     const q = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     return this.request<{ instances: any[] }>(`${NODE_API_BASE}/instances${q}`);
+  }
+
+  async getInstance(id: string) {
+    return this.request<{ instance: any }>(
+      `${NODE_API_BASE}/instances/${encodeURIComponent(id)}`
+    );
+  }
+
+  async getMemberships() {
+    return this.request<{ success: boolean; memberships: any[] }>(
+      `${NODE_API_BASE}/me/memberships`
+    );
+  }
+
+  /** PostgREST-compatible data API for a provisioned instance */
+  restUrl(instanceId: string, table?: string) {
+    const base = `${NODE_API_BASE}/rest/${encodeURIComponent(instanceId)}`;
+    return table ? `${base}/${encodeURIComponent(table)}` : base;
+  }
+
+  async restGet(instanceId: string, table: string, query: Record<string, string> = {}) {
+    const qs = new URLSearchParams(query).toString();
+    return this.request<any[]>(
+      `${this.restUrl(instanceId, table)}${qs ? `?${qs}` : ''}`
+    );
+  }
+
+  async projectAuthSignup(
+    instanceId: string,
+    body: { email: string; password: string; data?: Record<string, unknown> }
+  ) {
+    return this.request<any>(
+      `${NODE_API_BASE}/project-auth/${encodeURIComponent(instanceId)}/signup`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async projectAuthLogin(
+    instanceId: string,
+    body: { email: string; password: string }
+  ) {
+    return this.request<any>(
+      `${NODE_API_BASE}/project-auth/${encodeURIComponent(instanceId)}/login`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
   }
 
   async getPackages() {

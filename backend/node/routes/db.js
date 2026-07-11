@@ -1,6 +1,7 @@
 const express = require('express');
-const { isTenantReady, getTenantPool, resolveTenantPool } = require('../lib/db');
-const { optionalAuth } = require('../lib/auth');
+const { isTenantReady, resolveTenantPool } = require('../lib/db');
+const { authMiddleware } = require('../lib/auth');
+const { notifyChange } = require('../lib/realtime');
 
 const router = express.Router();
 
@@ -18,13 +19,8 @@ function fail(res, status, message, code = 'error') {
 
 function requireTenant(res) {
   if (!isTenantReady()) {
-    fail(
-      res,
-      503,
-      'Tenant Postgres bağlı değil. docker compose up -d postgres çalıştırın.',
-      'db_unavailable'
-    );
-    return false;
+    // Still allow resolveTenantPool to hit provisioned instances even if demo tenant is down
+    return true;
   }
   return true;
 }
@@ -33,11 +29,22 @@ async function poolFor(req) {
   const instanceId =
     req.query.instanceId ||
     req.headers['x-graphcore-instance'] ||
-    req.body?.instanceId;
+    req.body?.instanceId ||
+    null;
   return resolveTenantPool({
     instanceId: instanceId || null,
     userId: req.user?.sub || null,
+    requireAuth: true,
   });
+}
+
+function instanceIdOf(req) {
+  return (
+    req.query.instanceId ||
+    req.headers['x-graphcore-instance'] ||
+    req.body?.instanceId ||
+    null
+  );
 }
 
 function quoteIdent(name) {
@@ -93,7 +100,7 @@ async function introspectTable(pool, tableName) {
   };
 }
 
-router.use(optionalAuth);
+router.use(authMiddleware);
 
 router.get('/health', (_req, res) => {
   res.json({
@@ -118,7 +125,7 @@ router.get('/tables', async (req, res) => {
     }
     res.json(ok(tables));
   } catch (err) {
-    fail(res, 500, err.message, 'query_failed');
+    fail(res, err.status || 500, err.message, err.code || 'query_failed');
   }
 });
 
@@ -176,7 +183,7 @@ router.get('/tables/:table', async (req, res) => {
       })
     );
   } catch (err) {
-    fail(res, 500, err.message, 'query_failed');
+    fail(res, err.status || 500, err.message, err.code || 'query_failed');
   }
 });
 
@@ -197,9 +204,16 @@ router.post('/tables/:table/rows', async (req, res) => {
       `INSERT INTO ${quoteIdent(table)} (${cols}) VALUES (${placeholders}) RETURNING *`,
       values
     );
+    await notifyChange(pool, instanceIdOf(req), {
+      type: 'insert',
+      table,
+      details: `Studio insert into ${table}`,
+      data: rows[0],
+      user: req.user?.email,
+    });
     res.status(201).json(ok(rows[0]));
   } catch (err) {
-    fail(res, 500, err.message, 'insert_failed');
+    fail(res, err.status || 500, err.message, err.code || 'insert_failed');
   }
 });
 
@@ -222,9 +236,16 @@ router.put('/tables/:table/rows/:id', async (req, res) => {
       values
     );
     if (!rows[0]) return fail(res, 404, 'row not found', 'not_found');
+    await notifyChange(pool, instanceIdOf(req), {
+      type: 'update',
+      table,
+      details: `Studio update on ${table}`,
+      data: rows[0],
+      user: req.user?.email,
+    });
     res.json(ok(rows[0]));
   } catch (err) {
-    fail(res, 500, err.message, 'update_failed');
+    fail(res, err.status || 500, err.message, err.code || 'update_failed');
   }
 });
 
@@ -239,9 +260,16 @@ router.delete('/tables/:table/rows/:id', async (req, res) => {
       [id]
     );
     if (!rowCount) return fail(res, 404, 'row not found', 'not_found');
+    await notifyChange(pool, instanceIdOf(req), {
+      type: 'delete',
+      table,
+      details: `Studio delete on ${table}`,
+      data: { id },
+      user: req.user?.email,
+    });
     res.json(ok({ deleted: true }));
   } catch (err) {
-    fail(res, 500, err.message, 'delete_failed');
+    fail(res, err.status || 500, err.message, err.code || 'delete_failed');
   }
 });
 
@@ -258,9 +286,16 @@ router.post('/tables/:table/rows/delete', async (req, res) => {
       `DELETE FROM ${quoteIdent(table)} WHERE id = ANY($1::int[])`,
       [ids.map(Number)]
     );
+    await notifyChange(pool, instanceIdOf(req), {
+      type: 'delete',
+      table,
+      details: `Studio bulk delete on ${table}`,
+      data: { ids, deleted: rowCount },
+      user: req.user?.email,
+    });
     res.json(ok({ deleted: rowCount }));
   } catch (err) {
-    fail(res, 500, err.message, 'delete_failed');
+    fail(res, err.status || 500, err.message, err.code || 'delete_failed');
   }
 });
 
@@ -273,7 +308,6 @@ router.post('/sql/execute', async (req, res) => {
       return fail(res, 400, 'query required', 'validation');
     }
 
-    // Block multi-statement destructive patterns lightly; still allow DDL for Studio
     const start = Date.now();
     const result = await pool.query(query);
     const duration = Date.now() - start;
@@ -283,6 +317,16 @@ router.post('/sql/execute', async (req, res) => {
       rows.length > 0
         ? Object.keys(rows[0])
         : (result.fields || []).map((f) => f.name);
+
+    const cmd = String(result.command || '').toUpperCase();
+    if (['INSERT', 'UPDATE', 'DELETE'].includes(cmd)) {
+      await notifyChange(pool, instanceIdOf(req), {
+        type: cmd.toLowerCase(),
+        details: `SQL ${cmd}`,
+        data: { rowCount: result.rowCount },
+        user: req.user?.email,
+      });
+    }
 
     res.json(
       ok({
@@ -294,6 +338,9 @@ router.post('/sql/execute', async (req, res) => {
       })
     );
   } catch (err) {
+    if (err.status) {
+      return fail(res, err.status, err.message, err.code || 'error');
+    }
     res.status(400).json({
       success: false,
       error: err.message,
@@ -317,7 +364,7 @@ router.get('/schema', async (req, res) => {
     }
     res.json(ok({ tables: schemas }));
   } catch (err) {
-    fail(res, 500, err.message, 'query_failed');
+    fail(res, err.status || 500, err.message, err.code || 'query_failed');
   }
 });
 

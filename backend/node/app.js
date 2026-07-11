@@ -8,9 +8,23 @@ require('dotenv').config();
 
 const { initDb, isMetaReady, getMetaPool, isTenantReady } = require('./lib/db');
 const store = require('./lib/store');
-const { authMiddleware, optionalAuth } = require('./lib/auth');
+const { authMiddleware, optionalAuth, verifyToken } = require('./lib/auth');
+const {
+  assertTenantAccess,
+  assertProjectAccess,
+  listMemberships,
+  getInstanceForUser,
+} = require('./lib/rbac');
+const {
+  setIo,
+  roomName,
+  warmListeners,
+  startListenerForInstanceRow,
+} = require('./lib/realtime');
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
+const { router: restRoutes } = require('./routes/rest');
+const projectAuthRoutes = require('./routes/projectAuth');
 const { router: billingRoutes, provisionInstanceAfterPayment, updatePaymentStatus } = require('./routes/billing');
 const { getProvider } = require('./payments');
 
@@ -132,6 +146,8 @@ app.use(express.urlencoded({ extended: true }));
 // --- Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/db', dbRoutes);
+app.use('/api/rest', restRoutes);
+app.use('/api/project-auth', projectAuthRoutes);
 app.use('/api/billing', billingRoutes);
 
 // SQL alias used by SqlEditorPage (/api/sql/execute)
@@ -151,29 +167,63 @@ app.get('/api/packages', (_req, res) => {
   res.json({ success: true, data: getPackages(), providers: listProviders() });
 });
 
-// Domain: tenants / projects / instances
-app.get('/api/tenants', optionalAuth, async (req, res) => {
+// Domain: tenants / projects / instances — membership-scoped
+function publicApiBase(req) {
+  return (
+    process.env.PUBLIC_API_URL ||
+    `${req.protocol}://${req.get('host')}`
+  ).replace(/\/$/, '');
+}
+
+function mapInstanceRow(i, req) {
+  const restUrl =
+    i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`;
+  return {
+    id: i.id,
+    projectId: i.project_id,
+    name: i.name,
+    plan: i.plan,
+    region: i.region,
+    status: i.status,
+    host: i.host,
+    port: i.port,
+    database: i.database_name,
+    connectionString: i.connection_string,
+    restUrl,
+    jwtSecretConfigured: Boolean(i.jwt_secret),
+    createdAt: i.created_at,
+  };
+}
+
+app.get('/api/tenants', authMiddleware, async (req, res) => {
   try {
     if (isMetaReady()) {
       const { rows } = await getMetaPool().query(
         `SELECT t.* FROM tenants t
-         LEFT JOIN memberships m ON m.tenant_id = t.id
-         WHERE $1::text IS NULL OR m.user_id = $1
+         INNER JOIN memberships m ON m.tenant_id = t.id
+         WHERE m.user_id = $1
          ORDER BY t.created_at`,
-        [req.user?.sub || null]
+        [req.user.sub]
       );
-      return res.json({ tenants: rows.map((t) => ({
-        id: t.id,
-        name: t.name,
-        createdAt: t.created_at,
-      })) });
+      return res.json({
+        tenants: rows.map((t) => ({
+          id: t.id,
+          name: t.name,
+          createdAt: t.created_at,
+        })),
+      });
     }
+    const mine = store.memberships
+      .filter((m) => m.user_id === req.user.sub)
+      .map((m) => m.tenant_id);
     res.json({
-      tenants: store.tenants.map((t) => ({
-        id: t.id,
-        name: t.name,
-        createdAt: t.created_at,
-      })),
+      tenants: store.tenants
+        .filter((t) => mine.includes(t.id))
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          createdAt: t.created_at,
+        })),
     });
   } catch (err) {
     res.status(500).json({ error: { code: 'server', message: err.message } });
@@ -213,17 +263,23 @@ app.post('/api/tenants', authMiddleware, async (req, res) => {
   });
 });
 
-app.get('/api/projects', optionalAuth, async (req, res) => {
+app.get('/api/projects', authMiddleware, async (req, res) => {
   const { tenantId } = req.query;
   try {
+    if (tenantId) {
+      await assertTenantAccess(req.user.sub, tenantId);
+    }
     if (isMetaReady()) {
-      let q = 'SELECT * FROM projects';
-      const params = [];
+      const params = [req.user.sub];
+      let q = `
+        SELECT p.* FROM projects p
+        INNER JOIN memberships m ON m.tenant_id = p.tenant_id
+        WHERE m.user_id = $1`;
       if (tenantId) {
         params.push(tenantId);
-        q += ` WHERE tenant_id = $1`;
+        q += ` AND p.tenant_id = $2`;
       }
-      q += ' ORDER BY created_at';
+      q += ' ORDER BY p.created_at';
       const { rows } = await getMetaPool().query(q, params);
       return res.json({
         projects: rows.map((p) => ({
@@ -235,9 +291,13 @@ app.get('/api/projects', optionalAuth, async (req, res) => {
         })),
       });
     }
-    const list = tenantId
-      ? store.projects.filter((p) => p.tenant_id === tenantId)
-      : store.projects;
+    const mineTenants = new Set(
+      store.memberships
+        .filter((m) => m.user_id === req.user.sub)
+        .map((m) => m.tenant_id)
+    );
+    let list = store.projects.filter((p) => mineTenants.has(p.tenant_id));
+    if (tenantId) list = list.filter((p) => p.tenant_id === tenantId);
     res.json({
       projects: list.map((p) => ({
         id: p.id,
@@ -248,7 +308,9 @@ app.get('/api/projects', optionalAuth, async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: { code: 'server', message: err.message } });
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
   }
 });
 
@@ -257,6 +319,13 @@ app.post('/api/projects', authMiddleware, async (req, res) => {
   if (!tenantId || !name) {
     return res.status(400).json({
       error: { code: 'validation', message: 'tenantId and name required' },
+    });
+  }
+  try {
+    await assertTenantAccess(req.user.sub, tenantId);
+  } catch (err) {
+    return res.status(err.status || 403).json({
+      error: { code: err.code || 'forbidden', message: err.message },
     });
   }
   const project = {
@@ -285,54 +354,48 @@ app.post('/api/projects', authMiddleware, async (req, res) => {
   });
 });
 
-app.get('/api/instances', optionalAuth, async (req, res) => {
+app.get('/api/instances', authMiddleware, async (req, res) => {
   const { projectId } = req.query;
   try {
+    if (projectId) {
+      await assertProjectAccess(req.user.sub, projectId);
+    }
     if (isMetaReady()) {
-      let q = 'SELECT * FROM instances WHERE status <> \'deleted\'';
-      const params = [];
+      const params = [req.user.sub];
+      let q = `
+        SELECT i.* FROM instances i
+        JOIN projects p ON p.id = i.project_id
+        JOIN memberships m ON m.tenant_id = p.tenant_id
+        WHERE m.user_id = $1 AND i.status <> 'deleted'`;
       if (projectId) {
         params.push(projectId);
-        q += ` AND project_id = $1`;
+        q += ` AND i.project_id = $2`;
       }
-      q += ' ORDER BY created_at DESC';
+      q += ' ORDER BY i.created_at DESC';
       const { rows } = await getMetaPool().query(q, params);
       return res.json({
-        instances: rows.map((i) => ({
-          id: i.id,
-          projectId: i.project_id,
-          name: i.name,
-          plan: i.plan,
-          region: i.region,
-          status: i.status,
-          host: i.host,
-          port: i.port,
-          database: i.database_name,
-          connectionString: i.connection_string,
-          createdAt: i.created_at,
-        })),
+        instances: rows.map((i) => mapInstanceRow(i, req)),
       });
     }
-    const list = projectId
-      ? store.instances.filter((i) => i.project_id === projectId)
-      : store.instances;
+    const mineTenants = new Set(
+      store.memberships
+        .filter((m) => m.user_id === req.user.sub)
+        .map((m) => m.tenant_id)
+    );
+    const mineProjects = new Set(
+      store.projects.filter((p) => mineTenants.has(p.tenant_id)).map((p) => p.id)
+    );
+    let list = store.instances.filter(
+      (i) => i.status !== 'deleted' && mineProjects.has(i.project_id)
+    );
+    if (projectId) list = list.filter((i) => i.project_id === projectId);
     res.json({
-      instances: list.map((i) => ({
-        id: i.id,
-        projectId: i.project_id,
-        name: i.name,
-        plan: i.plan,
-        region: i.region,
-        status: i.status,
-        host: i.host,
-        port: i.port,
-        database: i.database_name,
-        connectionString: i.connection_string,
-        createdAt: i.created_at,
-      })),
+      instances: list.map((i) => mapInstanceRow(i, req)),
     });
   } catch (err) {
-    res.status(500).json({ error: { code: 'server', message: err.message } });
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
   }
 });
 
@@ -341,6 +404,13 @@ app.post('/api/instances', authMiddleware, async (req, res) => {
   if (!projectId || !name) {
     return res.status(400).json({
       error: { code: 'validation', message: 'projectId and name required' },
+    });
+  }
+  try {
+    await assertProjectAccess(req.user.sub, projectId);
+  } catch (err) {
+    return res.status(err.status || 403).json({
+      error: { code: err.code || 'forbidden', message: err.message },
     });
   }
   const instance = {
@@ -354,6 +424,8 @@ app.post('/api/instances', authMiddleware, async (req, res) => {
     port: null,
     database_name: null,
     connection_string: null,
+    jwt_secret: null,
+    rest_url: null,
     created_at: new Date().toISOString(),
   };
   if (isMetaReady()) {
@@ -374,20 +446,33 @@ app.post('/api/instances', authMiddleware, async (req, res) => {
     store.instances.push(instance);
   }
   res.status(201).json({
-    instance: {
-      id: instance.id,
-      projectId: instance.project_id,
-      name: instance.name,
-      plan: instance.plan,
-      region: instance.region,
-      status: instance.status,
-      host: null,
-      port: null,
-      database: null,
-      connectionString: null,
-      createdAt: instance.created_at,
-    },
+    instance: mapInstanceRow(instance, req),
   });
+});
+
+app.get('/api/instances/:id', authMiddleware, async (req, res) => {
+  try {
+    const row = await getInstanceForUser(req.user.sub, req.params.id);
+    if (!row) {
+      return res.status(404).json({
+        error: { code: 'not_found', message: 'Instance not found' },
+      });
+    }
+    res.json({ instance: mapInstanceRow(row, req) });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      error: { code: err.code || 'server', message: err.message },
+    });
+  }
+});
+
+app.get('/api/me/memberships', authMiddleware, async (req, res) => {
+  try {
+    const memberships = await listMemberships(req.user.sub);
+    res.json({ success: true, memberships });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'server', message: err.message } });
+  }
 });
 
 // Dashboard / connections / AI / integrations (honest stubs where not real)
@@ -437,20 +522,64 @@ app.get('/api/dashboard/widgets', (_req, res) => {
   });
 });
 
-app.get('/api/connections', optionalAuth, async (_req, res) => {
-  const connections = [];
-  if (isTenantReady()) {
-    connections.push({
-      id: 'tenant_demo',
-      name: 'Demo Tenant DB',
-      type: 'postgresql',
-      host: 'localhost',
-      port: 5432,
-      database: 'graphcore_demo',
-      status: 'connected',
-    });
+app.get('/api/connections', authMiddleware, async (req, res) => {
+  try {
+    const connections = [];
+    if (isMetaReady()) {
+      const { rows } = await getMetaPool().query(
+        `SELECT i.* FROM instances i
+         JOIN projects p ON p.id = i.project_id
+         JOIN memberships m ON m.tenant_id = p.tenant_id
+         WHERE m.user_id = $1 AND i.status = 'ready'
+         ORDER BY i.created_at DESC`,
+        [req.user.sub]
+      );
+      for (const i of rows) {
+        connections.push({
+          id: i.id,
+          name: i.name,
+          type: 'postgresql',
+          host: i.host,
+          port: i.port,
+          database: i.database_name,
+          username: i.username,
+          status: 'connected',
+          connectionString: i.connection_string,
+          restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
+          projectAuthUrl: `${publicApiBase(req)}/api/project-auth/${i.id}`,
+        });
+      }
+    } else {
+      const mineTenants = new Set(
+        store.memberships
+          .filter((m) => m.user_id === req.user.sub)
+          .map((m) => m.tenant_id)
+      );
+      const mineProjects = new Set(
+        store.projects.filter((p) => mineTenants.has(p.tenant_id)).map((p) => p.id)
+      );
+      for (const i of store.instances.filter(
+        (x) => x.status === 'ready' && mineProjects.has(x.project_id)
+      )) {
+        connections.push({
+          id: i.id,
+          name: i.name,
+          type: 'postgresql',
+          host: i.host,
+          port: i.port,
+          database: i.database_name,
+          username: i.username,
+          status: 'connected',
+          connectionString: i.connection_string,
+          restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
+          projectAuthUrl: `${publicApiBase(req)}/api/project-auth/${i.id}`,
+        });
+      }
+    }
+    res.json({ connections });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'server', message: err.message } });
   }
-  res.json({ connections });
 });
 
 app.post('/api/connections', authMiddleware, (req, res) => {
@@ -533,8 +662,63 @@ app.post('/api/integrations', authMiddleware, (_req, res) => {
   });
 });
 
+setIo(io);
+
+io.use((socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      (socket.handshake.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
+      socket.handshake.query?.token;
+    if (!token) {
+      return next(new Error('unauthorized'));
+    }
+    socket.user = verifyToken(token);
+    next();
+  } catch {
+    next(new Error('unauthorized'));
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log('Client connected:', socket.id, 'user=', socket.user?.sub);
+
+  socket.on('subscribe', async (payload, ack) => {
+    try {
+      const instanceId =
+        typeof payload === 'string' ? payload : payload?.instanceId;
+      if (!instanceId) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'instanceId required' });
+        return;
+      }
+      const row = await getInstanceForUser(socket.user.sub, instanceId);
+      if (!row) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'forbidden' });
+        return;
+      }
+      socket.join(roomName(instanceId));
+      startListenerForInstanceRow(row).catch(() => {});
+      socket.emit('realtime_event', {
+        id: `sub-${Date.now()}`,
+        type: 'connect',
+        instanceId,
+        timestamp: new Date().toISOString(),
+        details: `Subscribed to instance ${instanceId}`,
+        severity: 'low',
+        source: 'system',
+      });
+      if (typeof ack === 'function') ack({ ok: true, room: roomName(instanceId) });
+    } catch (err) {
+      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('unsubscribe', (payload) => {
+    const instanceId =
+      typeof payload === 'string' ? payload : payload?.instanceId;
+    if (instanceId) socket.leave(roomName(instanceId));
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
@@ -558,12 +742,15 @@ async function start() {
     demo.password_hash = bcrypt.hashSync('demo123', 10);
   }
 
+  await warmListeners();
+
   server.listen(PORT, HOST, () => {
     console.log(`Node control-plane on ${HOST}:${PORT}`);
     console.log(`  metaDb=${isMetaReady()} tenantDb=${isTenantReady()}`);
     console.log(
       `  stripeWebhook=${process.env.STRIPE_WEBHOOK_SECRET ? 'secret-set' : 'dev-fallback'}`
     );
+    console.log('  rest=/api/rest/:instanceId/:table  realtime=socket.io');
   });
 }
 

@@ -335,22 +335,24 @@ const ConnectionsPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Kullanıcı:</span>
-                      <span className="font-mono text-gray-900">{connection.username}</span>
+                      <span className="font-mono text-gray-900">{connection.username || '—'}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Şifre:</span>
-                      <div className="flex items-center space-x-1">
-                        <span className="font-mono text-gray-900">
-                          {showPassword[connection.id] ? connection.password : '••••••••'}
-                        </span>
-                        <button
-                          onClick={() => setShowPassword(prev => ({ ...prev, [connection.id]: !prev[connection.id] }))}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword[connection.id] ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                        </button>
+                    {(connection as any).restUrl && (
+                      <div className="text-sm">
+                        <span className="text-gray-600 block mb-1">Data API:</span>
+                        <code className="block text-xs bg-gray-50 p-2 rounded break-all text-blue-700">
+                          {(connection as any).restUrl}
+                        </code>
                       </div>
-                    </div>
+                    )}
+                    {(connection as any).projectAuthUrl && (
+                      <div className="text-sm">
+                        <span className="text-gray-600 block mb-1">Project Auth:</span>
+                        <code className="block text-xs bg-gray-50 p-2 rounded break-all text-blue-700">
+                          {(connection as any).projectAuthUrl}
+                        </code>
+                      </div>
+                    )}
                   </div>
 
                   {/* Pool Stats */}

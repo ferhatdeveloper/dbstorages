@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS instances (
   username TEXT,
   password TEXT,
   connection_string TEXT,
+  jwt_secret TEXT,
+  rest_url TEXT,
   stripe_session_id TEXT,
   payment_provider TEXT,
   payment_ref TEXT,

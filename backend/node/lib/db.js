@@ -17,7 +17,6 @@ let metaPool = null;
 let tenantPool = null;
 let metaReady = false;
 let tenantReady = false;
-let activeTenantUrl = TENANT_URL;
 
 /** @type {Map<string, import('pg').Pool>} */
 const instancePools = new Map();
@@ -38,7 +37,6 @@ function createPool(connectionString, label) {
 async function initDb() {
   metaPool = createPool(META_URL, 'meta');
   tenantPool = createPool(TENANT_URL, 'tenant');
-  activeTenantUrl = TENANT_URL;
 
   try {
     await metaPool.query('SELECT 1');
@@ -99,33 +97,23 @@ function isTenantReady() {
 }
 
 /**
- * Point the default tenant pool at a provisioned instance (Studio default).
+ * @deprecated Do NOT rewire a process-wide tenant pool (multi-tenant unsafe).
+ * Warms the per-connectionString pool cache only.
  */
 async function setTenantConnection(connectionString) {
   if (!connectionString) return false;
-  if (connectionString === activeTenantUrl && tenantReady) return true;
-
-  const next = createPool(connectionString, 'tenant');
   try {
-    await next.query('SELECT 1');
+    const pool = getPoolForConnection(connectionString);
+    await pool.query('SELECT 1');
+    return true;
   } catch (err) {
-    await next.end().catch(() => {});
-    console.warn('[pg] setTenantConnection failed:', err.message);
+    console.warn('[pg] setTenantConnection (pool warm) failed:', err.message);
     return false;
   }
-
-  const prev = tenantPool;
-  tenantPool = next;
-  activeTenantUrl = connectionString;
-  tenantReady = true;
-  if (prev) await prev.end().catch(() => {});
-  console.log('[pg] tenant pool rewired to provisioned instance');
-  return true;
 }
 
 function getPoolForConnection(connectionString) {
   if (!connectionString) return getTenantPool();
-  if (connectionString === activeTenantUrl) return getTenantPool();
   if (!instancePools.has(connectionString)) {
     instancePools.set(connectionString, createPool(connectionString, 'instance'));
   }
@@ -150,25 +138,53 @@ function internalConnFromInstanceRow(row) {
   }
 }
 
+function poolError(status, message, code) {
+  const err = new Error(message);
+  err.status = status;
+  err.code = code;
+  return err;
+}
+
 /**
- * Resolve which Postgres pool to use for Studio SQL/table APIs.
- * Prefer explicit instanceId → user's latest ready instance → default tenant pool.
+ * Resolve which Postgres pool to use for Studio / REST APIs.
+ * - instanceId: requires userId + membership (source of truth)
+ * - userId only: latest ready instance the user can access
+ * - neither: demo tenant pool (dev fallback only)
  */
-async function resolveTenantPool({ instanceId, userId } = {}) {
+async function resolveTenantPool({ instanceId, userId, requireAuth = false } = {}) {
+  if (requireAuth && !userId) {
+    throw poolError(401, 'Authentication required', 'unauthorized');
+  }
+
   if (!metaReady || !metaPool) {
+    if (instanceId && requireAuth) {
+      throw poolError(503, 'Meta DB unavailable for membership check', 'db_unavailable');
+    }
     return getTenantPool();
   }
 
   try {
     if (instanceId) {
+      if (!userId) {
+        throw poolError(401, 'Authentication required for instance access', 'unauthorized');
+      }
       const { rows } = await metaPool.query(
-        `SELECT * FROM instances
-         WHERE id = $1 AND status = 'ready'
+        `SELECT i.*
+         FROM instances i
+         JOIN projects p ON p.id = i.project_id
+         JOIN memberships m ON m.tenant_id = p.tenant_id
+         WHERE i.id = $1
+           AND m.user_id = $2
+           AND i.status = 'ready'
          LIMIT 1`,
-        [instanceId]
+        [instanceId, userId]
       );
+      if (!rows[0]) {
+        throw poolError(403, 'Instance not found or access denied', 'forbidden');
+      }
       const conn = internalConnFromInstanceRow(rows[0]);
       if (conn) return getPoolForConnection(conn);
+      throw poolError(503, 'Instance has no connection string', 'db_unavailable');
     }
 
     if (userId) {
@@ -188,9 +204,13 @@ async function resolveTenantPool({ instanceId, userId } = {}) {
       if (conn) return getPoolForConnection(conn);
     }
   } catch (err) {
+    if (err.status) throw err;
     console.warn('[pg] resolveTenantPool:', err.message);
   }
 
+  if (requireAuth) {
+    throw poolError(404, 'No ready instance for this user', 'not_found');
+  }
   return getTenantPool();
 }
 
@@ -203,6 +223,7 @@ module.exports = {
   setTenantConnection,
   getPoolForConnection,
   resolveTenantPool,
+  internalConnFromInstanceRow,
   META_URL,
   TENANT_URL,
 };
