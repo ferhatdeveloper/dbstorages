@@ -140,9 +140,9 @@ const VPS_ADDON = {
 const VPN_ADDON = {
   id: 'vpn',
   name: 'WireGuard VPN',
-  priceLabel: '€5.99/ay',
+  priceLabel: '€5.99/kullanıcı/ay',
   description:
-    'Güvenli erişim ek hizmeti: peer config + QR ile bağlanın; ardından RDP (3389) veya SSH.',
+    'Kullanıcı başına VPN: her aktif peer bir kullanıcıdır. Peer config + QR → bağlanın → RDP (3389) veya SSH. Örn. 3 kullanıcı × €5.99 = €17.97/ay.',
   studioPath: `${CONSOLE_URL}/cloud/vpn`,
 };
 
@@ -597,7 +597,7 @@ const LandingPage: React.FC = () => {
             </h2>
             <p>
               Provision edilen VPS / Windows sunuculara daha güvenli erişim:
-              VPN aç → peer alın → bağlanın → RDP veya SSH.
+              VPN aç → peer alın (kullanıcı başına) → bağlanın → RDP veya SSH.
             </p>
           </div>
           <div className="landing-cloud-cta">
@@ -607,7 +607,7 @@ const LandingPage: React.FC = () => {
               </h3>
               <p>
                 {VPN_ADDON.description} DB planlarından ve VPS kiralama
-                fiyatından bağımsız (EUR).
+                fiyatından bağımsız (EUR, kullanıcı başına).
               </p>
             </div>
             <div className="landing-actions">
@@ -628,7 +628,7 @@ const LandingPage: React.FC = () => {
             <h2>Kiralama paketleri</h2>
             <p className="landing-packages-sub">
               Trial 15 gün ücretsiz. Pro $34 · Scale $50 · Max $99 / ay. Yıllık =
-              aylık × 12. Yedekleme +$10/ay. VPS ve VPN ayrı ek hizmetler.
+              aylık × 12. Yedekleme +$10/ay. VPS ayrı; VPN €5.99/kullanıcı/ay.
             </p>
           </div>
 

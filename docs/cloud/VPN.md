@@ -2,22 +2,24 @@
 
 Güvenli erişim add-on’u: provision edilen VPS / Windows sunuculara RDP (3389) veya SSH öncesi WireGuard tüneli.
 
-## Fiyat
+## Fiyat (kullanıcı başına)
 
 | | |
 |--|--|
-| Perakende | **€5.99 / ay** (yıllık €71.88) |
+| Model | **Per user / peer** (aktif peer = 1 kullanıcı) |
+| Birim | **€5.99 / kullanıcı / ay** (yıllık €71.88 / kullanıcı) |
+| Örnek | 3 kullanıcı × €5.99 = **€17.97/ay** |
 | Para birimi | **EUR** (VPS kataloğu ile uyumlu) |
 | DB planları | Pro / Scale / Max **değişmez** |
 | Yedekleme | $10/ay — ayrı |
 | VPS | Hetzner × 1.20 — ayrı |
 
-Checkout’ta DB planıyla karıştırılmaz (`contactOnly`); Studio → **Cloud → VPN / WireGuard** üzerinden açılır.
+Checkout’ta DB planıyla karıştırılmaz (`contactOnly`); Studio → **Cloud → VPN / WireGuard** üzerinden açılır. `quantity` = aktif peer sayısı (abonelik / addon takibi).
 
 ## Akış (RDP)
 
 1. Studio’da VPN ek hizmetini açın (veya peer oluştururken otomatik enable).
-2. Peer oluşturun; isteğe bağlı sunucu seçin (AllowedIPs’e IP eklenir).
+2. Peer oluşturun; her peer **+€5.99/ay** ekler — panelde `X kullanıcı × €5.99 = €Z/ay` görünür.
 3. `.conf` indirin veya QR tarayın → WireGuard istemcisine aktarın.
 4. Bağlanın; ardından `mstsc` / RDP ile sunucu IP:3389 (Administrator).
 5. Mümkünse firewall’da 3389’u yalnızca VPN subnet’ine (`10.66.0.0/24`) açın.
@@ -26,13 +28,13 @@ Checkout’ta DB planıyla karıştırılmaz (`contactOnly`); Studio → **Cloud
 
 | Method | Path | Not |
 |--------|------|-----|
-| GET | `/api/cloud/vpn/status` | Addon fiyat + network + peers |
+| GET | `/api/cloud/vpn/status` | Addon + `billing` (`seats`, `label`, `quantity`) + peers |
 | POST | `/api/cloud/vpn/enable` | Tenant ağı oluştur |
 | GET | `/api/cloud/vpn/peers` | Peer listesi |
-| POST | `/api/cloud/vpn/peers` | `{ name, serverId? }` |
+| POST | `/api/cloud/vpn/peers` | `{ name, serverId? }` → `billing` + `billingDelta` |
 | GET | `/api/cloud/vpn/peers/:id/config` | Config JSON (`?download=1` → `.conf`) |
 | GET | `/api/cloud/vpn/peers/:id/qr` | PNG QR |
-| DELETE | `/api/cloud/vpn/peers/:id` | Revoke |
+| DELETE | `/api/cloud/vpn/peers/:id` | Revoke (seat sayısı düşer) |
 
 Auth + tenant membership zorunlu (diğer Cloud route’ları gibi).
 
@@ -52,5 +54,5 @@ Endpoint + server public key yoksa **mock** mod: client config yine üretilir; g
 
 - Landing → `#cloud-vpn`
 - Pricing → `#vpn-addon`
-- Studio → Cloud → **VPN / WireGuard**
+- Studio → Cloud → **VPN / WireGuard** (faturalandırılabilir kullanıcılar + maliyet uyarısı)
 - Sunucu detay checklist: **VPN ile bağlan** (Windows RDP adımı)

@@ -20,6 +20,10 @@ import {
   cloudTr,
 } from './cloudUi'
 
+function formatEurCents(cents: number) {
+  return `€${(cents / 100).toFixed(2)}`
+}
+
 const CloudVpnPage: React.FC = () => {
   const [status, setStatus] = useState<any>(null)
   const [peers, setPeers] = useState<any[]>([])
@@ -31,6 +35,7 @@ const CloudVpnPage: React.FC = () => {
   const [enabling, setEnabling] = useState(false)
   const [qr, setQr] = useState<{ name: string; dataUrl: string } | null>(null)
   const [form, setForm] = useState({ name: '', serverId: '' })
+  const [billingNotice, setBillingNotice] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -71,12 +76,21 @@ const CloudVpnPage: React.FC = () => {
     e.preventDefault()
     setSaving(true)
     setError('')
+    setBillingNotice('')
     try {
       const res = await apiService.cloudVpnCreatePeer({
         name: form.name,
         serverId: form.serverId || undefined,
       })
       const cfg = (res as any).data?.config
+      const delta = (res as any).data?.billingDelta
+      if (delta?.warning) {
+        setBillingNotice(delta.warning)
+      } else if ((res as any).data?.billing?.label) {
+        setBillingNotice(
+          `Faturalandırma: ${(res as any).data.billing.label}`
+        )
+      }
       if (cfg?.qrDataUrl) {
         setQr({ name: cfg.name || form.name, dataUrl: cfg.qrDataUrl })
       }
@@ -120,7 +134,8 @@ const CloudVpnPage: React.FC = () => {
   }
 
   const revoke = async (peerId: string) => {
-    if (!window.confirm('Bu peer iptal edilsin mi?')) return
+    if (!window.confirm('Bu peer iptal edilsin mi? Faturalandırılabilir kullanıcı sayısı düşer.'))
+      return
     try {
       await apiService.cloudVpnRevokePeer(peerId)
       await load()
@@ -130,11 +145,15 @@ const CloudVpnPage: React.FC = () => {
   }
 
   const addon = status?.addon
-  const price =
-    addon?.priceCents != null
-      ? `€${(addon.priceCents / 100).toFixed(2)}/ay`
-      : '€5.99/ay'
+  const billing = status?.billing
+  const unitCents = billing?.unitPriceCents ?? addon?.priceCents ?? 599
+  const seats = billing?.seats ?? peers.length
+  const totalLabel =
+    billing?.label ||
+    `${seats} kullanıcı × ${formatEurCents(unitCents)} = ${formatEurCents(seats * unitCents)}/ay`
+  const unitPriceLabel = `${formatEurCents(unitCents)}/kullanıcı/ay`
   const enabled = Boolean(status?.enabled)
+  const nextSeatCost = formatEurCents(unitCents)
 
   if (loading) return <CloudLoading />
 
@@ -142,7 +161,7 @@ const CloudVpnPage: React.FC = () => {
     <div className="space-y-4">
       <CloudPageHeader
         title="VPN / WireGuard"
-        description="Ek hizmet — peer config ve QR ile güvenli tünel; ardından RDP (3389) veya SSH."
+        description="Kullanıcı başına faturalandırma — her aktif peer bir kullanıcı; ardından RDP (3389) veya SSH."
         onRefresh={load}
         actions={
           <>
@@ -175,6 +194,11 @@ const CloudVpnPage: React.FC = () => {
       />
 
       {error && <CloudError message={error} />}
+      {billingNotice && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          {billingNotice}
+        </div>
+      )}
 
       <div className={`${cloudPanelClass} p-4`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -184,9 +208,19 @@ const CloudVpnPage: React.FC = () => {
             </div>
             <p className="mt-1 max-w-2xl text-xs text-slate-500 dark:text-slate-400">
               {addon?.description ||
-                'VPN aç → peer indir → bağlan → sunucuya RDP/SSH.'}{' '}
-              Fiyat: <strong className="text-slate-700 dark:text-slate-200">{price}</strong>
+                'VPN aç → peer indir → bağlan → sunucuya RDP/SSH. Her aktif peer bir kullanıcıdır.'}{' '}
+              Birim fiyat:{' '}
+              <strong className="text-slate-700 dark:text-slate-200">
+                {unitPriceLabel}
+              </strong>
               {addon?.billingNote ? ` · ${addon.billingNote}` : ''}
+            </p>
+            <p className="mt-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+              Faturalandırılabilir:{' '}
+              <span className="font-mono">{totalLabel}</span>
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              {seats} faturalandırılabilir kullanıcı · quantity = {seats}
             </p>
             {status?.mock && (
               <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
@@ -231,7 +265,7 @@ const CloudVpnPage: React.FC = () => {
       {!peers.length ? (
         <CloudEmptyState
           title="Henüz peer yok"
-          description="Ek hizmeti açıp bir peer oluşturun; .conf indirin veya QR tarayın."
+          description={`Ek hizmeti açıp bir peer oluşturun (+${nextSeatCost}/ay). .conf indirin veya QR tarayın.`}
         />
       ) : (
         <div className={cloudTableWrap}>
@@ -241,6 +275,7 @@ const CloudVpnPage: React.FC = () => {
                 <th className={cloudTh}>Ad</th>
                 <th className={cloudTh}>Adres</th>
                 <th className={cloudTh}>Sunucu</th>
+                <th className={cloudTh}>Faturalandırma</th>
                 <th className={cloudTh}>Durum</th>
                 <th className={cloudTh}>İşlem</th>
               </tr>
@@ -261,6 +296,12 @@ const CloudVpnPage: React.FC = () => {
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className={cloudTd}>
+                    <span className="text-xs text-slate-600 dark:text-slate-300">
+                      1 kullanıcı · {formatEurCents(p.unitPriceCents ?? unitCents)}
+                      /ay
+                    </span>
                   </td>
                   <td className={cloudTd}>
                     <CloudStatusPill status={p.status} />
@@ -330,12 +371,20 @@ const CloudVpnPage: React.FC = () => {
               ))}
             </select>
           </label>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            <strong>Ek aylık maliyet:</strong> +{nextSeatCost}/ay (1 kullanıcı).
+            Sonrası:{' '}
+            <span className="font-mono">
+              {seats + 1} kullanıcı × {formatEurCents(unitCents)} ={' '}
+              {formatEurCents((seats + 1) * unitCents)}/ay
+            </span>
+          </div>
           <p className="text-[11px] text-slate-500">
             Sunucu seçilirse AllowedIPs içine sunucu IP’si eklenir — VPN sonrası RDP/SSH için.
           </p>
           <button type="submit" className={cloudBtnPrimary} disabled={saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Oluştur
+            Oluştur (+{nextSeatCost}/ay)
           </button>
         </form>
       </CloudSlideOver>

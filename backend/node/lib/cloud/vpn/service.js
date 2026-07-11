@@ -1,9 +1,13 @@
 /**
  * WireGuard VPN add-on service (provider-agnostic).
- * Mock mode works without a real WG endpoint; embeds env when configured.
+ * Priced per user (active peer = 1 seat). Mock mode works without a real WG endpoint.
  */
 const store = require('../../store');
-const { getAddon } = require('../../../payments');
+const {
+  getAddon,
+  vpnBillingSummary,
+  unitAmountCents,
+} = require('../../../payments');
 const cloudRepo = require('../repository');
 const { generateKeyPair } = require('./keys');
 const {
@@ -50,6 +54,8 @@ function addonCatalog() {
     priceCents: 599,
     priceYearCents: 7188,
     currency: 'eur',
+    pricingModel: 'per_user',
+    unitLabel: 'kullanıcı',
   };
   return {
     id: addon.id,
@@ -57,11 +63,39 @@ function addonCatalog() {
     priceCents: addon.priceCents,
     priceYearCents: addon.priceYearCents ?? addon.priceCents * 12,
     currency: addon.currency || 'eur',
+    pricingModel: addon.pricingModel || 'per_user',
+    unitLabel: addon.unitLabel || 'kullanıcı',
     billingNote: addon.billingNote,
     description: addon.description,
     studioPath: addon.studioPath || '/cloud/vpn',
     contactOnly: Boolean(addon.contactOnly),
+    messaging: addon.messaging || [],
   };
+}
+
+/** Persist billable seat quantity on the network for subscription/addon tracking. */
+async function syncSeatQuantity(tenantId, networkId) {
+  const peers = await repo.listPeers(tenantId);
+  const seats = peers.filter((p) => p.status !== 'revoked').length;
+  const billing = vpnBillingSummary(seats, 'month');
+  const network = await repo.getNetwork(networkId);
+  if (network) {
+    await repo.updateNetwork(networkId, {
+      metadata: {
+        ...(network.metadata || {}),
+        billing: {
+          pricingModel: 'per_user',
+          quantity: seats,
+          unitPriceCents: billing.unitPriceCents,
+          monthlyTotalCents: billing.totalCents,
+          currency: billing.currency,
+          label: billing.label,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+  }
+  return billing;
 }
 
 async function status(tenantId) {
@@ -69,11 +103,21 @@ async function status(tenantId) {
   const row = await repo.getNetworkByTenant(tenantId);
   const network = row ? repo.publicNetwork(row) : null;
   const peers = network ? await repo.listPeers(tenantId) : [];
+  const billablePeers = peers.filter((p) => p.status !== 'revoked');
+  const billing = vpnBillingSummary(billablePeers.length, 'month');
+  const addon = addonCatalog();
   return {
     enabled: Boolean(network && network.status === 'active'),
-    addon: addonCatalog(),
+    addon,
+    billing,
     network,
-    peers,
+    peers: billablePeers.map((p) => ({
+      ...p,
+      billable: true,
+      unitPriceCents: billing.unitPriceCents,
+    })),
+    seats: billing.seats,
+    quantity: billing.quantity,
     endpointConfigured: Boolean(env.endpoint && env.serverPublicKey),
     mock: network ? Boolean(network.mock) : env.mock,
     subnetDefault: env.subnet,
@@ -113,6 +157,14 @@ async function enable({ tenantId, createdBy, name = 'default' }) {
     createdBy,
     metadata: {
       mock,
+      billing: {
+        pricingModel: 'per_user',
+        quantity: 0,
+        unitPriceCents: unitAmountCents(getAddon('vpn'), 'month'),
+        monthlyTotalCents: 0,
+        currency: 'eur',
+        label: vpnBillingSummary(0).label,
+      },
       ...(serverPrivateKey
         ? { note: 'Mock WG server keypair — set WIREGUARD_ENDPOINT + WIREGUARD_SERVER_PUBLIC_KEY for production' }
         : {}),
@@ -155,6 +207,12 @@ async function createPeer({
   }
   if (!networkRow) throw fail(500, 'vpn_enable_failed', 'VPN network missing');
 
+  // Strict per-user: every new active peer is one billable seat
+  const beforePeers = await repo.listPeers(tenantId);
+  const seatsBefore = beforePeers.filter((p) => p.status !== 'revoked').length;
+  const billingBefore = vpnBillingSummary(seatsBefore, 'month');
+  const billingAfterPreview = vpnBillingSummary(seatsBefore + 1, 'month');
+
   let routeTarget = null;
   if (serverId) {
     const server = await cloudRepo.getServer(serverId);
@@ -188,11 +246,28 @@ async function createPeer({
     allowedIps: allowed,
     persistentKeepalive: 25,
     createdBy,
-    metadata: routeTarget ? { routeTarget } : {},
+    metadata: {
+      ...(routeTarget ? { routeTarget } : {}),
+      billable: true,
+      unitPriceCents: billingAfterPreview.unitPriceCents,
+    },
   });
 
+  const billing = await syncSeatQuantity(tenantId, networkRow.id);
   const config = await peerConfig(tenantId, peer.id);
-  return { peer: { ...peer, privateKey: undefined }, config };
+  return {
+    peer: { ...peer, privateKey: undefined, billable: true },
+    config,
+    billing,
+    billingDelta: {
+      seatsBefore,
+      seatsAfter: billing.seats,
+      addedUnitCents: billing.unitPriceCents,
+      previousTotalCents: billingBefore.totalCents,
+      newTotalCents: billing.totalCents,
+      warning: `Ek aylık maliyet: +€${(billing.unitPriceCents / 100).toFixed(2)}/ay. Yeni toplam: ${billing.label}`,
+    },
+  };
 }
 
 async function peerConfig(tenantId, peerId) {
@@ -260,7 +335,9 @@ async function revokePeer(tenantId, peerId) {
   if (!row || row.tenant_id !== tenantId) {
     throw fail(404, 'peer_not_found', 'VPN peer not found');
   }
-  return repo.revokePeer(peerId);
+  const revoked = await repo.revokePeer(peerId);
+  const billing = await syncSeatQuantity(tenantId, row.network_id);
+  return { ...revoked, billing };
 }
 
 async function listPeers(tenantId) {
@@ -277,4 +354,5 @@ module.exports = {
   addonCatalog,
   nextClientAddress,
   generateKeyPair,
+  syncSeatQuantity,
 };

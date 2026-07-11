@@ -33,6 +33,9 @@ type Addon = {
   billingNote?: string;
   contactOnly?: boolean;
   studioPath?: string;
+  pricingModel?: 'flat' | 'per_user';
+  unitLabel?: string;
+  messaging?: string[];
 };
 
 type Provider = { id: string; configured: boolean };
@@ -162,11 +165,19 @@ const FALLBACK_ADDONS: Addon[] = [
     priceYearCents: 7188,
     currency: 'eur',
     interval: 'month',
-    billingNote: 'Ayrı ek hizmet · EUR €5.99/ay',
+    pricingModel: 'per_user',
+    unitLabel: 'kullanıcı',
+    billingNote: 'Kullanıcı başına · EUR €5.99/kullanıcı/ay',
     description:
-      'Güvenli erişim: peer config + QR → WireGuard → RDP/SSH. Studio → Cloud → VPN.',
+      'Her aktif WireGuard peer bir kullanıcıdır. Peer config + QR → RDP/SSH. Studio → Cloud → VPN.',
     contactOnly: true,
     studioPath: `${CONSOLE_URL}/cloud/vpn`,
+    messaging: [
+      '€5.99 / kullanıcı / ay — aktif peer başına',
+      'Örn. 3 kullanıcı × €5.99 = €17.97/ay',
+      'Peer oluştur → .conf indir veya QR tara',
+      'WireGuard → RDP (3389) / SSH',
+    ],
   },
 ];
 
@@ -502,14 +513,34 @@ const PricingPage: React.FC = () => {
         <div id="vpn-addon" className="pricing-addon pricing-addon-contact pricing-vps-block">
           <span>
             <strong>{vpnAddon.name}</strong> — ek hizmet · €
-            {(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/ay
-            <em>{vpnAddon.billingNote || 'EUR · DB ve VPS’ten ayrı'}</em>
+            {(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/kullanıcı/ay
+            <em>
+              {vpnAddon.billingNote ||
+                'Kullanıcı başına · EUR · DB ve VPS’ten ayrı'}
+            </em>
             <small>{vpnAddon.description}</small>
             <ul className="pricing-vps-fields">
-              <li>Peer oluştur → .conf indir veya QR tara</li>
-              <li>WireGuard istemcisi ile bağlan</li>
-              <li>Ardından RDP (3389) / SSH — özellikle firewall arkası sunucular</li>
-              <li>Yıllık: €{(addonAmount(vpnAddon, 'year') / 100).toFixed(2)}</li>
+              {(vpnAddon.messaging?.length
+                ? vpnAddon.messaging
+                : [
+                    '€5.99 / kullanıcı / ay — aktif peer başına',
+                    'Örn. 3 kullanıcı × €5.99 = €17.97/ay',
+                    'Peer oluştur → .conf indir veya QR tara',
+                    'WireGuard istemcisi ile bağlan → RDP (3389) / SSH',
+                  ]
+              ).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+              <li>
+                1 kullanıcı:{' '}
+                €{(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/ay · 3
+                kullanıcı: €
+                {((addonAmount(vpnAddon, 'month') * 3) / 100).toFixed(2)}/ay
+              </li>
+              <li>
+                Yıllık (kullanıcı başına): €
+                {(addonAmount(vpnAddon, 'year') / 100).toFixed(2)}
+              </li>
             </ul>
           </span>
           <div className="pricing-vps-actions">

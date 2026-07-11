@@ -187,20 +187,23 @@ const ADDONS = [
   {
     id: 'vpn',
     name: 'WireGuard VPN',
-    priceCents: 599,
-    priceYearCents: 7188, // €5.99 × 12
+    priceCents: 599, // €5.99 per user (peer/seat) / month
+    priceYearCents: 7188, // €5.99 × 12 per user / year
     currency: 'eur',
     interval: 'month',
+    pricingModel: 'per_user',
+    unitLabel: 'kullanıcı',
     billingNote:
-      'Ayrı ek hizmet · EUR €5.99/ay (VPS kataloğu ile aynı para birimi; DB planlarından bağımsız)',
+      'Kullanıcı başına · EUR €5.99/kullanıcı/ay (aktif peer = 1 kullanıcı; DB ve VPS’ten bağımsız)',
     description:
-      'Güvenli erişim: peer config + QR ile WireGuard bağlantısı; ardından RDP (3389) / SSH. Studio → Cloud → VPN.',
+      'Güvenli erişim: peer config + QR ile WireGuard. Her aktif peer bir faturalandırılabilir kullanıcıdır (€5.99/kullanıcı/ay). Studio → Cloud → VPN.',
     contactOnly: true,
     studioPath: '/cloud/vpn',
     messaging: [
+      '€5.99 / kullanıcı / ay — aktif WireGuard peer başına',
+      'Örn. 3 kullanıcı × €5.99 = €17.97/ay',
       'Peer oluştur → .conf indir veya QR tara',
-      'WireGuard istemcisi ile bağlan',
-      'Özel / firewall arkası sunucuya RDP veya SSH',
+      'WireGuard istemcisi ile bağlan → RDP (3389) / SSH',
       'Mock mod: WIREGUARD_ENDPOINT yoksa da config üretilir',
     ],
     stripePriceEnv: 'STRIPE_PRICE_VPN',
@@ -253,7 +256,48 @@ function getAddons() {
     priceYearCents:
       a.priceYearCents != null ? a.priceYearCents : a.priceCents * 12,
     intervals: ['month', 'year'],
+    pricingModel: a.pricingModel || 'flat',
+    unitLabel: a.unitLabel || null,
   }));
+}
+
+/** Unit × quantity for metered / per-user add-ons. */
+function addonAmountCents(addon, quantity = 1, interval = 'month') {
+  const q = Math.max(0, Math.floor(Number(quantity) || 0));
+  return unitAmountCents(addon, interval) * q;
+}
+
+/**
+ * Human-readable VPN (or per_user) line: "3 kullanıcı × €5.99 = €17.97/ay"
+ */
+function formatPerUserBillingLabel(addon, seats = 0, interval = 'month') {
+  const q = Math.max(0, Math.floor(Number(seats) || 0));
+  const unit = unitAmountCents(addon, interval);
+  const total = unit * q;
+  const unitEur = (unit / 100).toFixed(2);
+  const totalEur = (total / 100).toFixed(2);
+  const period = normalizeInterval(interval) === 'year' ? 'yıl' : 'ay';
+  const label = addon?.unitLabel || 'kullanıcı';
+  return `${q} ${label} × €${unitEur} = €${totalEur}/${period}`;
+}
+
+function vpnBillingSummary(seats = 0, interval = 'month') {
+  const addon = getAddon('vpn');
+  const quantity = Math.max(0, Math.floor(Number(seats) || 0));
+  const unitCents = unitAmountCents(addon, interval);
+  const totalCents = unitCents * quantity;
+  return {
+    pricingModel: 'per_user',
+    quantity,
+    seats: quantity,
+    unitPriceCents: unitCents,
+    unitPriceYearCents: unitAmountCents(addon, 'year'),
+    totalCents,
+    currency: addon?.currency || 'eur',
+    interval: normalizeInterval(interval),
+    label: formatPerUserBillingLabel(addon, quantity, interval),
+    unitLabel: addon?.unitLabel || 'kullanıcı',
+  };
 }
 
 function getPackage(planId) {
@@ -277,7 +321,13 @@ function resolveAddons(addonIds = []) {
 function totalAmountCents(plan, addons = [], interval = 'month') {
   return (
     unitAmountCents(plan, interval) +
-    addons.reduce((sum, a) => sum + unitAmountCents(a, interval), 0)
+    addons.reduce((sum, a) => {
+      const qty =
+        a.pricingModel === 'per_user'
+          ? Math.max(1, Math.floor(Number(a.quantity) || 1))
+          : 1;
+      return sum + unitAmountCents(a, interval) * qty;
+    }, 0)
   );
 }
 
@@ -364,8 +414,13 @@ class StripeProvider {
       const addonEnv =
         interval === 'year' ? addon.stripePriceYearEnv : addon.stripePriceEnv;
       const addonPriceId = addonEnv ? process.env[addonEnv] : undefined;
+      // per_user add-ons: Stripe quantity = seat/peer count (default 1)
+      const qty =
+        addon.pricingModel === 'per_user'
+          ? Math.max(1, Math.floor(Number(addon.quantity) || 1))
+          : 1;
       if (addonPriceId) {
-        lineItems.push({ price: addonPriceId, quantity: 1 });
+        lineItems.push({ price: addonPriceId, quantity: qty });
       } else {
         lineItems.push({
           price_data: {
@@ -373,11 +428,14 @@ class StripeProvider {
             unit_amount: unitAmountCents(addon, interval),
             recurring: { interval },
             product_data: {
-              name: `GraphCore ${addon.name}`,
+              name:
+                addon.pricingModel === 'per_user'
+                  ? `GraphCore ${addon.name} (kullanıcı başına)`
+                  : `GraphCore ${addon.name}`,
               description: addon.description,
             },
           },
-          quantity: 1,
+          quantity: qty,
         });
       }
     }
@@ -811,6 +869,9 @@ module.exports = {
   resolveAddons,
   totalAmountCents,
   unitAmountCents,
+  addonAmountCents,
+  formatPerUserBillingLabel,
+  vpnBillingSummary,
   normalizeInterval,
   storageQuotaBytes,
   getProvider,

@@ -306,15 +306,25 @@ async function main() {
   );
   assert(getPackage('pro').priceCents === 3400, 'pro still $34 after parity');
 
-  // WireGuard VPN add-on
+  // WireGuard VPN add-on (per-user / peer)
   const VpnService = require(path.join(root, 'lib/cloud/vpn'));
+  const { vpnBillingSummary } = require(path.join(root, 'payments'));
   const vpnAddon = getAddon('vpn');
   assert(vpnAddon && vpnAddon.id === 'vpn', 'vpn addon registered');
-  assert(vpnAddon.priceCents === 599, 'vpn €5.99');
+  assert(vpnAddon.priceCents === 599, 'vpn €5.99/kullanıcı');
+  assert(vpnAddon.pricingModel === 'per_user', 'vpn pricingModel per_user');
   assert(vpnAddon.currency === 'eur', 'vpn currency EUR');
   assert(getPackage('pro').priceCents === 3400, 'pro untouched by vpn');
   assert(getPackage('scale').priceCents === 5000, 'scale untouched');
   assert(getPackage('max').priceCents === 9900, 'max untouched');
+
+  const bill0 = vpnBillingSummary(0);
+  assert(bill0.totalCents === 0, '0 seats = €0');
+  assert(bill0.label.includes('0 kullanıcı'), '0 kullanıcı label');
+  const bill3 = vpnBillingSummary(3);
+  assert(bill3.totalCents === 599 * 3, '3 × €5.99');
+  assert(bill3.label === '3 kullanıcı × €5.99 = €17.97/ay', 'per-user math label');
+  assert(bill3.quantity === 3, 'quantity = peer count');
 
   const kp = VpnService.generateKeyPair();
   assert(kp.privateKey && kp.publicKey, 'wg keypair');
@@ -343,11 +353,23 @@ async function main() {
     createdPeer.config?.config?.includes('10.66.0.'),
     'wg address in subnet'
   );
+  assert(createdPeer.billing?.seats === 1, '1 billable seat after create');
+  assert(createdPeer.billing?.totalCents === 599, '€5.99 for 1 seat');
+  assert(createdPeer.billingDelta?.addedUnitCents === 599, 'delta +€5.99');
+  assert(
+    String(createdPeer.billingDelta?.warning || '').includes('+€5.99'),
+    'create warns additional monthly cost'
+  );
 
   const st = await VpnService.status('ten_demo');
   assert(st.enabled === true, 'vpn status enabled');
-  assert(st.addon.priceCents === 599, 'status exposes addon price');
+  assert(st.addon.priceCents === 599, 'status exposes unit price');
+  assert(st.addon.pricingModel === 'per_user', 'status pricingModel');
+  assert(st.billing?.seats === 1, 'status seats');
+  assert(st.billing?.label === '1 kullanıcı × €5.99 = €5.99/ay', 'status billing label');
+  assert(st.quantity === 1, 'status quantity');
   assert(st.peers.length >= 1, 'status lists peers');
+  assert(st.peers[0].billable === true, 'peer marked billable');
 
   const cfg = await VpnService.peerConfig('ten_demo', createdPeer.peer.id);
   assert(cfg.filename?.endsWith('.conf'), 'config filename');
@@ -355,6 +377,8 @@ async function main() {
 
   const revoked = await VpnService.revokePeer('ten_demo', createdPeer.peer.id);
   assert(revoked.status === 'revoked', 'peer revoked');
+  assert(revoked.billing?.seats === 0, 'seats drop after revoke');
+  assert(revoked.billing?.totalCents === 0, '€0 after revoke');
 
   if (failed) {
     console.error(`\ntest-cloud: ${failed} failure(s)`);
