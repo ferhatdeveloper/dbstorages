@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../services/api';
+import { useCurrency } from '@graphcore/shared';
 import { Receipt } from 'lucide-react';
 
 type Payment = {
@@ -17,6 +18,7 @@ type Payment = {
 };
 
 const BillingHistoryPage: React.FC = () => {
+  const { formatCents, fxHint } = useCurrency();
   const [rows, setRows] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +43,8 @@ const BillingHistoryPage: React.FC = () => {
 
   const fmt = (p: Payment) => {
     const cents = p.amount_cents ?? p.amountCents ?? 0;
-    const cur = (p.currency || 'usd').toUpperCase();
-    return `${(cents / 100).toFixed(2)} ${cur}`;
+    const cur = p.currency || 'usd';
+    return formatCents(cents, cur);
   };
 
   return (
@@ -51,7 +53,9 @@ const BillingHistoryPage: React.FC = () => {
         <Receipt className="h-6 w-6 text-teal-700" />
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Ödeme geçmişi</h1>
-          <p className="text-sm text-gray-500">Stripe / iyzico / PayTR kayıtları</p>
+          <p className="text-sm text-gray-500">
+            Stripe / iyzico / PayTR kayıtları · {fxHint}
+          </p>
         </div>
       </div>
 

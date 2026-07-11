@@ -13,10 +13,16 @@ export {
 } from './context/ThemeContext'
 export type { ThemeMode, ResolvedTheme } from './context/ThemeContext'
 export {
+  CurrencyProvider,
+  useCurrency,
+  useCurrencyOptional,
+} from './context/CurrencyContext'
+export {
   DatabaseConnectionsProvider,
   useDatabaseConnections,
 } from './context/DatabaseConnectionsContext'
 export { default as ThemeToggle } from './components/ThemeToggle'
+export { default as CurrencyToggle } from './components/CurrencyToggle'
 export {
   formatEur,
   serverTypeShortSpecs,
@@ -28,3 +34,16 @@ export {
   VPS_POPULAR_FALLBACK,
 } from './lib/vpsCatalog'
 export type { VpsServerType, VpsFamilyMeta, VpsCatalog } from './lib/vpsCatalog'
+export {
+  STATIC_FX_FALLBACK,
+  DISPLAY_CURRENCIES,
+  normalizeCurrency,
+  isValidFxRates,
+  convertAmount,
+  convertCents,
+  formatMoney,
+  formatCentsConverted,
+  formatAmountConverted,
+  formatFxHint,
+} from './lib/fx'
+export type { DisplayCurrency, FxRates, FxPayload } from './lib/fx'

@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "node scripts/smoke-mvp.js && node scripts/test-cloud.js",
+    "test": "node scripts/test-fx.js && node scripts/smoke-mvp.js && node scripts/test-cloud.js",
     "smoke": "node scripts/smoke-mvp.js",
+    "test:fx": "node scripts/test-fx.js",
     "test:cloud": "node scripts/test-cloud.js"
   },
   "dependencies": {

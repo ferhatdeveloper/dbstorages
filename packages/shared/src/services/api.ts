@@ -502,7 +502,27 @@ class ApiService {
       addons?: any[];
       providers: any[];
       vpsCatalog?: any;
+      fx?: {
+        base: string;
+        rates: { EUR: number; USD: number; TRY: number };
+        fetchedAt: string;
+        source?: string;
+        stale?: boolean;
+      };
     }>(`${NODE_API_BASE}/packages`);
+  }
+
+  async getFxRates() {
+    return this.request<{
+      success: boolean;
+      data: {
+        base: string;
+        rates: { EUR: number; USD: number; TRY: number };
+        fetchedAt: string;
+        source?: string;
+        stale?: boolean;
+      };
+    }>(`${NODE_API_BASE}/fx`);
   }
 
   async checkout(body: {

@@ -25,6 +25,61 @@ html.light body {
   background: #f4f7f5;
 }
 
+/* Currency toggle (€ / $ / ₺) */
+.currency-toggle-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+
+.currency-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #334155;
+  border-radius: 2px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.currency-toggle-btn {
+  min-width: 1.75rem;
+  height: 1.85rem;
+  padding: 0 0.4rem;
+  border: none;
+  border-right: 1px solid #334155;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.currency-toggle-btn:last-child {
+  border-right: none;
+}
+
+.currency-toggle-btn:hover {
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+.currency-toggle-btn.is-active {
+  color: #d9f99d;
+  background: rgba(132, 204, 22, 0.18);
+}
+
+.currency-fx-hint {
+  margin: 0;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  color: #64748b;
+  max-width: 16rem;
+  text-align: right;
+}
+
 /* Theme toggle outside landing-root (Studio) */
 .theme-toggle {
   display: inline-flex;

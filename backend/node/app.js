@@ -174,15 +174,35 @@ app.get('/api/schema', (req, res, next) => {
   return dbRoutes(req, res, next);
 });
 
+// Live FX rates (EUR base → USD, TRY) — public, short-cached
+app.get('/api/fx', async (_req, res) => {
+  try {
+    const fx = require('./lib/fx');
+    const data = await fx.getRates();
+    res.json({ success: true, data });
+  } catch (err) {
+    const fx = require('./lib/fx');
+    res.json({ success: true, data: fx.getRatesSync() });
+  }
+});
+
 // Packages alias
-app.get('/api/packages', (_req, res) => {
+app.get('/api/packages', async (_req, res) => {
   const { getPackages, getAddons, listProviders, getVpsCatalog } = require('./payments');
+  const fx = require('./lib/fx');
+  let fxPayload;
+  try {
+    fxPayload = await fx.getRates();
+  } catch {
+    fxPayload = fx.getRatesSync();
+  }
   res.json({
     success: true,
     data: getPackages(),
     addons: getAddons(),
     providers: listProviders(),
     vpsCatalog: getVpsCatalog(),
+    fx: fxPayload,
   });
 });
 
@@ -954,6 +974,11 @@ async function start() {
         .map((p) => `${p.id}:${p.configured ? 'on' : 'off'}`)
         .join(',')}`
     );
+    try {
+      require('./lib/fx').warmCache();
+    } catch (err) {
+      console.warn('[fx] warm skip:', err.message);
+    }
   });
 }
 

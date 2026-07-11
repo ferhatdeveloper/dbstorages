@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Download, Loader2, Plus, QrCode, Trash2, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
+import { useCurrency } from '@graphcore/shared'
 import {
   CloudEmptyState,
   CloudError,
@@ -20,11 +21,8 @@ import {
   cloudTr,
 } from './cloudUi'
 
-function formatEurCents(cents: number) {
-  return `€${(cents / 100).toFixed(2)}`
-}
-
 const CloudVpnPage: React.FC = () => {
+  const { formatCents, fxHint } = useCurrency()
   const [status, setStatus] = useState<any>(null)
   const [peers, setPeers] = useState<any[]>([])
   const [servers, setServers] = useState<any[]>([])
@@ -150,10 +148,10 @@ const CloudVpnPage: React.FC = () => {
   const seats = billing?.seats ?? peers.length
   const totalLabel =
     billing?.label ||
-    `${seats} kullanıcı × ${formatEurCents(unitCents)} = ${formatEurCents(seats * unitCents)}/ay`
-  const unitPriceLabel = `${formatEurCents(unitCents)}/kullanıcı/ay`
+    `${seats} kullanıcı × ${formatCents(unitCents, 'eur')} = ${formatCents(seats * unitCents, 'eur')}/ay`
+  const unitPriceLabel = `${formatCents(unitCents, 'eur')}/kullanıcı/ay`
   const enabled = Boolean(status?.enabled)
-  const nextSeatCost = formatEurCents(unitCents)
+  const nextSeatCost = formatCents(unitCents, 'eur')
 
   if (loading) return <CloudLoading />
 
@@ -161,7 +159,7 @@ const CloudVpnPage: React.FC = () => {
     <div className="space-y-4">
       <CloudPageHeader
         title="VPN / WireGuard"
-        description="Kullanıcı başına faturalandırma — her aktif peer bir kullanıcı; ardından RDP (3389) veya SSH."
+        description={`Kullanıcı başına faturalandırma — her aktif peer bir kullanıcı. ${fxHint}`}
         onRefresh={load}
         actions={
           <>
@@ -299,7 +297,7 @@ const CloudVpnPage: React.FC = () => {
                   </td>
                   <td className={cloudTd}>
                     <span className="text-xs text-slate-600 dark:text-slate-300">
-                      1 kullanıcı · {formatEurCents(p.unitPriceCents ?? unitCents)}
+                      1 kullanıcı · {formatCents(p.unitPriceCents ?? unitCents, 'eur')}
                       /ay
                     </span>
                   </td>
@@ -375,8 +373,8 @@ const CloudVpnPage: React.FC = () => {
             <strong>Ek aylık maliyet:</strong> +{nextSeatCost}/ay (1 kullanıcı).
             Sonrası:{' '}
             <span className="font-mono">
-              {seats + 1} kullanıcı × {formatEurCents(unitCents)} ={' '}
-              {formatEurCents((seats + 1) * unitCents)}/ay
+              {seats + 1} kullanıcı × {formatCents(unitCents, 'eur')} ={' '}
+              {formatCents((seats + 1) * unitCents, 'eur')}/ay
             </span>
           </div>
           <p className="text-[11px] text-slate-500">

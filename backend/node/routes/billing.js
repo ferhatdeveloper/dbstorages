@@ -226,12 +226,20 @@ async function provisionInstanceAfterPayment({
   return mapInstance(instance);
 }
 
-router.get('/packages', (_req, res) => {
+router.get('/packages', async (_req, res) => {
+  const fx = require('../lib/fx');
+  let fxPayload;
+  try {
+    fxPayload = await fx.getRates();
+  } catch {
+    fxPayload = fx.getRatesSync();
+  }
   res.json({
     success: true,
     data: getPackages(),
     addons: getAddons(),
     providers: listProviders(),
+    fx: fxPayload,
   });
 });
 

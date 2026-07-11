@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { apiService, useAuth, ThemeToggle, CONSOLE_URL, formatEur, serverTypeShortSpecs, VPS_POPULAR_FALLBACK, type VpsServerType } from '@graphcore/shared';
+import { apiService, useAuth, ThemeToggle, CurrencyToggle, useCurrency, CONSOLE_URL, serverTypeShortSpecs, VPS_POPULAR_FALLBACK, type VpsServerType } from '@graphcore/shared';
 
 type Plan = {
   id: string;
@@ -219,6 +219,7 @@ function featureLines(plan: Plan): string[] {
 
 const PricingPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
+  const { formatCents, formatAmount, fxHint } = useCurrency();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
@@ -352,7 +353,10 @@ const PricingPage: React.FC = () => {
         </Link>
         <nav className="landing-nav-links">
           <Link to="/">Tanıtım</Link>
-          <ThemeToggle />
+          <div className="landing-nav-tools">
+            <CurrencyToggle />
+            <ThemeToggle />
+          </div>
           <Link to="/login">Giriş</Link>
         </nav>
       </header>
@@ -360,9 +364,10 @@ const PricingPage: React.FC = () => {
       <main className="pricing-main">
         <h1>Paket seçin</h1>
         <p>
-          Trial 15 gün ücretsiz. Pro $34 · Scale $50 · Max $99 / ay. Yıllık =
-          aylık × 12. Yedekleme add-on $10/ay.
+          Trial 15 gün ücretsiz. Pro · Scale · Max — anlık kur ile € / $ / ₺.
+          Yedekleme add-on ayrı faturalanır.
         </p>
+        <p className="pricing-fx-hint">{fxHint}</p>
 
         <div className="pricing-interval" role="group" aria-label="Faturalama">
           <button
@@ -406,12 +411,16 @@ const PricingPage: React.FC = () => {
                   {isTrial
                     ? '15 gün ücretsiz'
                     : cardInterval === 'year'
-                      ? `$${(amount / 100).toFixed(0)}/yıl`
-                      : `$${(amount / 100).toFixed(0)}/ay`}
+                      ? `${formatCents(amount, plan.currency || 'usd', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}/yıl`
+                      : `${formatCents(amount, plan.currency || 'usd', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}/ay`}
                 </p>
                 {!isTrial && cardInterval === 'year' && (
                   <p className="landing-plan-equiv">
-                    ${((plan.priceCents || 0) / 100).toFixed(0)}/ay × 12
+                    {formatCents(plan.priceCents || 0, plan.currency || 'usd', {
+                      maximumFractionDigits: 0,
+                      minimumFractionDigits: 0,
+                    })}
+                    /ay × 12
                   </p>
                 )}
                 <p className="landing-plan-desc">{plan.description}</p>
@@ -435,12 +444,16 @@ const PricingPage: React.FC = () => {
             onChange={(e) => setBackupOn(e.target.checked)}
           />
           <span>
-            <strong>{backupAddon.name}</strong> — $
-            {(addonAmount(backupAddon, effectiveInterval) / 100).toFixed(0)}/
-            {effectiveInterval === 'year' ? 'yıl' : 'ay'}
+            <strong>{backupAddon.name}</strong> —{' '}
+            {formatCents(
+              addonAmount(backupAddon, effectiveInterval),
+              backupAddon.currency || 'usd',
+              { maximumFractionDigits: 0, minimumFractionDigits: 0 }
+            )}
+            /{effectiveInterval === 'year' ? 'yıl' : 'ay'}
             <em>
               {effectiveInterval === 'year'
-                ? 'Yıllık faturalama ($10 × 12)'
+                ? `Yıllık faturalama (${formatCents(1000, 'usd', { maximumFractionDigits: 0, minimumFractionDigits: 0 })} × 12)`
                 : backupAddon.billingNote || 'Ay başında faturalandırılır'}
             </em>
             <small>{backupAddon.description}</small>
@@ -469,10 +482,10 @@ const PricingPage: React.FC = () => {
                     {' — '}
                     {serverTypeShortSpecs(p)}
                     {' · '}
-                    {formatEur(p.priceRetailMonthly)}/ay
+                    {formatAmount(p.priceRetailMonthly, 'EUR')}/ay
                     <span style={{ opacity: 0.65 }}>
                       {' '}
-                      (maliyet {formatEur(p.priceProviderMonthly)})
+                      (maliyet {formatAmount(p.priceProviderMonthly, 'EUR')})
                     </span>
                     {p.useCaseHint ? (
                       <div style={{ opacity: 0.7, fontSize: '0.85em' }}>{p.useCaseHint}</div>
@@ -512,19 +525,19 @@ const PricingPage: React.FC = () => {
 
         <div id="vpn-addon" className="pricing-addon pricing-addon-contact pricing-vps-block">
           <span>
-            <strong>{vpnAddon.name}</strong> — ek hizmet · €
-            {(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/kullanıcı/ay
+            <strong>{vpnAddon.name}</strong> — ek hizmet ·{' '}
+            {formatCents(addonAmount(vpnAddon, 'month'), vpnAddon.currency || 'eur')}
+            /kullanıcı/ay
             <em>
               {vpnAddon.billingNote ||
-                'Kullanıcı başına · EUR · DB ve VPS’ten ayrı'}
+                'Kullanıcı başına · DB ve VPS’ten ayrı'}
             </em>
             <small>{vpnAddon.description}</small>
             <ul className="pricing-vps-fields">
               {(vpnAddon.messaging?.length
                 ? vpnAddon.messaging
                 : [
-                    '€5.99 / kullanıcı / ay — aktif peer başına',
-                    'Örn. 3 kullanıcı × €5.99 = €17.97/ay',
+                    'Aktif peer başına faturalandırılır',
                     'Peer oluştur → .conf indir veya QR tara',
                     'WireGuard istemcisi ile bağlan → RDP (3389) / SSH',
                   ]
@@ -533,13 +546,14 @@ const PricingPage: React.FC = () => {
               ))}
               <li>
                 1 kullanıcı:{' '}
-                €{(addonAmount(vpnAddon, 'month') / 100).toFixed(2)}/ay · 3
-                kullanıcı: €
-                {((addonAmount(vpnAddon, 'month') * 3) / 100).toFixed(2)}/ay
+                {formatCents(addonAmount(vpnAddon, 'month'), vpnAddon.currency || 'eur')}
+                /ay · 3 kullanıcı:{' '}
+                {formatCents(addonAmount(vpnAddon, 'month') * 3, vpnAddon.currency || 'eur')}
+                /ay
               </li>
               <li>
-                Yıllık (kullanıcı başına): €
-                {(addonAmount(vpnAddon, 'year') / 100).toFixed(2)}
+                Yıllık (kullanıcı başına):{' '}
+                {formatCents(addonAmount(vpnAddon, 'year'), vpnAddon.currency || 'eur')}
               </li>
             </ul>
           </span>
@@ -575,8 +589,11 @@ const PricingPage: React.FC = () => {
           <p className="pricing-total">
             Toplam:{' '}
             <strong>
-              ${(totalCents / 100).toFixed(0)}/
-              {effectiveInterval === 'year' ? 'yıl' : 'ay'}
+              {formatCents(totalCents, selectedPlan?.currency || 'usd', {
+                maximumFractionDigits: 0,
+                minimumFractionDigits: 0,
+              })}
+              /{effectiveInterval === 'year' ? 'yıl' : 'ay'}
             </strong>
             {backupOn ? ' (plan + yedekleme)' : ''}
           </p>

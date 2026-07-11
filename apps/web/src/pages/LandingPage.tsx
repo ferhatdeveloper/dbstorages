@@ -12,7 +12,7 @@ import {
   Terminal,
   Zap,
 } from 'lucide-react';
-import { apiService, ThemeToggle, CONSOLE_URL, formatEur, serverTypeShortSpecs, VPS_POPULAR_FALLBACK, type VpsServerType } from '@graphcore/shared';
+import { apiService, ThemeToggle, CurrencyToggle, useCurrency, CONSOLE_URL, serverTypeShortSpecs, VPS_POPULAR_FALLBACK, type VpsServerType } from '@graphcore/shared';
 
 type Plan = {
   id: string;
@@ -126,23 +126,24 @@ const BACKUP_ADDON = {
   name: 'Yedekleme',
   priceCents: 1000,
   priceYearCents: 12000,
-  description: 'Aylık $10 veya yıllık $120 — ay başında faturalandırılır.',
+  description: 'Aylık yedekleme — ay başında faturalandırılır.',
 };
 
 const VPS_ADDON = {
   id: 'vps',
   name: 'VPS Kiralama',
   description:
-    'Veritabanı planlarından bağımsız sunucu kiralama (Cloud Infrastructure). Perakende = Hetzner × %20 (EUR).',
+    'Veritabanı planlarından bağımsız sunucu kiralama (Cloud Infrastructure). Perakende = Hetzner × %20 (EUR bazlı).',
   studioPath: `${CONSOLE_URL}/cloud/servers`,
 };
 
 const VPN_ADDON = {
   id: 'vpn',
   name: 'WireGuard VPN',
-  priceLabel: '€5.99/kullanıcı/ay',
+  priceCents: 599,
+  currency: 'eur',
   description:
-    'Kullanıcı başına VPN: her aktif peer bir kullanıcıdır. Peer config + QR → bağlanın → RDP (3389) veya SSH. Örn. 3 kullanıcı × €5.99 = €17.97/ay.',
+    'Kullanıcı başına VPN: her aktif peer bir kullanıcıdır. Peer config + QR → bağlanın → RDP (3389) veya SSH.',
   studioPath: `${CONSOLE_URL}/cloud/vpn`,
 };
 
@@ -173,16 +174,8 @@ const { data } = await res.json();`,
   },
 ];
 
-function formatPrice(cents: number, currency: string) {
-  if (cents === 0) return 'Ücretsiz';
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: currency.toUpperCase() === 'USD' ? 'USD' : currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
 const LandingPage: React.FC = () => {
+  const { formatCents, formatAmount, fxHint } = useCurrency();
   const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
   const [snippet, setSnippet] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -293,7 +286,10 @@ const LandingPage: React.FC = () => {
           <Link to="/pricing" onClick={() => setMenuOpen(false)}>
             Fiyatlandırma
           </Link>
-          <ThemeToggle />
+          <div className="landing-nav-tools">
+            <CurrencyToggle />
+            <ThemeToggle />
+          </div>
           <Link to="/login" onClick={() => setMenuOpen(false)}>
             Giriş
           </Link>
@@ -565,7 +561,7 @@ const LandingPage: React.FC = () => {
                     {' — '}
                     {serverTypeShortSpecs(p)}
                     {' · '}
-                    {formatEur(p.priceRetailMonthly)}/ay
+                    {formatAmount(p.priceRetailMonthly, 'EUR')}/ay
                     {p.useCaseHint ? (
                       <div style={{ opacity: 0.7, fontSize: '0.9em' }}>{p.useCaseHint}</div>
                     ) : null}
@@ -603,11 +599,15 @@ const LandingPage: React.FC = () => {
           <div className="landing-cloud-cta">
             <div>
               <h3>
-                {VPN_ADDON.name} · {VPN_ADDON.priceLabel}
+                {VPN_ADDON.name} ·{' '}
+                {formatCents(VPN_ADDON.priceCents, VPN_ADDON.currency)}
+                /kullanıcı/ay
               </h3>
               <p>
                 {VPN_ADDON.description} DB planlarından ve VPS kiralama
-                fiyatından bağımsız (EUR, kullanıcı başına).
+                fiyatından bağımsız (kullanıcı başına). Örn. 3 kullanıcı ×{' '}
+                {formatCents(VPN_ADDON.priceCents, VPN_ADDON.currency)} ={' '}
+                {formatCents(VPN_ADDON.priceCents * 3, VPN_ADDON.currency)}/ay.
               </p>
             </div>
             <div className="landing-actions">
@@ -627,9 +627,10 @@ const LandingPage: React.FC = () => {
           <div className="landing-section-head">
             <h2>Kiralama paketleri</h2>
             <p className="landing-packages-sub">
-              Trial 15 gün ücretsiz. Pro $34 · Scale $50 · Max $99 / ay. Yıllık =
-              aylık × 12. Yedekleme +$10/ay. VPS ayrı; VPN €5.99/kullanıcı/ay.
+              Trial 15 gün ücretsiz. Pro · Scale · Max — anlık kur ile € / $ / ₺.
+              Yedekleme ve VPS ayrı; VPN kullanıcı başına.
             </p>
+            <p className="pricing-fx-hint">{fxHint}</p>
           </div>
 
           <div className="pricing-interval" role="group" aria-label="Faturalama">
@@ -665,7 +666,10 @@ const LandingPage: React.FC = () => {
                   <p className="landing-plan-price">
                     {isTrial
                       ? '15 gün ücretsiz'
-                      : formatPrice(amount, plan.currency)}
+                      : formatCents(amount, plan.currency || 'usd', {
+                          maximumFractionDigits: 0,
+                          minimumFractionDigits: 0,
+                        })}
                     {!isTrial && (
                       <span>
                         {' '}
@@ -675,7 +679,11 @@ const LandingPage: React.FC = () => {
                   </p>
                   {!isTrial && billingInterval === 'year' && (
                     <p className="landing-plan-equiv">
-                      {formatPrice(plan.priceCents, plan.currency)}/ay × 12
+                      {formatCents(plan.priceCents, plan.currency || 'usd', {
+                        maximumFractionDigits: 0,
+                        minimumFractionDigits: 0,
+                      })}
+                      /ay × 12
                     </p>
                   )}
                   <p className="landing-plan-desc">{plan.description}</p>

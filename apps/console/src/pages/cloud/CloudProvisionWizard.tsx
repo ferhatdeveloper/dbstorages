@@ -12,11 +12,11 @@ import {
 } from 'lucide-react'
 import { apiService } from '../../services/api'
 import {
-  formatEur,
   serverTypeShortSpecs,
   useCaseHintFor,
   type VpsServerType,
 } from '../../lib/vpsCatalog'
+import { useCurrency } from '@graphcore/shared'
 import {
   CloudSlideOver,
   SIZE_FAMILIES,
@@ -129,6 +129,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
   onCreated,
   onProviderChange,
 }) => {
+  const { formatAmount } = useCurrency()
   const [step, setStep] = useState(1)
   const [sizeFamily, setSizeFamily] = useState('cx')
   const [saving, setSaving] = useState(false)
@@ -707,7 +708,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
                                       {(s.description || s.name).toUpperCase()}
                                     </span>
                                     <span className="shrink-0 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-lime-500 dark:text-slate-900">
-                                      {formatEur(s.priceRetailMonthly)}/ay
+                                      {formatAmount(s.priceRetailMonthly, 'EUR')}/ay
                                     </span>
                                   </div>
                                   <p className="mt-1.5 text-[11px] text-slate-600 dark:text-slate-300">
@@ -728,8 +729,8 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 </div>
                 {selectedSize && (
                   <p className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    Maliyet {formatEur(selectedSize.priceProviderMonthly)} × 1,20 ={' '}
-                    <strong>{formatEur(selectedSize.priceRetailMonthly)}</strong>
+                    Maliyet {formatAmount(selectedSize.priceProviderMonthly, 'EUR')} × 1,20 ={' '}
+                    <strong>{formatAmount(selectedSize.priceRetailMonthly, 'EUR')}</strong>
                     /ay
                     {useCaseHintFor(selectedSize)
                       ? ` · ${useCaseHintFor(selectedSize)}`
@@ -864,7 +865,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 <dt className="text-slate-400">Fiyat</dt>
                 <dd>
                   {selectedSize
-                    ? `${formatEur(selectedSize.priceRetailMonthly)}/ay (×1,20)`
+                    ? `${formatAmount(selectedSize.priceRetailMonthly, 'EUR')}/ay (×1,20)`
                     : '—'}
                 </dd>
                 <dt className="text-slate-400">Ağ</dt>

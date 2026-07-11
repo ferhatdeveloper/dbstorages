@@ -12,10 +12,10 @@ import {
 } from 'lucide-react'
 import { apiService } from '../../services/api'
 import {
-  formatEur,
   type VpsServerType,
   VPS_POPULAR_FALLBACK,
 } from '../../lib/vpsCatalog'
+import { useCurrency } from '@graphcore/shared'
 import {
   CloudEmptyState,
   CloudError,
@@ -73,6 +73,7 @@ const ADVANCED_ACTIONS: [string, string][] = [
 ]
 
 const CloudServersPage: React.FC = () => {
+  const { formatAmount, fxHint } = useCurrency()
   const [rows, setRows] = useState<ServerRow[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
   const [sshKeys, setSshKeys] = useState<SshKey[]>([])
@@ -205,7 +206,7 @@ const CloudServersPage: React.FC = () => {
     <div className="space-y-4">
       <CloudPageHeader
         title="Sunucular"
-        description="Çok adımlı provision sihirbazı · Linux / Windows Server · perakende ×1,20 EUR."
+        description={`Çok adımlı provision · Linux / Windows · perakende ×1,20. ${fxHint}`}
         onRefresh={load}
         refreshing={loading}
         actions={
@@ -281,10 +282,10 @@ const CloudServersPage: React.FC = () => {
                             {r.price_retail != null ? (
                               <>
                                 <span className="font-medium">
-                                  {formatEur(Number(r.price_retail))}/ay
+                                  {formatAmount(Number(r.price_retail), 'EUR')}/ay
                                 </span>
                                 <span className="mt-0.5 block text-[10px] text-slate-400">
-                                  maliyet {formatEur(Number(r.cost_provider))}
+                                  maliyet {formatAmount(Number(r.cost_provider), 'EUR')}
                                 </span>
                               </>
                             ) : (
@@ -413,7 +414,7 @@ const CloudServersPage: React.FC = () => {
                       {(s.description || s.name).toUpperCase()}
                     </span>
                     <span className="shrink-0 font-semibold text-teal-800 dark:text-lime-400">
-                      {formatEur(s.priceRetailMonthly)}
+                      {formatAmount(s.priceRetailMonthly, 'EUR')}
                     </span>
                   </li>
                 ))}

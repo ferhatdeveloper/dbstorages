@@ -15,7 +15,7 @@ import {
   Terminal,
 } from 'lucide-react'
 import { apiService } from '../../services/api'
-import { formatEur } from '../../lib/vpsCatalog'
+import { useCurrency } from '@graphcore/shared'
 import {
   CloudError,
   CloudLoading,
@@ -41,6 +41,7 @@ function isWindowsServer(server: any) {
 }
 
 const CloudServerDetailPage: React.FC = () => {
+  const { formatAmount } = useCurrency()
   const { id = '' } = useParams()
   const [server, setServer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -303,7 +304,7 @@ const CloudServerDetailPage: React.FC = () => {
                 <dt className="text-slate-400">Perakende</dt>
                 <dd>
                   {server.price_retail != null
-                    ? `${formatEur(Number(server.price_retail))}/ay`
+                    ? `${formatAmount(Number(server.price_retail), 'EUR')}/ay`
                     : '—'}
                 </dd>
               </div>

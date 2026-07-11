@@ -28,10 +28,17 @@ function sendError(res, err) {
 }
 
 /** Public VPS catalog (no auth) — retail = Hetzner × 1.20, EUR */
-router.get('/public-catalog', (_req, res) => {
+router.get('/public-catalog', async (_req, res) => {
   try {
+    const fx = require('../lib/fx');
     const data = CloudService.publicCatalog();
-    res.json({ success: true, data });
+    let fxPayload;
+    try {
+      fxPayload = await fx.getRates();
+    } catch {
+      fxPayload = fx.getRatesSync();
+    }
+    res.json({ success: true, data, fx: fxPayload });
   } catch (err) {
     sendError(res, err);
   }

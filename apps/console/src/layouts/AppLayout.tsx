@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import ProjectSwitcher from '../components/ProjectSwitcher'
 import ThemeToggle from '../components/ThemeToggle'
+import { CurrencyToggle } from '@graphcore/shared'
 import { webPath } from '../lib/urls'
 import {
   Database,
@@ -127,7 +128,8 @@ const AppLayout = () => {
                 Console
               </div>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1.5">
+              <CurrencyToggle />
               <ThemeToggle variant="icon" />
             </div>
           </div>

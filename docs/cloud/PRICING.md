@@ -10,25 +10,20 @@ price_retail = round(hetzner_list_price × 1.20, 2)
 
 | Field | Meaning |
 |-------|---------|
-| Currency | **EUR** (same basis as Hetzner Cloud list; excl. VAT) |
+| Currency | **EUR** canonical for VPS/VPN (Hetzner basis; excl. VAT). Display also in **USD** / **TRY** via live FX. |
 | Provider cost | Hetzner monthly net (excl. Primary IPv4) |
 | Retail | Provider × **1.20** (20% markup) |
-| DB plans | Pro **$34** / Scale **$50** / Max **$99** — **unchanged** |
-| Backup addon | **$10**/mo — **unchanged** |
-| WireGuard VPN | **€5.99 / kullanıcı / ay** (aktif peer = 1 seat) — see [VPN.md](./VPN.md) |
-
-VPS is a separate **ek hizmet** (not Stripe checkout metered yet). Quotes and server rows store `cost_provider` + `price_retail`.
-
-## Catalog source
-
-1. **Live** — when a cloud provider has an API token, `listServerTypes` / `listLocations` from the driver are used and enriched with markup.
-2. **Seed** — `lib/cloud/catalog` ships Hetzner-like CX / CPX / CAX / CCX plans (EU Jun 2026 list) for offline UI and marketing.
+| DB plans | Pro **$34** / Scale **$50** / Max **$99** — USD canonical; UI converts with live rates |
+| Backup addon | **$10**/mo — USD canonical |
+| WireGuard VPN | **€5.99 / kullanıcı / ay** — EUR canonical |
+| FX | `GET /api/fx` — Frankfurter (EUR base) → USD + TRY, 10 dk cache + static fallback |
 
 Public endpoints:
 
-- `GET /api/cloud/public-catalog`
+- `GET /api/fx` — `{ base, rates: { EUR, USD, TRY }, fetchedAt, source }`
+- `GET /api/cloud/public-catalog` (+ `fx`)
 - `GET /api/cloud/quote?serverType=cx23`
-- `GET /api/packages` → `vpsCatalog`
+- `GET /api/packages` → `vpsCatalog` + `fx`
 
 ## Example (EU, excl. VAT, excl. IPv4)
 
