@@ -25,7 +25,8 @@ const io = socketIo(server, {
   },
 });
 
-const PORT = process.env.NODE_PORT || 4000;
+const PORT = Number(process.env.NODE_PORT || process.env.PORT || 4000);
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
@@ -43,9 +44,27 @@ app.post(
   async (req, res) => {
     const provider = getProvider('stripe');
     const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+    const isProd =
+      process.env.NODE_ENV === 'production' || process.env.REQUIRE_META_DB === '1';
+
     try {
-      if (!provider.isConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
-        // Dev fallback: accept JSON event without signature
+      // Production: STRIPE_WEBHOOK_SECRET is required — no unsigned fallback
+      if (!webhookSecret) {
+        if (isProd) {
+          console.error(
+            '[stripe] STRIPE_WEBHOOK_SECRET missing in production — rejecting webhook'
+          );
+          return res.status(503).json({
+            received: false,
+            error:
+              'STRIPE_WEBHOOK_SECRET required in production. Set it in Dokploy env.',
+          });
+        }
+        // Dev-only fallback: accept JSON event without signature verification
+        console.warn(
+          '[stripe] STRIPE_WEBHOOK_SECRET unset — accepting unsigned webhook (dev only)'
+        );
         const event =
           typeof req.body === 'string' || Buffer.isBuffer(req.body)
             ? JSON.parse(req.body.toString('utf8'))
@@ -72,6 +91,13 @@ app.post(
         return res.json({ received: true, mode: 'dev-no-secret' });
       }
 
+      if (!provider.isConfigured()) {
+        return res.status(503).json({
+          received: false,
+          error: 'STRIPE_SECRET_KEY not configured',
+        });
+      }
+
       const event = provider.constructWebhookEvent(req.body, sig);
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
@@ -92,7 +118,7 @@ app.post(
           }
         }
       }
-      res.json({ received: true });
+      res.json({ received: true, mode: 'verified' });
     } catch (err) {
       console.error('stripe webhook error', err.message);
       res.status(400).send(`Webhook Error: ${err.message}`);
@@ -532,9 +558,12 @@ async function start() {
     demo.password_hash = bcrypt.hashSync('demo123', 10);
   }
 
-  server.listen(PORT, () => {
-    console.log(`Node control-plane on :${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Node control-plane on ${HOST}:${PORT}`);
     console.log(`  metaDb=${isMetaReady()} tenantDb=${isTenantReady()}`);
+    console.log(
+      `  stripeWebhook=${process.env.STRIPE_WEBHOOK_SECRET ? 'secret-set' : 'dev-fallback'}`
+    );
   });
 }
 

@@ -34,5 +34,7 @@ services:
       PGRST_DB_ANON_ROLE: graphcore
       PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3001
 
+  # Full stack (api + web): docker compose -f docker-compose.prod.yml up -d --build
+
 volumes:
   graphcore_pg_data:

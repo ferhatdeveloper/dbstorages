@@ -1,7 +1,8 @@
 const express = require('express');
 const { authMiddleware, optionalAuth } = require('../lib/auth');
-const { isMetaReady, getMetaPool } = require('../lib/db');
+const { isMetaReady, getMetaPool, setTenantConnection } = require('../lib/db');
 const store = require('../lib/store');
+const { provisionOrFallback } = require('../lib/provision');
 const {
   getPackages,
   getPackage,
@@ -83,21 +84,25 @@ async function provisionInstanceAfterPayment({
   const now = new Date().toISOString();
   const name = `${plan.id}-${instanceId.slice(-6)}`;
 
-  // Local docker Postgres shared demo DB as connection placeholder until real provisioning
+  // Shared-server multi-DB: CREATE DATABASE + ROLE (falls back to demo if admin DB down)
+  const provisioned = await provisionOrFallback({
+    instanceId,
+    planId: plan.id,
+  });
+
   const instance = {
     id: instanceId,
     project_id: projectId || 'prj_demo',
     name,
     plan: plan.id,
-    region: 'local',
-    status: 'ready',
-    host: 'localhost',
-    port: 5432,
-    database_name: 'graphcore_demo',
-    username: 'graphcore',
-    password: 'graphcore',
-    connection_string:
-      'postgresql://graphcore:graphcore@localhost:5432/graphcore_demo',
+    region: provisioned.region || 'shared',
+    status: provisioned.status || 'ready',
+    host: provisioned.host,
+    port: provisioned.port,
+    database_name: provisioned.database,
+    username: provisioned.username,
+    password: provisioned.password,
+    connection_string: provisioned.connectionString,
     payment_provider: provider,
     payment_ref: paymentId,
     stripe_session_id: externalId || null,
@@ -105,7 +110,6 @@ async function provisionInstanceAfterPayment({
   };
 
   if (isMetaReady()) {
-    // Ensure project exists
     let pid = projectId;
     if (!pid) {
       const { rows } = await getMetaPool().query(
@@ -182,6 +186,11 @@ async function provisionInstanceAfterPayment({
     }
     store.instances.push(instance);
   }
+
+  // Wire Studio default tenant pool to the new instance (internal URL)
+  const internal =
+    provisioned.internalConnectionString || provisioned.connectionString;
+  await setTenantConnection(internal);
 
   return mapInstance(instance);
 }

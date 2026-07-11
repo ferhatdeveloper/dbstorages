@@ -30,11 +30,13 @@
 
 1. Kullanıcı `/pricing` → `POST /api/billing/checkout`
 2. Stripe: Checkout Session URL (key varsa) veya mock
-3. Webhook / mock başarı → `instances` kaydı + connection placeholder
-4. `/billing/success` connection string gösterir
+3. Webhook (prod: `STRIPE_WEBHOOK_SECRET` imzalı) / mock başarı → `CREATE DATABASE`+`ROLE` + `instances` kaydı
+4. `/billing/success` gerçek connection string gösterir
+5. Studio `/api/db` kullanıcının ready instance’ına (veya `TENANT_DATABASE_URL`) bağlanır
 
 ## Bilinçli borç
 
-- Gerçek Docker/K8s provisioning worker yok
-- iyzico/PayTR SDK wire eksik (interface + env hazır)
+- K8s / container-per-tenant yok — MVP: shared Postgres’te `CREATE DATABASE` / `ROLE`
+- iyzico/PayTR SDK wire eksik (interface + env hazır; stub checkout)
 - İki backend uzun vadede tek gateway
+- Bu geliştirme makinesinde Docker CLI yoksa compose smoke atlanır; Dosyalar Dokploy için hazır

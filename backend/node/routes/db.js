@@ -1,5 +1,5 @@
 const express = require('express');
-const { isTenantReady, getTenantPool } = require('../lib/db');
+const { isTenantReady, getTenantPool, resolveTenantPool } = require('../lib/db');
 const { optionalAuth } = require('../lib/auth');
 
 const router = express.Router();
@@ -27,6 +27,17 @@ function requireTenant(res) {
     return false;
   }
   return true;
+}
+
+async function poolFor(req) {
+  const instanceId =
+    req.query.instanceId ||
+    req.headers['x-graphcore-instance'] ||
+    req.body?.instanceId;
+  return resolveTenantPool({
+    instanceId: instanceId || null,
+    userId: req.user?.sub || null,
+  });
 }
 
 function quoteIdent(name) {
@@ -91,10 +102,10 @@ router.get('/health', (_req, res) => {
   });
 });
 
-router.get('/tables', async (_req, res) => {
+router.get('/tables', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const { rows } = await pool.query(`
       SELECT table_name AS name
       FROM information_schema.tables
@@ -114,7 +125,7 @@ router.get('/tables', async (_req, res) => {
 router.get('/tables/:table', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const table = req.params.table;
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
     const pageSize = Math.min(
@@ -172,7 +183,7 @@ router.get('/tables/:table', async (req, res) => {
 router.post('/tables/:table/rows', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const table = req.params.table;
     const data = req.body?.data || req.body || {};
     const keys = Object.keys(data);
@@ -195,7 +206,7 @@ router.post('/tables/:table/rows', async (req, res) => {
 router.put('/tables/:table/rows/:id', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const table = req.params.table;
     const id = req.params.id;
     const data = req.body?.data || req.body || {};
@@ -220,7 +231,7 @@ router.put('/tables/:table/rows/:id', async (req, res) => {
 router.delete('/tables/:table/rows/:id', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const table = req.params.table;
     const id = req.params.id;
     const { rowCount } = await pool.query(
@@ -237,7 +248,7 @@ router.delete('/tables/:table/rows/:id', async (req, res) => {
 router.post('/tables/:table/rows/delete', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const table = req.params.table;
     const ids = req.body?.ids || [];
     if (!Array.isArray(ids) || !ids.length) {
@@ -256,7 +267,7 @@ router.post('/tables/:table/rows/delete', async (req, res) => {
 router.post('/sql/execute', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const query = (req.body?.query || req.body?.sql || '').trim();
     if (!query) {
       return fail(res, 400, 'query required', 'validation');
@@ -290,10 +301,10 @@ router.post('/sql/execute', async (req, res) => {
   }
 });
 
-router.get('/schema', async (_req, res) => {
+router.get('/schema', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
-    const pool = getTenantPool();
+    const pool = await poolFor(req);
     const tablesRes = await pool.query(`
       SELECT table_name AS name
       FROM information_schema.tables

@@ -195,7 +195,6 @@ class IyzicoProvider {
 
   async createCheckout({ plan, user, successUrl, cancelUrl, metadata }) {
     const paymentId = `pay_iy_${crypto.randomBytes(8).toString('hex')}`;
-    // Sandbox-ready structure — gerçek iyzico Checkout Form entegrasyonu env ile açılır
     if (!this.isConfigured()) {
       return {
         provider: this.name,
@@ -208,15 +207,21 @@ class IyzicoProvider {
       };
     }
 
-    // Placeholder for real iyzico Initialize request
+    // STUB (sandbox env hazır): iyzipay Checkout Form Initialize henüz wired değil.
+    // Keys set olsa bile gerçek HTTP çağrısı yok — Dokploy yolunu bloklamaz.
+    // Sonraki adım: iyzipay npm SDK ile /payment/iyzico/checkoutform/initialize
+    console.warn(
+      '[payments:iyzico] configured but SDK wire pending — returning stub checkout URL'
+    );
     return {
       provider: this.name,
       paymentId,
       status: 'pending',
-      checkoutUrl: `${this.baseUrl}/payment/checkoutform/initialize#${paymentId}`,
+      checkoutUrl: `${successUrl}${successUrl.includes('?') ? '&' : '?'}provider=iyzico&paymentId=${paymentId}&stub=1`,
       externalId: paymentId,
-      metadata: { userId: user.id, planId: plan.id, ...metadata },
-      note: 'Wire iyzipay SDK initialize here with conversationId=paymentId',
+      mock: true,
+      metadata: { userId: user.id, planId: plan.id, cancelUrl, ...metadata },
+      note: 'STUB: set IYZICO_* for future SDK; real Checkout Form not called yet',
     };
   }
 }
@@ -246,21 +251,25 @@ class PayTRProvider {
       };
     }
 
-    // PayTR token hash would use merchant_key + merchant_salt
+    // STUB: merchant credentials present but get-token iframe API not wired yet.
     const tokenHint = crypto
       .createHmac('sha256', this.merchantKey)
       .update(`${this.merchantId}${paymentId}${this.merchantSalt}`)
       .digest('base64');
 
+    console.warn(
+      '[payments:paytr] configured but get-token wire pending — returning stub checkout URL'
+    );
     return {
       provider: this.name,
       paymentId,
       status: 'pending',
-      checkoutUrl: `https://www.paytr.com/odeme/guvenli/${paymentId}`,
+      checkoutUrl: `${successUrl}${successUrl.includes('?') ? '&' : '?'}provider=paytr&paymentId=${paymentId}&stub=1`,
       externalId: paymentId,
       tokenHint,
+      mock: true,
       metadata: { userId: user.id, planId: plan.id, ...metadata },
-      note: 'Wire PayTR get-token iframe API with merchant credentials',
+      note: 'STUB: PAYTR_* set; real iframe token API not called yet',
     };
   }
 }
