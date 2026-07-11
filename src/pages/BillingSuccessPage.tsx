@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 const BillingSuccessPage: React.FC = () => {
   const [params] = useSearchParams();
@@ -28,6 +29,10 @@ const BillingSuccessPage: React.FC = () => {
           <span className="landing-mark" />
           GraphCore
         </Link>
+        <nav className="landing-nav-links">
+          <ThemeToggle />
+          <Link to="/app/dashboard">Studio</Link>
+        </nav>
       </header>
       <main className="pricing-main">
         <h1>Ödeme tamam</h1>

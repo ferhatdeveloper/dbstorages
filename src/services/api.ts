@@ -499,6 +499,7 @@ class ApiService {
     return this.request<{
       success: boolean;
       data: any[];
+      addons?: any[];
       providers: any[];
     }>(`${NODE_API_BASE}/packages`);
   }
@@ -508,6 +509,8 @@ class ApiService {
     provider?: string;
     projectId?: string;
     projectName?: string;
+    addons?: string[];
+    interval?: 'month' | 'year';
   }) {
     return this.request<{ success: boolean; data: any }>(
       `${NODE_API_BASE}/billing/checkout`,

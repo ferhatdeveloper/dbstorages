@@ -11,56 +11,221 @@ const axios = require('axios');
 const PACKAGES = [
   {
     id: 'free',
-    name: 'Free',
+    name: 'Trial',
     priceCents: 0,
+    priceYearCents: 0,
     currency: 'usd',
     interval: 'month',
+    trialDays: 15,
     vcpu: 0.5,
     ramMb: 512,
     diskGb: 1,
     storageGb: 0.5,
     connections: 20,
+    backupRetentionDays: 0,
+    support: 'community',
     highlight: false,
-    description: 'Geliştirme ve deneme için yerel Postgres.',
+    description: '15 gün ücretsiz deneme — yerel Postgres ile başlayın.',
+    features: [
+      '15 gün deneme',
+      '0.5 vCPU · 512 MB RAM',
+      '1 GB veritabanı',
+      '20 eşzamanlı bağlantı',
+      'Topluluk desteği',
+    ],
+    limits: {
+      vcpu: 0.5,
+      ramMb: 512,
+      diskGb: 1,
+      storageGb: 0.5,
+      connections: 20,
+      backupRetentionDays: 0,
+    },
   },
   {
     id: 'pro',
     name: 'Pro',
-    priceCents: 2900,
+    priceCents: 3400,
+    priceYearCents: 40800, // $34 × 12
     currency: 'usd',
     interval: 'month',
     vcpu: 2,
     ramMb: 4096,
-    diskGb: 20,
-    storageGb: 5,
+    diskGb: 25,
+    storageGb: 10,
     connections: 100,
+    backupRetentionDays: 7,
+    support: 'email',
     highlight: true,
     description: 'Üretim yükleri için dengeli kiralama planı.',
+    features: [
+      '2 vCPU · 4 GB RAM',
+      '25 GB veritabanı diski',
+      '10 GB object storage',
+      '100 eşzamanlı bağlantı',
+      'E-posta desteği',
+    ],
+    limits: {
+      vcpu: 2,
+      ramMb: 4096,
+      diskGb: 25,
+      storageGb: 10,
+      connections: 100,
+      backupRetentionDays: 7,
+    },
     stripePriceEnv: 'STRIPE_PRICE_PRO',
+    stripePriceYearEnv: 'STRIPE_PRICE_PRO_YEAR',
   },
   {
     id: 'scale',
     name: 'Scale',
-    priceCents: 9900,
+    priceCents: 5000,
+    priceYearCents: 60000, // $50 × 12
     currency: 'usd',
     interval: 'month',
     vcpu: 4,
-    ramMb: 16384,
-    diskGb: 100,
+    ramMb: 8192,
+    diskGb: 80,
     storageGb: 50,
-    connections: 500,
+    connections: 400,
+    backupRetentionDays: 14,
+    support: 'priority',
     highlight: false,
-    description: 'Yüksek bağlantı ve disk ihtiyacı olan ekipler.',
+    description: 'Büyüyen ekipler için daha fazla CPU, disk ve bağlantı.',
+    features: [
+      '4 vCPU · 8 GB RAM',
+      '80 GB veritabanı diski',
+      '50 GB object storage',
+      '400 eşzamanlı bağlantı',
+      'Öncelikli e-posta desteği',
+    ],
+    limits: {
+      vcpu: 4,
+      ramMb: 8192,
+      diskGb: 80,
+      storageGb: 50,
+      connections: 400,
+      backupRetentionDays: 14,
+    },
     stripePriceEnv: 'STRIPE_PRICE_SCALE',
+    stripePriceYearEnv: 'STRIPE_PRICE_SCALE_YEAR',
+  },
+  {
+    id: 'max',
+    name: 'Max',
+    priceCents: 9900,
+    priceYearCents: 118800, // $99 × 12
+    currency: 'usd',
+    interval: 'month',
+    vcpu: 8,
+    ramMb: 32768,
+    diskGb: 250,
+    storageGb: 150,
+    connections: 1000,
+    backupRetentionDays: 30,
+    support: 'dedicated',
+    highlight: false,
+    description: 'En yüksek kaynak ve bağlantı limiti — büyük üretim iş yükleri.',
+    features: [
+      '8 vCPU · 32 GB RAM',
+      '250 GB veritabanı diski',
+      '150 GB object storage',
+      '1000 eşzamanlı bağlantı',
+      'Özel / öncelikli destek',
+    ],
+    limits: {
+      vcpu: 8,
+      ramMb: 32768,
+      diskGb: 250,
+      storageGb: 150,
+      connections: 1000,
+      backupRetentionDays: 30,
+    },
+    stripePriceEnv: 'STRIPE_PRICE_MAX',
+    stripePriceYearEnv: 'STRIPE_PRICE_MAX_YEAR',
   },
 ];
 
+/** Optional add-ons (billed at month start when monthly). */
+const ADDONS = [
+  {
+    id: 'backup',
+    name: 'Yedekleme',
+    priceCents: 1000,
+    priceYearCents: 12000, // $10 × 12
+    currency: 'usd',
+    interval: 'month',
+    billingNote: 'Ay başında faturalandırılır',
+    description:
+      'Otomatik yedekleme hizmeti — aylık $10 veya yıllık $120.',
+    stripePriceEnv: 'STRIPE_PRICE_BACKUP',
+    stripePriceYearEnv: 'STRIPE_PRICE_BACKUP_YEAR',
+  },
+];
+
+function normalizeInterval(interval) {
+  return interval === 'year' || interval === 'annual' ? 'year' : 'month';
+}
+
+function unitAmountCents(item, interval = 'month') {
+  if (!item) return 0;
+  if (!item.priceCents) return 0;
+  const iv = normalizeInterval(interval);
+  if (iv === 'year') {
+    return item.priceYearCents != null
+      ? item.priceYearCents
+      : item.priceCents * 12;
+  }
+  return item.priceCents;
+}
+
 function getPackages() {
-  return PACKAGES;
+  return PACKAGES.map((p) => ({
+    ...p,
+    priceMonthCents: p.priceCents,
+    priceYearCents:
+      p.priceYearCents != null
+        ? p.priceYearCents
+        : p.priceCents === 0
+          ? 0
+          : p.priceCents * 12,
+    intervals: p.priceCents === 0 ? ['month'] : ['month', 'year'],
+  }));
+}
+
+function getAddons() {
+  return ADDONS.map((a) => ({
+    ...a,
+    priceMonthCents: a.priceCents,
+    priceYearCents:
+      a.priceYearCents != null ? a.priceYearCents : a.priceCents * 12,
+    intervals: ['month', 'year'],
+  }));
 }
 
 function getPackage(planId) {
   return PACKAGES.find((p) => p.id === planId) || null;
+}
+
+function getAddon(addonId) {
+  return ADDONS.find((a) => a.id === addonId) || null;
+}
+
+function resolveAddons(addonIds = []) {
+  const ids = Array.isArray(addonIds) ? addonIds : [];
+  const addons = [];
+  for (const id of ids) {
+    const addon = getAddon(id);
+    if (addon) addons.push(addon);
+  }
+  return addons;
+}
+
+function totalAmountCents(plan, addons = [], interval = 'month') {
+  return (
+    unitAmountCents(plan, interval) +
+    addons.reduce((sum, a) => sum + unitAmountCents(a, interval), 0)
+  );
 }
 
 /** Storage quota bytes for a plan id (MVP enforcement). */
@@ -92,8 +257,19 @@ class StripeProvider {
     return Boolean(this.secret && this.stripe);
   }
 
-  async createCheckout({ plan, user, successUrl, cancelUrl, metadata }) {
+  async createCheckout({
+    plan,
+    user,
+    successUrl,
+    cancelUrl,
+    metadata,
+    addons = [],
+    billingInterval = 'month',
+  }) {
     const paymentId = `pay_${crypto.randomBytes(8).toString('hex')}`;
+    const resolvedAddons = Array.isArray(addons) ? addons : [];
+    const interval = normalizeInterval(billingInterval);
+    const amountCents = totalAmountCents(plan, resolvedAddons, interval);
 
     if (!this.isConfigured() || plan.priceCents === 0) {
       return {
@@ -102,15 +278,56 @@ class StripeProvider {
         status: plan.priceCents === 0 ? 'succeeded' : 'pending',
         checkoutUrl: successUrl.replace('{CHECKOUT_SESSION_ID}', paymentId),
         mock: !this.isConfigured() && plan.priceCents > 0,
+        amountCents,
+        billingInterval: interval,
         message: this.isConfigured()
           ? undefined
           : 'STRIPE_SECRET_KEY yok — mock checkout URL döndürüldü',
       };
     }
 
-    const priceId = plan.stripePriceEnv
-      ? process.env[plan.stripePriceEnv]
-      : undefined;
+    const catalogEnv =
+      interval === 'year' ? plan.stripePriceYearEnv : plan.stripePriceEnv;
+    const priceId = catalogEnv ? process.env[catalogEnv] : undefined;
+
+    const lineItems = priceId
+      ? [{ price: priceId, quantity: 1 }]
+      : [
+          {
+            price_data: {
+              currency: plan.currency,
+              unit_amount: unitAmountCents(plan, interval),
+              recurring: { interval },
+              product_data: {
+                name: `GraphCore ${plan.name}`,
+                description: plan.description,
+              },
+            },
+            quantity: 1,
+          },
+        ];
+
+    for (const addon of resolvedAddons) {
+      const addonEnv =
+        interval === 'year' ? addon.stripePriceYearEnv : addon.stripePriceEnv;
+      const addonPriceId = addonEnv ? process.env[addonEnv] : undefined;
+      if (addonPriceId) {
+        lineItems.push({ price: addonPriceId, quantity: 1 });
+      } else {
+        lineItems.push({
+          price_data: {
+            currency: addon.currency || plan.currency,
+            unit_amount: unitAmountCents(addon, interval),
+            recurring: { interval },
+            product_data: {
+              name: `GraphCore ${addon.name}`,
+              description: addon.description,
+            },
+          },
+          quantity: 1,
+        });
+      }
+    }
 
     const sessionParams = {
       mode: 'subscription',
@@ -122,24 +339,11 @@ class StripeProvider {
         planId: plan.id,
         userId: user.id,
         paymentId,
+        billingInterval: interval,
+        addons: resolvedAddons.map((a) => a.id).join(','),
         ...metadata,
       },
-      line_items: priceId
-        ? [{ price: priceId, quantity: 1 }]
-        : [
-            {
-              price_data: {
-                currency: plan.currency,
-                unit_amount: plan.priceCents,
-                recurring: { interval: plan.interval || 'month' },
-                product_data: {
-                  name: `GraphCore ${plan.name}`,
-                  description: plan.description,
-                },
-              },
-              quantity: 1,
-            },
-          ],
+      line_items: lineItems,
     };
 
     const session = await this.stripe.checkout.sessions.create(sessionParams);
@@ -149,6 +353,8 @@ class StripeProvider {
       status: 'pending',
       checkoutUrl: session.url,
       externalId: session.id,
+      amountCents,
+      billingInterval: interval,
     };
   }
 
@@ -226,8 +432,19 @@ class IyzicoProvider {
     return Boolean(this.apiKey && this.secretKey && this.client);
   }
 
-  async createCheckout({ plan, user, successUrl, cancelUrl, metadata }) {
+  async createCheckout({
+    plan,
+    user,
+    successUrl,
+    cancelUrl,
+    metadata,
+    addons = [],
+    billingInterval = 'month',
+  }) {
     const paymentId = `pay_iy_${crypto.randomBytes(8).toString('hex')}`;
+    const resolvedAddons = Array.isArray(addons) ? addons : [];
+    const interval = normalizeInterval(billingInterval);
+    const amountCents = totalAmountCents(plan, resolvedAddons, interval);
     if (!this.isConfigured()) {
       return {
         provider: this.name,
@@ -235,14 +452,38 @@ class IyzicoProvider {
         status: 'pending',
         checkoutUrl: `${successUrl}${successUrl.includes('?') ? '&' : '?'}provider=iyzico&paymentId=${paymentId}&mock=1`,
         mock: true,
+        amountCents,
+        billingInterval: interval,
         message:
           'IYZICO_API_KEY / IYZICO_SECRET_KEY yok — sandbox stub checkout',
       };
     }
 
-    const price = (plan.priceCents / 100).toFixed(2);
+    const price = (amountCents / 100).toFixed(2);
     const basketId = paymentId;
     const conversationId = paymentId;
+    const periodLabel = interval === 'year' ? ' (yıllık)' : '';
+
+    const basketItems = [
+      {
+        id: plan.id,
+        name: `GraphCore ${plan.name}${periodLabel}`,
+        category1: 'SaaS',
+        itemType: 'VIRTUAL',
+        price: (unitAmountCents(plan, interval) / 100).toFixed(2),
+      },
+      ...resolvedAddons.map((addon) => ({
+        id: addon.id,
+        name: `GraphCore ${addon.name}${periodLabel}`,
+        category1: 'SaaS',
+        itemType: 'VIRTUAL',
+        price: (unitAmountCents(addon, interval) / 100).toFixed(2),
+      })),
+    ];
+    // iyzico requires basket item prices to sum to paidPrice
+    if (resolvedAddons.length === 0) {
+      basketItems[0].price = price;
+    }
 
     const request = {
       locale: 'tr',
@@ -278,15 +519,7 @@ class IyzicoProvider {
         country: 'Turkey',
         address: 'GraphCore',
       },
-      basketItems: [
-        {
-          id: plan.id,
-          name: `GraphCore ${plan.name}`,
-          category1: 'SaaS',
-          itemType: 'VIRTUAL',
-          price,
-        },
-      ],
+      basketItems,
     };
 
     // Attach paymentId into success redirect via conversationId lookup on callback
@@ -317,6 +550,8 @@ class IyzicoProvider {
         `${successUrl}${successUrl.includes('?') ? '&' : '?'}provider=iyzico&paymentId=${paymentId}`,
       externalId: result.token || conversationId,
       token: result.token,
+      amountCents,
+      billingInterval: interval,
       mock: false,
       metadata: {
         userId: user.id,
@@ -351,8 +586,19 @@ class PayTRProvider {
     return Boolean(this.merchantId && this.merchantKey && this.merchantSalt);
   }
 
-  async createCheckout({ plan, user, successUrl, cancelUrl, metadata }) {
+  async createCheckout({
+    plan,
+    user,
+    successUrl,
+    cancelUrl,
+    metadata,
+    addons = [],
+    billingInterval = 'month',
+  }) {
     const paymentId = `pay_pt_${crypto.randomBytes(8).toString('hex')}`;
+    const resolvedAddons = Array.isArray(addons) ? addons : [];
+    const interval = normalizeInterval(billingInterval);
+    const amountCents = totalAmountCents(plan, resolvedAddons, interval);
     if (!this.isConfigured()) {
       return {
         provider: this.name,
@@ -360,19 +606,30 @@ class PayTRProvider {
         status: 'pending',
         checkoutUrl: `${successUrl}${successUrl.includes('?') ? '&' : '?'}provider=paytr&paymentId=${paymentId}&mock=1`,
         mock: true,
+        amountCents,
+        billingInterval: interval,
         message: 'PAYTR_MERCHANT_* yok — sandbox stub checkout',
       };
     }
 
     const merchantOid = paymentId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 64);
     const email = user.email || 'buyer@graphcore.local';
-    const paymentAmount = String(plan.priceCents); // kuruş
+    const paymentAmount = String(amountCents); // kuruş
     const userIp = metadata?.clientIp || '85.34.78.112';
-    const userBasket = Buffer.from(
-      JSON.stringify([
-        [`GraphCore ${plan.name}`, (plan.priceCents / 100).toFixed(2), 1],
-      ])
-    ).toString('base64');
+    const periodLabel = interval === 'year' ? ' (yıllık)' : '';
+    const basketRows = [
+      [
+        `GraphCore ${plan.name}${periodLabel}`,
+        (unitAmountCents(plan, interval) / 100).toFixed(2),
+        1,
+      ],
+      ...resolvedAddons.map((addon) => [
+        `GraphCore ${addon.name}${periodLabel}`,
+        (unitAmountCents(addon, interval) / 100).toFixed(2),
+        1,
+      ]),
+    ];
+    const userBasket = Buffer.from(JSON.stringify(basketRows)).toString('base64');
     const noInstallment = '1';
     const maxInstallment = '0';
     const currency = 'TL';
@@ -451,6 +708,8 @@ class PayTRProvider {
       checkoutUrl: `https://www.paytr.com/odeme/guvenli/${data.token}`,
       externalId: merchantOid,
       token: data.token,
+      amountCents,
+      billingInterval: interval,
       mock: false,
       metadata: { userId: user.id, planId: plan.id, ...metadata },
     };
@@ -490,8 +749,15 @@ function listProviders() {
 
 module.exports = {
   PACKAGES,
+  ADDONS,
   getPackages,
+  getAddons,
   getPackage,
+  getAddon,
+  resolveAddons,
+  totalAmountCents,
+  unitAmountCents,
+  normalizeInterval,
   storageQuotaBytes,
   getProvider,
   listProviders,

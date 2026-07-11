@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import ProjectSwitcher from '../components/ProjectSwitcher'
+import ThemeToggle from '../components/ThemeToggle'
 import {
   Database,
   Table,
@@ -88,13 +89,21 @@ const AppLayout = () => {
   }
 
   return (
-    <div className="h-screen flex bg-[#f8fafb]">
-      <aside className="w-56 border-r bg-white flex flex-col py-4 space-y-2">
-        <div className="mb-2 flex flex-col items-center justify-center">
+    <div className="h-screen flex bg-[#f8fafb] dark:bg-slate-950">
+      <aside className="w-56 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col py-4 space-y-2">
+        <div className="mb-2 flex flex-col items-center justify-center px-2">
           <NavLink to="/app/dashboard">
-            <Database className="h-7 w-7 text-teal-700" />
+            <Database className="h-7 w-7 text-teal-700 dark:text-lime-400" />
           </NavLink>
-          <span className="mt-2 text-xl font-extrabold tracking-tight text-teal-800 select-none" style={{fontFamily: 'Syne, sans-serif'}}>GraphCore</span>
+          <span
+            className="mt-2 text-xl font-extrabold tracking-tight text-teal-800 dark:text-slate-100 select-none"
+            style={{ fontFamily: 'Syne, sans-serif' }}
+          >
+            GraphCore
+          </span>
+          <div className="mt-2">
+            <ThemeToggle variant="pill" />
+          </div>
         </div>
         <ProjectSwitcher />
         <nav className="flex flex-col gap-2 flex-1 overflow-y-auto">
@@ -103,28 +112,38 @@ const AppLayout = () => {
               <div className="px-4 py-1 text-xs text-gray-400 uppercase tracking-wider select-none">
                 {section.category}
               </div>
-              {section.items.map(item => (
+              {section.items.map((item) => (
                 <div key={item.to} className="relative group">
                   <NavLink
                     to={item.to}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2 rounded-lg transition text-sm font-medium ${isActive ? 'bg-gray-100 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`
+                      `flex items-center gap-3 px-4 py-2 rounded-lg transition text-sm font-medium ${
+                        isActive
+                          ? 'bg-gray-100 text-blue-600 dark:bg-slate-800 dark:text-lime-400'
+                          : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                      }`
                     }
                     onMouseEnter={() => setHoveredMenu(item.label)}
                     onMouseLeave={() => setHoveredMenu(null)}
                   >
                     {item.icon}
                     <span>{item.label}</span>
-                    {item.submenu && <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />}
+                    {item.submenu && (
+                      <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />
+                    )}
                   </NavLink>
                   {item.submenu && hoveredMenu === item.label && (
-                    <div className="absolute left-full top-0 mt-0 ml-1 bg-white border rounded shadow-lg min-w-[180px] z-20 animate-fade-in">
-                      {item.submenu.map(sub => (
+                    <div className="absolute left-full top-0 mt-0 ml-1 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded shadow-lg min-w-[180px] z-20 animate-fade-in">
+                      {item.submenu.map((sub) => (
                         <NavLink
                           key={sub.to}
                           to={sub.to}
                           className={({ isActive }) =>
-                            `block px-4 py-2 text-sm rounded transition ${isActive ? 'bg-gray-100 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`
+                            `block px-4 py-2 text-sm rounded transition ${
+                              isActive
+                                ? 'bg-gray-100 text-blue-600 dark:bg-slate-800 dark:text-lime-400'
+                                : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                            }`
                           }
                         >
                           {sub.label}
@@ -138,16 +157,16 @@ const AppLayout = () => {
           ))}
         </nav>
         <div className="mt-auto mb-2 px-4">
-          <button 
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-400"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400"
           >
             <Lock className="h-5 w-5" />
             <span className="text-sm">Logout</span>
           </button>
         </div>
       </aside>
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden bg-[#f8fafb] dark:bg-slate-950 dark:text-slate-100">
         <Outlet />
       </main>
     </div>

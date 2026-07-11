@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail, User, Check } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from '../components/ThemeToggle'
 
 const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false)
@@ -66,10 +67,13 @@ const RegisterPage = () => {
       <div className="landing-grid" aria-hidden />
       <div className="relative z-10 max-w-md w-full">
         <div className="text-center mb-8">
-          <Link to="/" className="landing-brand justify-center inline-flex">
-            <span className="landing-mark" />
-            GraphCore
-          </Link>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <Link to="/" className="landing-brand justify-center inline-flex">
+              <span className="landing-mark" />
+              GraphCore
+            </Link>
+            <ThemeToggle />
+          </div>
           <p className="text-[var(--lc-muted)] mt-2">Hesap oluşturun</p>
         </div>
 

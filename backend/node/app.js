@@ -170,8 +170,13 @@ app.get('/api/schema', (req, res, next) => {
 
 // Packages alias
 app.get('/api/packages', (_req, res) => {
-  const { getPackages, listProviders } = require('./payments');
-  res.json({ success: true, data: getPackages(), providers: listProviders() });
+  const { getPackages, getAddons, listProviders } = require('./payments');
+  res.json({
+    success: true,
+    data: getPackages(),
+    addons: getAddons(),
+    providers: listProviders(),
+  });
 });
 
 // Domain: tenants / projects / instances — membership-scoped

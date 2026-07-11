@@ -6,7 +6,11 @@ const { provisionOrFallback } = require('../lib/provision');
 const { startListenerForInstanceRow } = require('../lib/realtime');
 const {
   getPackages,
+  getAddons,
   getPackage,
+  resolveAddons,
+  totalAmountCents,
+  normalizeInterval,
   getProvider,
   listProviders,
 } = require('../payments');
@@ -221,7 +225,12 @@ async function provisionInstanceAfterPayment({
 }
 
 router.get('/packages', (_req, res) => {
-  res.json({ success: true, data: getPackages(), providers: listProviders() });
+  res.json({
+    success: true,
+    data: getPackages(),
+    addons: getAddons(),
+    providers: listProviders(),
+  });
 });
 
 router.get('/providers', (_req, res) => {
@@ -235,6 +244,8 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       provider: providerName = 'stripe',
       projectId,
       projectName,
+      addons: addonIds = [],
+      interval: rawInterval = 'month',
     } = req.body || {};
 
     const plan = getPackage(planId);
@@ -245,8 +256,22 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       });
     }
 
+    const billingInterval = normalizeInterval(rawInterval);
+    if (plan.priceCents === 0 && billingInterval === 'year') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'validation',
+          message: 'trial plan is monthly-only (15 days)',
+        },
+      });
+    }
+
+    const addons = resolveAddons(addonIds);
+    const amountCents = totalAmountCents(plan, addons, billingInterval);
+
     const provider = getProvider(providerName);
-    const successUrl = `${FRONTEND}/billing/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`;
+    const successUrl = `${FRONTEND}/billing/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}&interval=${billingInterval}`;
     const cancelUrl = `${FRONTEND}/pricing?canceled=1`;
 
     const user = {
@@ -254,7 +279,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       email: req.user.email,
     };
 
-    // Free plan: provision immediately
+    // Free / trial plan: provision immediately (addons ignored on trial)
     if (plan.priceCents === 0) {
       const paymentId = store.newId('pay');
       await savePayment({
@@ -266,7 +291,12 @@ router.post('/checkout', authMiddleware, async (req, res) => {
         currency: plan.currency,
         status: 'succeeded',
         createdAt: new Date().toISOString(),
-        metadata: { projectId, projectName },
+        metadata: {
+          projectId,
+          projectName,
+          trialDays: plan.trialDays || 15,
+          billingInterval: 'month',
+        },
       });
       const instance = await provisionInstanceAfterPayment({
         userId: user.id,
@@ -282,6 +312,8 @@ router.post('/checkout', authMiddleware, async (req, res) => {
           paymentId,
           status: 'succeeded',
           instance,
+          trialDays: plan.trialDays || 15,
+          billingInterval: 'month',
           redirectUrl: `${FRONTEND}/billing/success?plan=free&paymentId=${paymentId}`,
         },
       });
@@ -292,9 +324,13 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       user,
       successUrl,
       cancelUrl,
+      addons,
+      billingInterval,
       metadata: {
         projectId: projectId || '',
         projectName: projectName || '',
+        addons: addons.map((a) => a.id).join(','),
+        billingInterval,
         clientIp:
           (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
           req.socket?.remoteAddress ||
@@ -307,12 +343,18 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       userId: user.id,
       provider: result.provider,
       planId: plan.id,
-      amountCents: plan.priceCents,
+      amountCents: result.amountCents ?? amountCents,
       currency: plan.currency,
       status: result.status,
       externalId: result.externalId,
       createdAt: new Date().toISOString(),
-      metadata: { projectId, projectName, mock: result.mock || false },
+      metadata: {
+        projectId,
+        projectName,
+        mock: result.mock || false,
+        addons: addons.map((a) => a.id),
+        billingInterval,
+      },
     });
 
     // Mock providers: provision immediately so local flow works
@@ -334,6 +376,9 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       data: {
         ...result,
         instance,
+        addons: addons.map((a) => a.id),
+        amountCents: result.amountCents ?? amountCents,
+        billingInterval,
         checkoutUrl: result.checkoutUrl,
       },
     });
