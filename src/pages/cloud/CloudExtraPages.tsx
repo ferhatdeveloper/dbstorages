@@ -1,6 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Globe, Loader2, Plus, Trash2 } from 'lucide-react'
 import { apiService } from '../../services/api'
+import {
+  CloudEmptyState,
+  CloudError,
+  CloudLoading,
+  CloudPageHeader,
+  CloudSlideOver,
+  CloudStatusPill,
+  cloudBtnGhost,
+  cloudBtnPrimary,
+  cloudFieldClass,
+  cloudPanelClass,
+  cloudTableWrap,
+  cloudTd,
+  cloudTh,
+  cloudThead,
+  cloudTr,
+} from './cloudUi'
 
 type ExtraKind =
   | 'primary-ips'
@@ -21,8 +38,15 @@ const TITLES: Record<ExtraKind, string> = {
   parity: 'Console Parity',
 }
 
-const fieldClass =
-  'rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950'
+const DESCRIPTIONS: Record<ExtraKind, string> = {
+  'primary-ips': 'Kalıcı IPv4/IPv6 — sunucuya assign.',
+  'floating-ips': 'Taşınabilir floating IP’ler.',
+  'load-balancers': 'LB oluşturma ve yönetim.',
+  'placement-groups': 'Spread / anti-affinity grupları.',
+  certificates: 'TLS sertifikaları (PEM).',
+  dns: 'Primary / Floating IP için reverse DNS (PTR).',
+  parity: 'Hetzner Console ↔ Studio Cloud kapsama matrisi.',
+}
 
 const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
   const [rows, setRows] = useState<any[]>([])
@@ -176,51 +200,43 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
   if (kind === 'parity') {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{TITLES.parity}</h2>
-          <button type="button" onClick={load} className="rounded-lg border px-2 py-1 text-xs dark:border-slate-700">
-            <RefreshCw className="inline h-3.5 w-3.5" />
-          </button>
-        </div>
-        <p className="text-xs text-slate-500">
-          Hetzner Cloud Console işlemleri ↔ Studio Cloud. Stub = dürüst 501 (fake success yok).
+        <CloudPageHeader
+          title={TITLES.parity}
+          description={DESCRIPTIONS.parity}
+          onRefresh={load}
+          refreshing={loading}
+        />
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Stub = dürüst 501 (fake success yok).
         </p>
         {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          <CloudLoading />
         ) : (
-          <div className="overflow-x-auto rounded-xl border dark:border-slate-700">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800">
-                <tr>
-                  <th className="px-3 py-2">Bölüm</th>
-                  <th className="px-3 py-2">İşlem</th>
-                  <th className="px-3 py-2">UI</th>
-                  <th className="px-3 py-2">Durum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parity.map((r, i) => (
-                  <tr key={i} className="border-t dark:border-slate-800">
-                    <td className="px-3 py-2">{r.section}</td>
-                    <td className="px-3 py-2">{r.action}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.path}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          r.status === 'full'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : r.status === 'partial'
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
+          <div className={cloudPanelClass}>
+            <div className={`${cloudTableWrap} border-0`}>
+              <table className="w-full text-left text-sm">
+                <thead className={cloudThead}>
+                  <tr>
+                    <th className={cloudTh}>Bölüm</th>
+                    <th className={cloudTh}>İşlem</th>
+                    <th className={cloudTh}>UI</th>
+                    <th className={cloudTh}>Durum</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900">
+                  {parity.map((r, i) => (
+                    <tr key={i} className={cloudTr}>
+                      <td className={cloudTd}>{r.section}</td>
+                      <td className={cloudTd}>{r.action}</td>
+                      <td className={`${cloudTd} font-mono text-xs`}>{r.path}</td>
+                      <td className={cloudTd}>
+                        <CloudStatusPill status={r.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -229,40 +245,26 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          {TITLES[kind]}
-        </h2>
-        <div className="flex gap-2">
-          <button type="button" onClick={load} className="rounded-lg border px-2 py-1 text-xs dark:border-slate-700">
-            <RefreshCw className="inline h-3.5 w-3.5" />
+      <CloudPageHeader
+        title={TITLES[kind]}
+        description={DESCRIPTIONS[kind]}
+        onRefresh={load}
+        refreshing={loading}
+        actions={
+          <button type="button" onClick={() => setShow(true)} className={cloudBtnPrimary}>
+            <Plus className="h-3.5 w-3.5" />
+            {kind === 'dns' ? 'Set PTR' : 'Create'}
           </button>
-          {kind !== 'dns' && (
-            <button
-              type="button"
-              onClick={() => setShow((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-medium text-white dark:bg-lime-500 dark:text-slate-900"
-            >
-              <Plus className="h-3.5 w-3.5" /> Create
-            </button>
-          )}
-          {kind === 'dns' && (
-            <button
-              type="button"
-              onClick={() => setShow((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-medium text-white"
-            >
-              Set PTR
-            </button>
-          )}
-        </div>
-      </div>
+        }
+      />
+
+      <CloudError message={error} />
 
       {(kind === 'primary-ips' || kind === 'floating-ips') && (
-        <label className="grid max-w-xs gap-1 text-xs text-slate-500">
+        <label className={`${cloudPanelClass} grid max-w-xs gap-1 p-3 text-xs text-slate-500`}>
           Assign hedef sunucu
           <select
-            className={fieldClass}
+            className={cloudFieldClass}
             value={form.serverId}
             onChange={(e) => setForm({ ...form, serverId: e.target.value })}
           >
@@ -276,12 +278,106 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
         </label>
       )}
 
-      {show && (
-        <form onSubmit={create} className="grid max-w-lg gap-2 rounded-xl border p-4 dark:border-slate-700">
+      {kind === 'dns' ? (
+        <div className={`${cloudPanelClass} p-4`}>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Primary / Floating IP için reverse DNS (PTR). Job Activity’de görünür.
+          </p>
+          <button type="button" onClick={() => setShow(true)} className={`${cloudBtnPrimary} mt-3`}>
+            PTR kaydı oluştur
+          </button>
+        </div>
+      ) : loading ? (
+        <CloudLoading />
+      ) : (
+        <div className={cloudPanelClass}>
+          {!rows.length ? (
+            <CloudEmptyState
+              icon={<Globe className="h-6 w-6" />}
+              title="Kayıt yok"
+              description={`${TITLES[kind]} için henüz kaynak yok. Create ile ekleyin.`}
+              action={
+                <button type="button" onClick={() => setShow(true)} className={cloudBtnPrimary}>
+                  <Plus className="h-3.5 w-3.5" /> Create
+                </button>
+              }
+            />
+          ) : (
+            <div className={`${cloudTableWrap} border-0`}>
+              <table className="w-full text-left text-sm">
+                <thead className={cloudThead}>
+                  <tr>
+                    <th className={cloudTh}>Ad</th>
+                    <th className={cloudTh}>Detay</th>
+                    <th className={cloudTh}>Durum</th>
+                    <th className={cloudTh}>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900">
+                  {rows.map((r) => (
+                    <tr key={r.id} className={cloudTr}>
+                      <td className={`${cloudTd} font-medium`}>{r.name}</td>
+                      <td className={`${cloudTd} font-mono text-xs`}>
+                        {r.ip || r.public_ipv4 || r.lb_type || r.pg_type || r.cert_type || '—'}
+                      </td>
+                      <td className={cloudTd}>
+                        <CloudStatusPill status={r.status} />
+                      </td>
+                      <td className={cloudTd}>
+                        <div className="flex gap-1">
+                          {(kind === 'primary-ips' || kind === 'floating-ips') && (
+                            <button
+                              type="button"
+                              className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
+                              onClick={() => assign(r.id)}
+                            >
+                              Assign
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="rounded p-1.5 text-red-600"
+                            onClick={() => remove(r.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      <CloudSlideOver
+        open={show}
+        onClose={() => setShow(false)}
+        title={kind === 'dns' ? 'Reverse DNS (PTR)' : `${TITLES[kind]} — Create`}
+        subtitle="Async işlem"
+        footer={
+          <div className="flex justify-between gap-2">
+            <button type="button" onClick={() => setShow(false)} className={cloudBtnGhost}>
+              İptal
+            </button>
+            <button
+              type="submit"
+              form="cloud-extra-create"
+              disabled={saving}
+              className={cloudBtnPrimary}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Kaydet (async)'}
+            </button>
+          </div>
+        }
+      >
+        <form id="cloud-extra-create" onSubmit={create} className="space-y-3">
           <label className="grid gap-1 text-xs text-slate-500">
             Provider
             <select
-              className={fieldClass}
+              className={cloudFieldClass}
               value={form.providerId}
               onChange={(e) => setForm({ ...form, providerId: e.target.value })}
               required
@@ -297,14 +393,14 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           {kind === 'dns' ? (
             <>
               <input
-                className={fieldClass}
+                className={cloudFieldClass}
                 placeholder="IP"
                 value={form.ip}
                 onChange={(e) => setForm({ ...form, ip: e.target.value })}
                 required
               />
               <input
-                className={fieldClass}
+                className={cloudFieldClass}
                 placeholder="PTR / hostname"
                 value={form.ptr}
                 onChange={(e) => setForm({ ...form, ptr: e.target.value })}
@@ -313,7 +409,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
             </>
           ) : (
             <input
-              className={fieldClass}
+              className={cloudFieldClass}
               placeholder="Name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -322,7 +418,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           )}
           {(kind === 'primary-ips' || kind === 'floating-ips') && (
             <select
-              className={fieldClass}
+              className={cloudFieldClass}
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
             >
@@ -332,7 +428,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           )}
           {(kind === 'floating-ips' || kind === 'load-balancers') && (
             <input
-              className={fieldClass}
+              className={cloudFieldClass}
               placeholder="Location (nbg1)"
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
@@ -341,97 +437,29 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           {kind === 'certificates' && (
             <>
               <textarea
-                className={fieldClass}
+                className={cloudFieldClass}
                 rows={3}
                 placeholder="PEM certificate"
                 value={form.certificate}
                 onChange={(e) => setForm({ ...form, certificate: e.target.value })}
               />
               <textarea
-                className={fieldClass}
+                className={cloudFieldClass}
                 rows={3}
                 placeholder="Private key"
                 value={form.privateKey}
                 onChange={(e) => setForm({ ...form, privateKey: e.target.value })}
               />
               <input
-                className={fieldClass}
+                className={cloudFieldClass}
                 placeholder="Domains (comma-separated)"
                 value={form.domainNames}
                 onChange={(e) => setForm({ ...form, domainNames: e.target.value })}
               />
             </>
           )}
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-teal-700 py-2 text-sm text-white"
-          >
-            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Kaydet (async)'}
-          </button>
         </form>
-      )}
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      {kind === 'dns' ? (
-        <p className="text-xs text-slate-500">
-          Primary / Floating IP için reverse DNS (PTR). Job Activity’de görünür.
-        </p>
-      ) : loading ? (
-        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border dark:border-slate-700">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800">
-              <tr>
-                <th className="px-3 py-2">Ad</th>
-                <th className="px-3 py-2">Detay</th>
-                <th className="px-3 py-2">Durum</th>
-                <th className="px-3 py-2">İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t dark:border-slate-800">
-                  <td className="px-3 py-2 font-medium">{r.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs">
-                    {r.ip || r.public_ipv4 || r.lb_type || r.pg_type || r.cert_type || '—'}
-                  </td>
-                  <td className="px-3 py-2 text-xs">{r.status}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1">
-                      {(kind === 'primary-ips' || kind === 'floating-ips') && (
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-[10px] dark:border-slate-700"
-                          onClick={() => assign(r.id)}
-                        >
-                          Assign
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="rounded p-1 text-red-600"
-                        onClick={() => remove(r.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!rows.length && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-slate-400">
-                    Kayıt yok
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </CloudSlideOver>
     </div>
   )
 }
