@@ -35,11 +35,15 @@ const provision = require('./lib/provision');
 
 const app = express();
 const server = http.createServer(app);
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || 'http://localhost:5173,http://localhost:5174';
+const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const FRONTEND_ORIGIN = FRONTEND_ORIGINS[0] || 'http://localhost:5173';
 
 const io = socketIo(server, {
   cors: {
-    origin: FRONTEND_ORIGIN,
+    origin: FRONTEND_ORIGINS,
     methods: ['GET', 'POST'],
   },
 });
@@ -50,7 +54,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
-    origin: [FRONTEND_ORIGIN, 'http://localhost:5173'],
+    origin: FRONTEND_ORIGINS,
     credentials: true,
   })
 );

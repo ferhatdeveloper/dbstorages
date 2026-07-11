@@ -2,6 +2,7 @@ node_modules
 backend/node/node_modules
 backend/go
 dist
+apps/*/dist
 build
 .git
 .gitignore
@@ -16,3 +17,4 @@ go-backend.log
 docs
 *.md
 !README.md
+src

@@ -18,7 +18,9 @@ const {
 const router = express.Router();
 
 const FRONTEND =
-  process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+  (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
+    .split(',')[0]
+    .trim() || 'http://localhost:5173';
 
 function publicApiBase() {
   return (process.env.PUBLIC_API_URL || `http://localhost:${process.env.NODE_PORT || process.env.PORT || 4000}`).replace(

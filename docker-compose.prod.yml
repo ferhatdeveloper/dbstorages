@@ -79,7 +79,7 @@ services:
       NODE_PORT: ${NODE_PORT:-4000}
       PORT: ${NODE_PORT:-4000}
       REQUIRE_META_DB: "1"
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost,http://localhost:5173,http://localhost:5174}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRES: ${JWT_EXPIRES:-7d}
       DATABASE_URL: postgresql://${POSTGRES_USER:-graphcore}:${POSTGRES_PASSWORD:-graphcore}@postgres:5432/${POSTGRES_DB:-graphcore_meta}
@@ -124,6 +124,10 @@ services:
       args:
         VITE_NODE_API_BASE: /api
         VITE_GO_API_BASE: /api/v1
+        VITE_BASE: /app/
+        # Same-origin path split: / = marketing, /app = console
+        VITE_WEB_URL: ${VITE_WEB_URL:-}
+        VITE_CONSOLE_URL: ${VITE_CONSOLE_URL:-}
     container_name: graphcore-web
     restart: unless-stopped
     depends_on:

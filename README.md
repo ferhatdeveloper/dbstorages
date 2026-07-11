@@ -27,7 +27,9 @@ Detay: [`docs/EKSIKLER.md`](docs/EKSIKLER.md) · [`docs/DOMAIN_MODEL.md`](docs/D
 
 | Servis | Port |
 |--------|------|
-| Frontend (Vite / nginx prod) | 5173 / 80 |
+| Marketing web (`apps/web`) | 5173 |
+| Console panel (`apps/console`) | 5174 |
+| nginx (prod: `/` web, `/app` console) | 80 |
 | Node control-plane | 4000 |
 | Go data-plane | 8080 |
 | Postgres | 5432 |
@@ -42,7 +44,7 @@ Detay: [`docs/EKSIKLER.md`](docs/EKSIKLER.md) · [`docs/DOMAIN_MODEL.md`](docs/D
 # Postgres + PostgREST + MinIO
 docker compose up -d
 
-# Frontend
+# Frontend monorepo (workspaces)
 npm install
 
 # Node control-plane
@@ -53,11 +55,20 @@ cd ../..
 ```
 
 ```bash
-npm run start:node          # :4000 (HOST=0.0.0.0)
-npm run dev                 # :5173
+npm run start:node          # :4000
+npm run dev:web             # Marketing :5173
+npm run dev:console         # Console :5174
+npm run dev                 # web + console + api birlikte
 ```
 
-Health: http://localhost:4000/health  
+| URL | Ne |
+|-----|-----|
+| http://localhost:5173 | Landing, pricing, login/register |
+| http://localhost:5174 | Studio + Cloud Infrastructure (Hetzner-style) |
+| http://localhost:4000/health | API |
+
+Login marketing’te; başarılı giriş JWT ile console’a yönlendirir (`?token=`).
+
 Demo: `demo@graphcore.com` / `demo123`
 
 Smoke (DB gerekmez):
@@ -77,18 +88,23 @@ Compose dosyası: `docker-compose.prod.yml` (web + api + postgres + postgrest + 
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-- **web** (nginx :80): SPA + `/api` → api proxy — reverse-proxy (Traefik/Caddy) bunu yayınlar.
-- **api**: `HOST=0.0.0.0`, `NODE_PORT` / `PORT` (varsayılan 4000).
+- **web** (nginx :80):
+  - `/` → marketing SPA (`apps/web`)
+  - `/app/` → console SPA (`apps/console`, Vite `base=/app/`)
+  - `/api` → api proxy
+- **api**: `HOST=0.0.0.0`, `NODE_PORT` / `PORT` (varsayılan 4000). `FRONTEND_ORIGIN` virgülle birden fazla origin kabul eder.
 - **postgres**: meta + init.sql; provisioning aynı sunucuda yeni DB/role açar.
 - **postgrest**: demo DB REST (opsiyonel).
 - **minio**: Storage; S3_* env api servisine bağlanır.
+
+Build args (opsiyonel): `VITE_WEB_URL`, `VITE_CONSOLE_URL` (örn. `https://domain.com` ve `https://domain.com/app`).
 
 ### Dokploy ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
 |----------|---------|----------|
 | `JWT_SECRET` | evet | Production’da güçlü secret |
-| `FRONTEND_ORIGIN` | evet | Public URL (CORS), örn. `https://app.example.com` |
+| `FRONTEND_ORIGIN` | evet | Public URL(lar) CORS; virgülle çoklu (marketing + console) |
 | `POSTGRES_PASSWORD` | evet | Postgres şifresi |
 | `DATABASE_URL` | compose set eder | Meta DB; yoksa/erişilemezse prod’da process exit |
 | `STRIPE_SECRET_KEY` | ödeme için | Gerçek Checkout |
@@ -129,12 +145,14 @@ Key yoksa checkout **mock URL** döner; free/mock akışta instance yine provisi
 ## Klasör yapısı
 
 ```
+apps/web/         # Marketing (landing, pricing, login/register)
+apps/console/     # Studio + Cloud console (Hetzner-inspired)
+packages/shared/  # api client, auth/theme, vps catalog helpers
 backend/go/       # Data-plane (Postgres tablo/SQL)
 backend/node/     # Control-plane (auth, billing, provision, rest, storage, functions)
 docker/           # Postgres init + nginx
-Dockerfile        # Frontend (Vite → nginx)
+Dockerfile        # Dual frontend (Vite → nginx: / + /app)
 docker-compose.yml
 docker-compose.prod.yml
-src/              # React — landing + Studio (/app)
 docs/
 ```

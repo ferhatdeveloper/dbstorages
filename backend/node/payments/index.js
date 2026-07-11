@@ -676,7 +676,7 @@ class PayTRProvider {
       (successUrl.includes('paymentId=') ? '' : `${successUrl.includes('?') ? '&' : '?'}paymentId=${paymentId}&provider=paytr`);
     const failUrl =
       cancelUrl ||
-      `${(process.env.FRONTEND_ORIGIN || 'http://localhost:5173').replace(/\/$/, '')}/pricing?canceled=1`;
+      `${(process.env.FRONTEND_ORIGIN || 'http://localhost:5173').split(',')[0].trim().replace(/\/$/, '')}/pricing?canceled=1`;
 
     const hashStr =
       this.merchantId +

@@ -1,26 +1,42 @@
-# GraphCore frontend — Vite build + nginx
+# GraphCore frontends — web (marketing) + console → nginx
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/console/package.json ./apps/console/
+COPY packages/shared/package.json ./packages/shared/
+
 RUN npm ci || npm install
 
-COPY index.html vite.config.ts tsconfig.json tsconfig.node.json postcss.config.js tailwind.config.js ./
-COPY src ./src
+COPY apps ./apps
+COPY packages ./packages
+COPY tsconfig.json* ./
 
-# Browser calls same-origin /api (nginx proxies to Node)
 ARG VITE_NODE_API_BASE=/api
 ARG VITE_GO_API_BASE=/api/v1
-ENV VITE_NODE_API_BASE=$VITE_NODE_API_BASE
-ENV VITE_GO_API_BASE=$VITE_GO_API_BASE
+ARG VITE_WEB_URL=
+ARG VITE_CONSOLE_URL=
+ARG VITE_BASE=/app/
 
-RUN npm run build
+ENV VITE_NODE_API_BASE=$VITE_NODE_API_BASE \
+    VITE_GO_API_BASE=$VITE_GO_API_BASE \
+    VITE_WEB_URL=$VITE_WEB_URL \
+    VITE_CONSOLE_URL=$VITE_CONSOLE_URL
+
+# Marketing (site root)
+RUN npm run build -w @graphcore/web
+
+# Console under /app/
+ENV VITE_BASE=$VITE_BASE
+RUN npm run build -w @graphcore/console
 
 FROM nginx:1.27-alpine
 
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+COPY --from=build /app/apps/console/dist /usr/share/nginx/html/app
 
 EXPOSE 80
 

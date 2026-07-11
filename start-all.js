@@ -1,6 +1,6 @@
 /**
  * GraphCore — tüm servisleri başlatır.
- * Portlar: Frontend 5173 | Node 4000 | Go 8080
+ * Portlar: Web 5173 | Console 5174 | Node 4000 | Go 8080
  * Kullanım: npm run start:all   veya   node start-all.js
  */
 import { spawn } from 'child_process';
@@ -20,7 +20,9 @@ function run(label, cmd, args, cwd) {
       ...process.env,
       NODE_PORT: process.env.NODE_PORT || '4000',
       GO_PORT: process.env.GO_PORT || '8080',
-      FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+      FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || 'http://localhost:5173,http://localhost:5174',
+      VITE_WEB_URL: process.env.VITE_WEB_URL || 'http://localhost:5173',
+      VITE_CONSOLE_URL: process.env.VITE_CONSOLE_URL || 'http://localhost:5174',
     },
   });
   proc.on('close', (code) => {
@@ -41,6 +43,7 @@ if (!fs.existsSync(path.join(nodeDir, 'node_modules'))) {
 
 run('go', 'go', ['run', 'main.go'], goDir);
 run('node', 'node', ['app.js'], nodeDir);
-run('frontend', 'npm', ['run', 'dev'], root);
+run('web', 'npm', ['run', 'dev:web'], root);
+run('console', 'npm', ['run', 'dev:console'], root);
 
-console.log('Servisler başlatıldı → http://localhost:5173  (API: :4000 / :8080)');
+console.log('Servisler → Marketing http://localhost:5173 | Console http://localhost:5174 | API :4000 / :8080');
