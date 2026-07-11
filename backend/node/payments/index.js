@@ -161,6 +161,21 @@ const ADDONS = [
     stripePriceEnv: 'STRIPE_PRICE_BACKUP',
     stripePriceYearEnv: 'STRIPE_PRICE_BACKUP_YEAR',
   },
+  {
+    id: 'vps',
+    name: 'VPS Kiralama',
+    priceCents: 0,
+    priceYearCents: 0,
+    currency: 'usd',
+    interval: 'month',
+    billingNote: 'Ayrı ek hizmet — Cloud Infrastructure üzerinden',
+    description:
+      'Veritabanı planlarından bağımsız VPS / sunucu kiralama. Studio → Cloud Infrastructure.',
+    contactOnly: true,
+    studioPath: '/app/cloud/servers',
+    stripePriceEnv: 'STRIPE_PRICE_VPS',
+    stripePriceYearEnv: 'STRIPE_PRICE_VPS_YEAR',
+  },
 ];
 
 function normalizeInterval(interval) {

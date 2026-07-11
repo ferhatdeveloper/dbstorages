@@ -143,6 +143,25 @@ assert(listed.some((f) => f.name === 'hello'), 'function listed');
     .digest('base64');
   assert(hash === token2, 'paytr hmac stable');
 
+  // --- cloud module ---
+  const { encryptSecret, decryptSecret } = lib('cloud', 'secrets');
+  const enc = encryptSecret('abc');
+  assert(decryptSecret(enc) === 'abc', 'cloud secrets roundtrip');
+  const { listSupportedSlugs } = lib('cloud', 'factory');
+  assert(listSupportedSlugs().includes('hetzner'), 'cloud hetzner slug');
+  assert(listSupportedSlugs().includes('mock'), 'cloud mock slug');
+  const { MockCloudProvider } = lib('cloud', 'providers', 'mock');
+  const mock = new MockCloudProvider();
+  const ms = await mock.createServer({
+    name: 's1',
+    serverType: 'cx22',
+    image: 'ubuntu-22.04',
+    location: 'nbg1',
+  });
+  assert(!!ms.server.externalId, 'mock cloud createServer');
+  const { getAddon } = require(path.join(root, 'payments'));
+  assert(getAddon('vps')?.id === 'vps', 'vps ek hizmet addon');
+
   if (failed) {
     console.error(`\nsmoke-mvp: ${failed} failure(s)`);
     process.exit(1);

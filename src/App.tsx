@@ -25,7 +25,19 @@ import ConnectionsPage from './pages/ConnectionsPage';
 import AIPage from './pages/AIPage';
 import DashboardPage from './pages/DashboardPage';
 import MigrationPage from './pages/MigrationPage';
-import BillingHistoryPage from './pages/BillingHistoryPage';
+import BillingHistoryPage from './pages/BillingHistoryPage'
+import CloudLayout from './pages/cloud/CloudLayout'
+import CloudProvidersPage from './pages/cloud/CloudProvidersPage'
+import CloudServersPage from './pages/cloud/CloudServersPage'
+import {
+  CloudVolumesPage,
+  CloudSnapshotsPage,
+  CloudFirewallsPage,
+  CloudSshKeysPage,
+  CloudNetworksPage,
+  CloudActivityPage,
+  CloudJobsPage,
+} from './pages/cloud/CloudResourcePage'
 
 function App() {
   return (
@@ -71,6 +83,18 @@ function App() {
         <Route path="migration" element={<MigrationPage />} />
         <Route path="billing" element={<BillingHistoryPage />} />
         <Route path="pricing" element={<PricingPage />} />
+        <Route path="cloud" element={<CloudLayout />}>
+          <Route index element={<Navigate to="/app/cloud/servers" replace />} />
+          <Route path="providers" element={<CloudProvidersPage />} />
+          <Route path="servers" element={<CloudServersPage />} />
+          <Route path="volumes" element={<CloudVolumesPage />} />
+          <Route path="snapshots" element={<CloudSnapshotsPage />} />
+          <Route path="firewalls" element={<CloudFirewallsPage />} />
+          <Route path="ssh-keys" element={<CloudSshKeysPage />} />
+          <Route path="networks" element={<CloudNetworksPage />} />
+          <Route path="activity" element={<CloudActivityPage />} />
+          <Route path="jobs" element={<CloudJobsPage />} />
+        </Route>
       </Route>
 
       {/* Back-compat redirects into /app */}
@@ -92,6 +116,7 @@ function App() {
       <Route path="/integrations" element={<Navigate to="/app/integrations" replace />} />
       <Route path="/realtime" element={<Navigate to="/app/realtime" replace />} />
       <Route path="/reports/*" element={<Navigate to="/app/reports/usage" replace />} />
+      <Route path="/cloud/*" element={<Navigate to="/app/cloud/servers" replace />} />
     </Routes>
   );
 }

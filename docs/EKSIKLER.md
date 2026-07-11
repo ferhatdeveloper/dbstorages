@@ -5,7 +5,25 @@
 
 ---
 
-## Bu oturumda tamamlananlar (2026-07-11 — P0 backlog MVP)
+## Bu oturumda tamamlananlar (2026-07-11 — Cloud Infrastructure MVP)
+
+| Alan | Durum |
+|------|--------|
+| Provider-agnostic Cloud module (`CloudProvider` + factory + `CloudService`) | ✅ |
+| `HetznerProvider` (API) — Hetzner yalnız bu sürücüde | ✅ |
+| Meta şema `cloud_*` + AES api_key | ✅ |
+| Async operations queue + `/api/cloud/*` | ✅ |
+| Studio **Cloud Infrastructure** UI + sidebar | ✅ |
+| VPS **ek hizmet** (pricing/landing; Pro/Scale/Max dokunulmadı) | ✅ |
+| `docs/cloud/*` + cloud unit/smoke tests | ✅ |
+
+**Dürüst sınır (Cloud):** BullMQ/Redis yok (in-process queue). VPS Stripe metered fiyat yok (`contactOnly` + Studio link). Firewall kural editörü ham JSON/API. Live Hetzner için `HETZNER_API_TOKEN` veya satır api_key gerekir.
+
+Dokümantasyon: [docs/cloud/ARCHITECTURE.md](./cloud/ARCHITECTURE.md)
+
+---
+
+## Önceki oturum (2026-07-11 — P0 backlog MVP)
 
 | Alan | Durum |
 |------|--------|

@@ -130,6 +130,14 @@ const BACKUP_ADDON = {
   description: 'Aylık $10 veya yıllık $120 — ay başında faturalandırılır.',
 };
 
+const VPS_ADDON = {
+  id: 'vps',
+  name: 'VPS Kiralama',
+  description:
+    'Veritabanı planlarından bağımsız sunucu kiralama (Cloud Infrastructure).',
+  studioPath: '/app/cloud/servers',
+};
+
 const SNIPPETS = [
   {
     id: 'sql',
@@ -578,6 +586,18 @@ const LandingPage: React.FC = () => {
               className="landing-btn-ghost"
             >
               {billingInterval === 'year' ? '+$120/yıl ekle' : '+$10/ay ekle'}
+            </Link>
+          </aside>
+
+          <aside className="landing-addon-card">
+            <div>
+              <h3>{VPS_ADDON.name} — ek hizmet</h3>
+              <p>
+                {VPS_ADDON.description} Pro/Scale/Max DB paketlerinden ayrıdır.
+              </p>
+            </div>
+            <Link to={VPS_ADDON.studioPath} className="landing-btn-ghost">
+              Cloud Infrastructure
             </Link>
           </aside>
         </section>

@@ -81,6 +81,147 @@ CREATE INDEX IF NOT EXISTS idx_instances_project ON instances(project_id);
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_instances_payment_ref ON instances(payment_ref);
 CREATE INDEX IF NOT EXISTS idx_instances_stripe_session ON instances(stripe_session_id);
+
+-- Cloud Infrastructure (provider-agnostic; Hetzner is one driver)
+CREATE TABLE IF NOT EXISTS cloud_providers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  api_key_enc TEXT,
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_servers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  server_type TEXT,
+  image TEXT,
+  location TEXT,
+  ipv4 TEXT,
+  ipv6 TEXT,
+  labels JSONB NOT NULL DEFAULT '{}'::jsonb,
+  user_data TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_volumes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  server_id TEXT REFERENCES cloud_servers(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  size_gb INT NOT NULL DEFAULT 10,
+  location TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_firewalls (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_snapshots (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  server_id TEXT REFERENCES cloud_servers(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_ssh_keys (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  fingerprint TEXT,
+  public_key TEXT NOT NULL,
+  external_id TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_networks (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT NOT NULL REFERENCES cloud_providers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  external_id TEXT,
+  ip_range TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cloud_operations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  project_id TEXT REFERENCES projects(id),
+  provider_id TEXT REFERENCES cloud_providers(id) ON DELETE SET NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT,
+  action TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  request JSONB NOT NULL DEFAULT '{}'::jsonb,
+  result JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error TEXT,
+  created_by TEXT REFERENCES platform_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_providers_tenant ON cloud_providers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_servers_tenant ON cloud_servers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_servers_provider ON cloud_servers(provider_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_volumes_tenant ON cloud_volumes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_firewalls_tenant ON cloud_firewalls(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_snapshots_tenant ON cloud_snapshots(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_ssh_keys_tenant ON cloud_ssh_keys(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_networks_tenant ON cloud_networks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_operations_tenant ON cloud_operations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_operations_status ON cloud_operations(status);
 `;
 
 async function ensureMetaSchema(pool) {

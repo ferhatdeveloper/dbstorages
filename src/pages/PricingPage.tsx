@@ -33,6 +33,8 @@ type Addon = {
   interval: string;
   description: string;
   billingNote?: string;
+  contactOnly?: boolean;
+  studioPath?: string;
 };
 
 type Provider = { id: string; configured: boolean };
@@ -142,6 +144,19 @@ const FALLBACK_ADDONS: Addon[] = [
     billingNote: 'Ay başında faturalandırılır',
     description: 'Otomatik yedekleme — aylık $10 veya yıllık $120.',
   },
+  {
+    id: 'vps',
+    name: 'VPS Kiralama',
+    priceCents: 0,
+    priceYearCents: 0,
+    currency: 'usd',
+    interval: 'month',
+    billingNote: 'Ayrı ek hizmet',
+    description:
+      'DB planlarından bağımsız sunucu kiralama — Cloud Infrastructure.',
+    contactOnly: true,
+    studioPath: '/app/cloud/servers',
+  },
 ];
 
 function planAmount(plan: Plan, interval: BillingInterval) {
@@ -225,6 +240,9 @@ const PricingPage: React.FC = () => {
   const selectedPlan = plans.find((p) => p.id === selected) || plans[0];
   const backupAddon =
     addons.find((a) => a.id === 'backup') || FALLBACK_ADDONS[0];
+  const vpsAddon =
+    addons.find((a) => a.id === 'vps') ||
+    FALLBACK_ADDONS.find((a) => a.id === 'vps')!;
   const canAddBackup = Boolean(selectedPlan && selectedPlan.priceCents > 0);
   // Trial is always monthly; paid plans follow the Aylık/Yıllık toggle
   const effectiveInterval: BillingInterval =
@@ -391,6 +409,21 @@ const PricingPage: React.FC = () => {
             <small>{backupAddon.description}</small>
           </span>
         </label>
+
+        <div className="pricing-addon pricing-addon-contact">
+          <span>
+            <strong>{vpsAddon.name}</strong> — ek hizmet
+            <em>{vpsAddon.billingNote || 'DB paketlerinden ayrı'}</em>
+            <small>{vpsAddon.description}</small>
+          </span>
+          <Link
+            to={vpsAddon.studioPath || '/app/cloud/servers'}
+            className="landing-btn-ghost"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Cloud UI
+          </Link>
+        </div>
 
         {canAddBackup && (
           <p className="pricing-total">

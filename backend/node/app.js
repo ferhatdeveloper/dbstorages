@@ -29,6 +29,7 @@ const { router: billingRoutes, provisionInstanceAfterPayment, updatePaymentStatu
 const storageRoutes = require('./routes/storage');
 const functionsRoutes = require('./routes/functions');
 const migrationsRoutes = require('./routes/migrations');
+const cloudRoutes = require('./routes/cloud');
 const { getProvider, getPackage } = require('./payments');
 const provision = require('./lib/provision');
 
@@ -156,6 +157,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/functions', functionsRoutes);
 app.use('/api/migrations', migrationsRoutes);
+app.use('/api/cloud', cloudRoutes);
 
 // SQL alias used by SqlEditorPage (/api/sql/execute)
 app.post('/api/sql/execute', (req, res, next) => {

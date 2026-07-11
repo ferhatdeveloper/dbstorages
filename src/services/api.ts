@@ -624,6 +624,155 @@ class ApiService {
       `${NODE_API_BASE}/storage/${encodeURIComponent(instanceId)}/quota`
     );
   }
+
+  // --- Cloud Infrastructure ---
+  async cloudSlugs() {
+    return this.request<{ success: boolean; data: string[] }>(
+      `${NODE_API_BASE}/cloud/slugs`
+    );
+  }
+
+  async cloudListProviders() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/providers`
+    );
+  }
+
+  async cloudCreateProvider(body: {
+    name: string;
+    slug: string;
+    apiKey?: string;
+    projectId?: string;
+    config?: object;
+  }) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/providers`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListServers(projectId?: string) {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/servers${qs}`
+    );
+  }
+
+  async cloudCreateServer(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/servers`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudDeleteServer(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async cloudRebootServer(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}/reboot`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async cloudPowerOnServer(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}/power-on`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async cloudPowerOffServer(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/servers/${encodeURIComponent(id)}/power-off`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async cloudListVolumes() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/volumes`
+    );
+  }
+
+  async cloudCreateVolume(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/volumes`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListSnapshots() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/snapshots`
+    );
+  }
+
+  async cloudCreateSnapshot(body: { serverId: string; name?: string }) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/snapshots`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListFirewalls() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/firewalls`
+    );
+  }
+
+  async cloudCreateFirewall(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/firewalls`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListSshKeys() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/ssh-keys`
+    );
+  }
+
+  async cloudCreateSshKey(body: {
+    providerId: string;
+    name: string;
+    publicKey: string;
+  }) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/ssh-keys`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListNetworks() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/networks`
+    );
+  }
+
+  async cloudCreateNetwork(body: Record<string, unknown>) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/networks`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudListOperations() {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/operations`
+    );
+  }
+
+  async cloudGetOperation(id: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/cloud/operations/${encodeURIComponent(id)}`
+    );
+  }
 }
 
 export const apiService = new ApiService();

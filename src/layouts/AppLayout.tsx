@@ -25,6 +25,7 @@ import {
   BarChart,
   GitBranch,
   Receipt,
+  Server,
 } from 'lucide-react'
 
 const menu = [
@@ -47,6 +48,27 @@ const menu = [
       { to: '/app/storage', icon: <Cloud className="h-5 w-5" />, label: 'Storage' },
       { to: '/app/functions', icon: <Zap className="h-5 w-5" />, label: 'Edge Functions' },
       { to: '/app/realtime', icon: <Activity className="h-5 w-5" />, label: 'Realtime' },
+    ],
+  },
+  {
+    category: 'Cloud',
+    items: [
+      {
+        to: '/app/cloud/servers',
+        icon: <Server className="h-5 w-5" />,
+        label: 'Cloud Infrastructure',
+        submenu: [
+          { to: '/app/cloud/providers', label: 'Providers' },
+          { to: '/app/cloud/servers', label: 'Servers' },
+          { to: '/app/cloud/volumes', label: 'Volumes' },
+          { to: '/app/cloud/snapshots', label: 'Snapshots' },
+          { to: '/app/cloud/firewalls', label: 'Firewalls' },
+          { to: '/app/cloud/ssh-keys', label: 'SSH Keys' },
+          { to: '/app/cloud/networks', label: 'Networks' },
+          { to: '/app/cloud/activity', label: 'Activity Logs' },
+          { to: '/app/cloud/jobs', label: 'Provisioning Jobs' },
+        ],
+      },
     ],
   },
   {
