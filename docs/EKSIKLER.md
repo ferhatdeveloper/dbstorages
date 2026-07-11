@@ -19,7 +19,16 @@
 | RLS helper template (`enable_rls_template.sql`) on provision | ✅ |
 | Compose PostgREST (demo DB) | ✅ opsiyonel, ayrı |
 
-**Dürüst sınır:** Tam PostgREST RPC/embed/RPC yok. Realtime CDC (wal2json) yok — Studio/REST yazmaları + NOTIFY. GoTrue/Storage/Edge yok.
+**Dürüst sınır:** Tam PostgREST RPC/embed yok. Realtime CDC (wal2json) yok — Studio/REST yazmaları + NOTIFY. GoTrue/Storage/Edge yok.
+
+### Kardeş repo incelemesi (reuse kararı)
+
+| Repo | Sonuç | Not |
+|------|--------|-----|
+| [api_servis](https://github.com/ferhatdeveloper/api_servis) | **Doğrudan reuse yok** | FastAPI + Logo/Retail/PDKS domain. `TenantManager` (central DB → per-tenant engine cache) fikri GraphCore’da zaten `instancePools` + `resolveTenantPool` ile karşılık buluyor. Python JWT/refresh kodu Node stack’e taşınmadı. |
+| [Berqenas](https://github.com/ferhatdeveloper/Berqenas) | **Doğrudan reuse yok** | WireGuard/Hasura/VPN gateway odaklı; realtime/gateway rotalarının çoğu TODO stub. Hasura metadata API GraphCore’un Node PostgREST-proxy yaklaşımıyla çakışır. Introspect/LISTEN niyeti GraphCore’da zaten var. |
+
+Özet: Mimari *fikirler* doğrulandı; kod kopyalanmadı (yanlış stack / domain / stub).
 
 ---
 

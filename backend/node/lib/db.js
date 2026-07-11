@@ -112,12 +112,27 @@ async function setTenantConnection(connectionString) {
   }
 }
 
+/**
+ * Key pool cache by instanceId when known (api_servis TenantManager pattern).
+ * Falls back to connectionString key for anonymous/demo pools.
+ */
 function getPoolForConnection(connectionString) {
   if (!connectionString) return getTenantPool();
   if (!instancePools.has(connectionString)) {
     instancePools.set(connectionString, createPool(connectionString, 'instance'));
   }
   return instancePools.get(connectionString);
+}
+
+function getPoolForInstance(instanceId, connectionString) {
+  if (instanceId && connectionString) {
+    const key = `ins:${instanceId}`;
+    if (!instancePools.has(key)) {
+      instancePools.set(key, createPool(connectionString, `instance:${instanceId}`));
+    }
+    return instancePools.get(key);
+  }
+  return getPoolForConnection(connectionString);
 }
 
 /**
@@ -183,7 +198,7 @@ async function resolveTenantPool({ instanceId, userId, requireAuth = false } = {
         throw poolError(403, 'Instance not found or access denied', 'forbidden');
       }
       const conn = internalConnFromInstanceRow(rows[0]);
-      if (conn) return getPoolForConnection(conn);
+      if (conn) return getPoolForInstance(instanceId, conn);
       throw poolError(503, 'Instance has no connection string', 'db_unavailable');
     }
 
@@ -200,8 +215,9 @@ async function resolveTenantPool({ instanceId, userId, requireAuth = false } = {
          LIMIT 1`,
         [userId]
       );
-      const conn = internalConnFromInstanceRow(rows[0]);
-      if (conn) return getPoolForConnection(conn);
+      const row = rows[0];
+      const conn = internalConnFromInstanceRow(row);
+      if (conn) return getPoolForInstance(row.id, conn);
     }
   } catch (err) {
     if (err.status) throw err;
@@ -222,6 +238,7 @@ module.exports = {
   isTenantReady,
   setTenantConnection,
   getPoolForConnection,
+  getPoolForInstance,
   resolveTenantPool,
   internalConnFromInstanceRow,
   META_URL,

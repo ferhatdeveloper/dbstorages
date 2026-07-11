@@ -6,7 +6,7 @@
 
 const express = require('express');
 const { authMiddleware } = require('../lib/auth');
-const { resolveTenantPool, internalConnFromInstanceRow } = require('../lib/db');
+const { resolveTenantPool } = require('../lib/db');
 const { assertInstanceAccess } = require('../lib/rbac');
 const { quoteIdent, buildFromQuery } = require('../lib/restQuery');
 const { notifyChange, startListenerForInstanceRow } = require('../lib/realtime');
@@ -30,6 +30,36 @@ function preferReturn(req) {
   const prefer = String(req.headers.prefer || '').toLowerCase();
   return prefer.includes('return=representation');
 }
+
+/** Shift $1,$2… placeholders so SET params come first. */
+function shiftWherePlaceholders(whereSql, offset) {
+  return whereSql.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + offset}`);
+}
+
+/** List public tables for an instance (PostgREST-style discovery). */
+router.get('/:instanceId', async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const { pool } = await poolForInstance(req, instanceId);
+    const { rows } = await pool.query(`
+      SELECT table_name AS name
+      FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+    res.json({
+      success: true,
+      instanceId,
+      tables: rows.map((r) => r.name),
+      hint: `GET /api/rest/${instanceId}/{table}?select=*&limit=10`,
+    });
+  } catch (err) {
+    res.status(err.status || 400).json({
+      success: false,
+      error: { code: err.code || 'rest_error', message: err.message },
+    });
+  }
+});
 
 router.get('/:instanceId/:table', async (req, res) => {
   try {
@@ -116,12 +146,7 @@ router.patch('/:instanceId/:table', async (req, res) => {
     }
     const sets = keys.map((k, i) => `${quoteIdent(k)} = $${i + 1}`).join(', ');
     const values = keys.map((k) => data[k]);
-    const whereParams = q.params.map((_, i) => `$${keys.length + i + 1}`);
-    // Remap where placeholders
-    let whereSql = q.whereSql;
-    q.params.forEach((_, i) => {
-      whereSql = whereSql.replace(`$${i + 1}`, whereParams[i]);
-    });
+    const whereSql = shiftWherePlaceholders(q.whereSql, keys.length);
     const { rows } = await pool.query(
       `UPDATE ${quoteIdent(table)} SET ${sets} ${whereSql} RETURNING *`,
       [...values, ...q.params]

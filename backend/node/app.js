@@ -6,7 +6,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
 
-const { initDb, isMetaReady, getMetaPool, isTenantReady } = require('./lib/db');
+const { initDb, isMetaReady, getMetaPool, isTenantReady, resolveTenantPool } = require('./lib/db');
 const store = require('./lib/store');
 const { authMiddleware, optionalAuth, verifyToken } = require('./lib/auth');
 const {
@@ -476,18 +476,36 @@ app.get('/api/me/memberships', authMiddleware, async (req, res) => {
 });
 
 // Dashboard / connections / AI / integrations (honest stubs where not real)
-app.get('/api/dashboard/stats', optionalAuth, async (_req, res) => {
+app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
   let totalTables = 0;
   let totalRows = 0;
-  if (isTenantReady()) {
-    try {
-      const { getTenantPool } = require('./lib/db');
-      const pool = getTenantPool();
+  let activeConnections = 0;
+  try {
+    const pool = await resolveTenantPool({
+      userId: req.user.sub,
+      requireAuth: false,
+    });
+    if (pool) {
       const t = await pool.query(`
         SELECT COUNT(*)::int AS n FROM information_schema.tables
         WHERE table_schema='public' AND table_type='BASE TABLE'
       `);
       totalTables = t.rows[0].n;
+      activeConnections = 1;
+    }
+  } catch {
+    /* no ready instance */
+  }
+  if (isMetaReady()) {
+    try {
+      const { rows } = await getMetaPool().query(
+        `SELECT COUNT(*)::int AS n FROM instances i
+         JOIN projects p ON p.id = i.project_id
+         JOIN memberships m ON m.tenant_id = p.tenant_id
+         WHERE m.user_id = $1 AND i.status = 'ready'`,
+        [req.user.sub]
+      );
+      activeConnections = rows[0]?.n || 0;
     } catch {
       /* ignore */
     }
@@ -495,8 +513,8 @@ app.get('/api/dashboard/stats', optionalAuth, async (_req, res) => {
   res.json({
     totalTables,
     totalRows,
-    activeConnections: isTenantReady() ? 1 : 0,
-    systemHealth: isTenantReady() ? 'ok' : 'degraded',
+    activeConnections,
+    systemHealth: activeConnections > 0 ? 'ok' : 'degraded',
     recentActivity: [],
     metaDb: isMetaReady(),
     tenantDb: isTenantReady(),
