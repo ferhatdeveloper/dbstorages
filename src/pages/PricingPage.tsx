@@ -151,12 +151,19 @@ const FALLBACK_ADDONS: Addon[] = [
     priceYearCents: 0,
     currency: 'usd',
     interval: 'month',
-    billingNote: 'Ayrı ek hizmet',
+    billingNote: 'Ayrı ek hizmet — async provision',
     description:
-      'DB planlarından bağımsız sunucu kiralama — Cloud Infrastructure.',
+      'DB planlarından bağımsız sunucu kiralama. Provider, region, image, volume, firewall ve snapshot Studio Cloud panelinden yönetilir; anlık checkout yoktur.',
     contactOnly: true,
     studioPath: '/app/cloud/servers',
   },
+];
+
+const VPS_MESSAGING = [
+  'Provider: ad, slug, endpoint, API key',
+  'Sunucu: name, image, region, size, SSH, cloud-init',
+  'Volume attach/detach · Snapshot restore',
+  'Firewall kuralları · Activity / Jobs izleme',
 ];
 
 function planAmount(plan: Plan, interval: BillingInterval) {
@@ -410,19 +417,37 @@ const PricingPage: React.FC = () => {
           </span>
         </label>
 
-        <div className="pricing-addon pricing-addon-contact">
+        <div id="vps-addon" className="pricing-addon pricing-addon-contact pricing-vps-block">
           <span>
             <strong>{vpsAddon.name}</strong> — ek hizmet
             <em>{vpsAddon.billingNote || 'DB paketlerinden ayrı'}</em>
             <small>{vpsAddon.description}</small>
+            <ul className="pricing-vps-fields">
+              {VPS_MESSAGING.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </span>
-          <Link
-            to={vpsAddon.studioPath || '/app/cloud/servers'}
-            className="landing-btn-ghost"
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            Cloud UI
-          </Link>
+          <div className="pricing-vps-actions">
+            <Link
+              to={
+                isAuthenticated
+                  ? vpsAddon.studioPath || '/app/cloud/servers'
+                  : '/register'
+              }
+              className="landing-btn-primary"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {isAuthenticated ? 'Cloud panele git' : 'Kayıt ol → Cloud'}
+            </Link>
+            <Link
+              to={vpsAddon.studioPath || '/app/cloud/servers'}
+              className="landing-btn-ghost"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Cloud UI
+            </Link>
+          </div>
         </div>
 
         {canAddBackup && (

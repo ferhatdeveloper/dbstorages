@@ -153,7 +153,7 @@ router.delete('/servers/:id', async (req, res) => {
   }
 });
 
-async function powerRoute(action) {
+function powerRoute(action) {
   return async (req, res) => {
     try {
       const tenantId = await resolveTenant(req);
@@ -205,6 +205,43 @@ router.post('/volumes', async (req, res) => {
       success: true,
       data: result.volume,
       operationId: result.operation.id,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/volumes/:id/attach', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.attachVolume({
+      tenantId,
+      volumeId: req.params.id,
+      serverId: req.body.serverId,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/volumes/:id/detach', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.detachVolume({
+      tenantId,
+      volumeId: req.params.id,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
     });
   } catch (err) {
     sendError(res, err);
@@ -265,6 +302,29 @@ router.post('/snapshots', async (req, res) => {
       success: true,
       data: result.snapshot,
       operationId: result.operation.id,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post('/snapshots/:id/restore', async (req, res) => {
+  try {
+    const tenantId = await resolveTenant(req);
+    const result = await CloudService.restoreSnapshot({
+      tenantId,
+      snapshotId: req.params.id,
+      name: req.body.name,
+      serverType: req.body.serverType,
+      location: req.body.location,
+      sshKeys: req.body.sshKeys,
+      userData: req.body.userData,
+      createdBy: req.user.sub,
+    });
+    res.status(202).json({
+      success: true,
+      operationId: result.operation.id,
+      operation: result.operation,
     });
   } catch (err) {
     sendError(res, err);

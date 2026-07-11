@@ -15,10 +15,15 @@ type Server = {
 }
 
 type Provider = { id: string; name: string; slug: string }
+type SshKey = { id: string; name: string; external_id?: string }
 
 const CloudServersPage: React.FC = () => {
   const [rows, setRows] = useState<Server[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
+  const [sshKeys, setSshKeys] = useState<SshKey[]>([])
+  const [images, setImages] = useState<{ id: string; name?: string }[]>([])
+  const [regions, setRegions] = useState<{ id: string; name?: string }[]>([])
+  const [sizes, setSizes] = useState<{ id: string; name?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -28,39 +33,72 @@ const CloudServersPage: React.FC = () => {
     serverType: 'cx22',
     image: 'ubuntu-22.04',
     location: 'nbg1',
+    sshKeyId: '',
     userData: '',
   })
   const [saving, setSaving] = useState(false)
+
+  const loadCatalog = useCallback(async (providerId: string) => {
+    if (!providerId) return
+    try {
+      const [img, reg, typ] = await Promise.all([
+        apiService.cloudCatalog('images', providerId).catch(() => ({ data: [] })),
+        apiService.cloudCatalog('regions', providerId).catch(() => ({ data: [] })),
+        apiService.cloudCatalog('server-types', providerId).catch(() => ({ data: [] })),
+      ])
+      setImages(img.data || [])
+      setRegions(reg.data || [])
+      setSizes(typ.data || [])
+      setForm((f) => ({
+        ...f,
+        image: String(img.data?.[0]?.name || img.data?.[0]?.id || f.image),
+        location: String(reg.data?.[0]?.name || reg.data?.[0]?.id || f.location),
+        serverType: String(typ.data?.[0]?.name || typ.data?.[0]?.id || f.serverType),
+      }))
+    } catch {
+      /* keep manual fields */
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const [s, p] = await Promise.all([
+      const [s, p, k] = await Promise.all([
         apiService.cloudListServers(),
         apiService.cloudListProviders(),
+        apiService.cloudListSshKeys(),
       ])
       setRows(s.data || [])
       setProviders(p.data || [])
-      if (p.data?.[0] && !form.providerId) {
-        setForm((f) => ({ ...f, providerId: p.data![0].id }))
+      setSshKeys(k.data || [])
+      if (p.data?.[0]) {
+        setForm((f) => {
+          const next = f.providerId || p.data![0].id
+          return { ...f, providerId: next }
+        })
       }
     } catch (e: any) {
       setError(e.message || 'Yüklenemedi')
     } finally {
       setLoading(false)
     }
-  }, [form.providerId])
+  }, [])
 
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (form.providerId) loadCatalog(form.providerId)
+  }, [form.providerId, loadCatalog])
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
+      const selectedKey = sshKeys.find((k) => k.id === form.sshKeyId)
       await apiService.cloudCreateServer({
         providerId: form.providerId,
         name: form.name,
@@ -68,11 +106,16 @@ const CloudServersPage: React.FC = () => {
         image: form.image,
         location: form.location,
         userData: form.userData || undefined,
+        sshKeys: selectedKey?.external_id
+          ? [selectedKey.external_id]
+          : form.sshKeyId
+            ? [form.sshKeyId]
+            : undefined,
         enableIpv4: true,
         enableIpv6: true,
       })
       setShowForm(false)
-      setForm((f) => ({ ...f, name: '', userData: '' }))
+      setForm((f) => ({ ...f, name: '', userData: '', sshKeyId: '' }))
       await load()
     } catch (err: any) {
       setError(err.message || 'Oluşturma başarısız')
@@ -83,8 +126,10 @@ const CloudServersPage: React.FC = () => {
 
   const act = async (id: string, action: 'reboot' | 'power-on' | 'power-off' | 'delete') => {
     try {
-      if (action === 'delete') await apiService.cloudDeleteServer(id)
-      else if (action === 'reboot') await apiService.cloudRebootServer(id)
+      if (action === 'delete') {
+        if (!window.confirm('Sunucu silinsin mi?')) return
+        await apiService.cloudDeleteServer(id)
+      } else if (action === 'reboot') await apiService.cloudRebootServer(id)
       else if (action === 'power-on') await apiService.cloudPowerOnServer(id)
       else await apiService.cloudPowerOffServer(id)
       await load()
@@ -92,6 +137,9 @@ const CloudServersPage: React.FC = () => {
       setError(err.message)
     }
   }
+
+  const fieldClass =
+    'rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950'
 
   return (
     <div className="space-y-4">
@@ -113,59 +161,137 @@ const CloudServersPage: React.FC = () => {
 
       {showForm && (
         <form onSubmit={create} className="grid max-w-lg gap-2 rounded-xl border p-4 dark:border-slate-700">
-          <select
-            className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-            value={form.providerId}
-            onChange={(e) => setForm({ ...form, providerId: e.target.value })}
-            required
-          >
-            <option value="">Provider seçin</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.slug})
-              </option>
-            ))}
-          </select>
-          <input
-            className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-            placeholder="Sunucu adı"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-          <div className="grid grid-cols-3 gap-2">
+          <label className="grid gap-1 text-xs text-slate-500">
+            Provider
+            <select
+              className={fieldClass}
+              value={form.providerId}
+              onChange={(e) => setForm({ ...form, providerId: e.target.value })}
+              required
+            >
+              <option value="">Provider seçin</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.slug})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs text-slate-500">
+            Sunucu adı
             <input
-              className="rounded-lg border px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-              value={form.serverType}
-              onChange={(e) => setForm({ ...form, serverType: e.target.value })}
-              placeholder="type"
+              className={fieldClass}
+              placeholder="web-01"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
             />
-            <input
-              className="rounded-lg border px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-              value={form.image}
-              onChange={(e) => setForm({ ...form, image: e.target.value })}
-              placeholder="image"
-            />
-            <input
-              className="rounded-lg border px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              placeholder="location"
-            />
+          </label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="grid gap-1 text-xs text-slate-500">
+              Size
+              {sizes.length ? (
+                <select
+                  className={fieldClass}
+                  value={form.serverType}
+                  onChange={(e) => setForm({ ...form, serverType: e.target.value })}
+                >
+                  {sizes.map((s) => (
+                    <option key={s.id} value={s.name || s.id}>
+                      {s.name || s.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={fieldClass}
+                  value={form.serverType}
+                  onChange={(e) => setForm({ ...form, serverType: e.target.value })}
+                  placeholder="cx22"
+                  required
+                />
+              )}
+            </label>
+            <label className="grid gap-1 text-xs text-slate-500">
+              Image
+              {images.length ? (
+                <select
+                  className={fieldClass}
+                  value={form.image}
+                  onChange={(e) => setForm({ ...form, image: e.target.value })}
+                >
+                  {images.map((s) => (
+                    <option key={s.id} value={s.name || s.id}>
+                      {s.name || s.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={fieldClass}
+                  value={form.image}
+                  onChange={(e) => setForm({ ...form, image: e.target.value })}
+                  placeholder="ubuntu-22.04"
+                  required
+                />
+              )}
+            </label>
+            <label className="grid gap-1 text-xs text-slate-500">
+              Region
+              {regions.length ? (
+                <select
+                  className={fieldClass}
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                >
+                  {regions.map((s) => (
+                    <option key={s.id} value={s.name || s.id}>
+                      {s.name || s.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={fieldClass}
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="nbg1"
+                  required
+                />
+              )}
+            </label>
           </div>
-          <textarea
-            className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-            rows={3}
-            placeholder="cloud-init user-data (opsiyonel)"
-            value={form.userData}
-            onChange={(e) => setForm({ ...form, userData: e.target.value })}
-          />
+          <label className="grid gap-1 text-xs text-slate-500">
+            SSH Key
+            <select
+              className={fieldClass}
+              value={form.sshKeyId}
+              onChange={(e) => setForm({ ...form, sshKeyId: e.target.value })}
+            >
+              <option value="">Yok / sonra ekle</option>
+              {sshKeys.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs text-slate-500">
+            User-data / cloud-init
+            <textarea
+              className={fieldClass}
+              rows={3}
+              placeholder="#cloud-config&#10;packages:&#10;  - nginx"
+              value={form.userData}
+              onChange={(e) => setForm({ ...form, userData: e.target.value })}
+            />
+          </label>
           <button
             type="submit"
             disabled={saving || !providers.length}
             className="rounded-lg bg-teal-700 py-2 text-sm text-white dark:bg-lime-500 dark:text-slate-900"
           >
-            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Oluştur (async)'}
+            {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Oluştur (async provision)'}
           </button>
           {!providers.length && (
             <p className="text-xs text-amber-600">Önce Providers sekmesinden provider ekleyin.</p>
@@ -223,7 +349,7 @@ const CloudServersPage: React.FC = () => {
               {!rows.length && (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-center text-slate-400">
-                    Sunucu yok
+                    Sunucu yok — Provision ile oluşturun.
                   </td>
                 </tr>
               )}

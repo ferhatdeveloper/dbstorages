@@ -1059,6 +1059,106 @@ html.dark .landing-root {
   max-width: 52ch;
 }
 
+.landing-cloud-vps {
+  padding: 4.5rem 1.5rem 3.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  border-top: 1px solid var(--lc-line);
+}
+
+.landing-cloud-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lc-accent);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.landing-cloud-vps .landing-section-head h2 {
+  margin-bottom: 0.65rem;
+}
+
+.landing-cloud-vps .landing-section-head p {
+  max-width: 58ch;
+  color: var(--lc-muted);
+}
+
+.landing-cloud-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 2rem 0 1.75rem;
+}
+
+.landing-cloud-point {
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--lc-line);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--lc-accent) 8%, var(--lc-surface)) 0%,
+    var(--lc-surface) 70%
+  );
+}
+
+.landing-cloud-point h3 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 1.05rem;
+  font-family: Syne, sans-serif;
+}
+
+.landing-cloud-point p {
+  margin: 0;
+  color: var(--lc-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.landing-cloud-point svg {
+  color: var(--lc-accent);
+}
+
+.landing-cloud-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.5rem 1.6rem;
+  border: 1px solid var(--lc-line);
+  background: var(--lc-ink);
+  color: var(--lc-surface);
+}
+
+:root.dark .landing-cloud-cta,
+html.dark .landing-cloud-cta {
+  background: color-mix(in srgb, var(--lc-surface) 80%, #000);
+  color: var(--lc-ink);
+}
+
+.landing-cloud-cta h3 {
+  margin: 0 0 0.35rem;
+  font-family: Syne, sans-serif;
+  font-size: 1.2rem;
+}
+
+.landing-cloud-cta p {
+  margin: 0;
+  max-width: 48ch;
+  opacity: 0.85;
+  font-size: 0.92rem;
+}
+
+.landing-cloud-cta .landing-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 800px) {
+  .landing-cloud-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pricing-addon {
   display: flex;
   gap: 0.75rem;
@@ -1106,6 +1206,43 @@ html.dark .landing-root {
   justify-content: space-between;
   gap: 1rem;
   cursor: default;
+}
+
+.pricing-vps-block {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-top: 1rem;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--lc-accent) 7%, var(--lc-surface));
+}
+
+.pricing-vps-fields {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.pricing-vps-fields li {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--lc-muted);
+  padding: 0.2rem 0;
+  border-top: 1px solid var(--lc-line);
+}
+
+.pricing-vps-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+@media (max-width: 640px) {
+  .pricing-vps-actions {
+    width: 100%;
+  }
 }
 
 .pricing-total {

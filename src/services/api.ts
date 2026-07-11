@@ -706,6 +706,20 @@ class ApiService {
     );
   }
 
+  async cloudAttachVolume(id: string, serverId: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/volumes/${encodeURIComponent(id)}/attach`,
+      { method: 'POST', body: JSON.stringify({ serverId }) }
+    );
+  }
+
+  async cloudDetachVolume(id: string) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/volumes/${encodeURIComponent(id)}/detach`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
   async cloudListSnapshots() {
     return this.request<{ success: boolean; data: any[] }>(
       `${NODE_API_BASE}/cloud/snapshots`
@@ -715,6 +729,22 @@ class ApiService {
   async cloudCreateSnapshot(body: { serverId: string; name?: string }) {
     return this.request<{ success: boolean; data: any }>(
       `${NODE_API_BASE}/cloud/snapshots`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async cloudRestoreSnapshot(
+    id: string,
+    body: {
+      name: string;
+      serverType: string;
+      location: string;
+      sshKeys?: string[];
+      userData?: string;
+    }
+  ) {
+    return this.request<{ success: boolean; operationId?: string }>(
+      `${NODE_API_BASE}/cloud/snapshots/${encodeURIComponent(id)}/restore`,
       { method: 'POST', body: JSON.stringify(body) }
     );
   }
@@ -771,6 +801,16 @@ class ApiService {
   async cloudGetOperation(id: string) {
     return this.request<{ success: boolean; data: any }>(
       `${NODE_API_BASE}/cloud/operations/${encodeURIComponent(id)}`
+    );
+  }
+
+  async cloudCatalog(
+    kind: 'images' | 'regions' | 'server-types' | 'ssh-keys',
+    providerId: string
+  ) {
+    const qs = `?providerId=${encodeURIComponent(providerId)}`;
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/${kind}${qs}`
     );
   }
 }

@@ -322,7 +322,7 @@ async function updateVolume(id, patch) {
   if (!row) return null;
   Object.assign(row, {
     external_id: patch.externalId ?? row.external_id,
-    server_id: patch.serverId ?? row.server_id,
+    server_id: 'serverId' in patch ? patch.serverId : row.server_id,
     status: patch.status ?? row.status,
     metadata: patch.metadata ?? row.metadata,
     updated_at: nowIso(),
@@ -447,6 +447,17 @@ async function listSnapshots(tenantId) {
     return rows;
   }
   return mem().cloudSnapshots.filter((s) => s.tenant_id === tenantId);
+}
+
+async function getSnapshot(id) {
+  if (isMetaReady()) {
+    const { rows } = await getMetaPool().query(
+      `SELECT * FROM cloud_snapshots WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    return rows[0] || null;
+  }
+  return mem().cloudSnapshots.find((s) => s.id === id) || null;
 }
 
 async function updateSnapshot(id, patch) {
@@ -725,6 +736,7 @@ module.exports = {
   deleteFirewallRow,
   insertSnapshot,
   listSnapshots,
+  getSnapshot,
   updateSnapshot,
   insertSshKey,
   listSshKeys,

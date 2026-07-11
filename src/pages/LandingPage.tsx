@@ -274,6 +274,9 @@ const LandingPage: React.FC = () => {
           <a href="#packages" onClick={() => setMenuOpen(false)}>
             Paketler
           </a>
+          <a href="#cloud-vps" onClick={() => setMenuOpen(false)}>
+            VPS
+          </a>
           <Link to="/pricing" onClick={() => setMenuOpen(false)}>
             Fiyatlandırma
           </Link>
@@ -500,13 +503,68 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* VPS / Cloud Infrastructure — ek hizmet */}
+        <section id="cloud-vps" className="landing-cloud-vps">
+          <div className="landing-section-head">
+            <p className="landing-cloud-eyebrow">Ek hizmet</p>
+            <h2>
+              VPS &amp; <em>Cloud Infrastructure</em>
+            </h2>
+            <p>
+              Veritabanı paketlerinden bağımsız sunucu kiralama: provider,
+              region, image, volume, firewall, SSH key ve snapshot — Studio
+              panelinden async provision.
+            </p>
+          </div>
+          <div className="landing-cloud-grid">
+            <article className="landing-cloud-point">
+              <Server size={20} />
+              <h3>Sunucu provision</h3>
+              <p>Name, image, region, size, SSH key ve cloud-init alanları.</p>
+            </article>
+            <article className="landing-cloud-point">
+              <Shield size={20} />
+              <h3>Güvenlik &amp; depolama</h3>
+              <p>Firewall kuralları, volume attach/detach, snapshot restore.</p>
+            </article>
+            <article className="landing-cloud-point">
+              <Zap size={20} />
+              <h3>İşlem izleme</h3>
+              <p>
+                Provisioning job’ları: pending → running → completed / failed.
+              </p>
+            </article>
+          </div>
+          <div className="landing-cloud-cta">
+            <div>
+              <h3>{VPS_ADDON.name}</h3>
+              <p>
+                {VPS_ADDON.description} Checkout ile değil — kayıt sonrası Cloud
+                panelinden yönetilir.
+              </p>
+            </div>
+            <div className="landing-actions">
+              <Link to="/register" className="landing-btn-primary">
+                Kayıt ol
+                <ArrowRight size={18} />
+              </Link>
+              <Link to="/pricing#vps-addon" className="landing-btn-ghost">
+                Fiyatlandırma
+              </Link>
+              <Link to={VPS_ADDON.studioPath} className="landing-btn-ghost">
+                Cloud panel
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* Pricing CTA */}
         <section id="packages" className="landing-packages">
           <div className="landing-section-head">
             <h2>Kiralama paketleri</h2>
             <p className="landing-packages-sub">
               Trial 15 gün ücretsiz. Pro $34 · Scale $50 · Max $99 / ay. Yıllık =
-              aylık × 12. Yedekleme +$10/ay.
+              aylık × 12. Yedekleme +$10/ay. VPS ayrı ek hizmet.
             </p>
           </div>
 
@@ -589,17 +647,6 @@ const LandingPage: React.FC = () => {
             </Link>
           </aside>
 
-          <aside className="landing-addon-card">
-            <div>
-              <h3>{VPS_ADDON.name} — ek hizmet</h3>
-              <p>
-                {VPS_ADDON.description} Pro/Scale/Max DB paketlerinden ayrıdır.
-              </p>
-            </div>
-            <Link to={VPS_ADDON.studioPath} className="landing-btn-ghost">
-              Cloud Infrastructure
-            </Link>
-          </aside>
         </section>
 
         <section className="landing-cta-band">
@@ -634,6 +681,7 @@ const LandingPage: React.FC = () => {
             <a href="#product">Postgres</a>
             <a href="#features">API</a>
             <Link to="/pricing">Paketler</Link>
+            <a href="#cloud-vps">VPS / Cloud</a>
           </div>
           <div>
             <h4>Hesap</h4>
@@ -645,7 +693,7 @@ const LandingPage: React.FC = () => {
             <h4>Geliştirici</h4>
             <span>Table Editor</span>
             <span>SQL Studio</span>
-            <span>REST / PostgREST</span>
+            <Link to="/app/cloud/servers">Cloud Infrastructure</Link>
           </div>
         </div>
         <div className="landing-footer-bar">

@@ -8,6 +8,7 @@ type Provider = {
   slug: string
   status: string
   hasApiKey?: boolean
+  config?: { baseUrl?: string; endpoint?: string }
   created_at?: string
 }
 
@@ -18,6 +19,7 @@ const CloudProvidersPage: React.FC = () => {
   const [error, setError] = useState('')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('hetzner')
+  const [endpoint, setEndpoint] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -48,9 +50,18 @@ const CloudProvidersPage: React.FC = () => {
     setSaving(true)
     setError('')
     try {
-      await apiService.cloudCreateProvider({ name, slug, apiKey: apiKey || undefined })
+      const config = endpoint.trim()
+        ? { baseUrl: endpoint.trim() }
+        : undefined
+      await apiService.cloudCreateProvider({
+        name,
+        slug,
+        apiKey: apiKey || undefined,
+        config,
+      })
       setName('')
       setApiKey('')
+      setEndpoint('')
       await load()
     } catch (err: any) {
       setError(err.message || 'Kayıt başarısız')
@@ -58,6 +69,9 @@ const CloudProvidersPage: React.FC = () => {
       setSaving(false)
     }
   }
+
+  const endpointOf = (r: Provider) =>
+    r.config?.baseUrl || r.config?.endpoint || '— (varsayılan)'
 
   return (
     <div className="space-y-6">
@@ -68,31 +82,50 @@ const CloudProvidersPage: React.FC = () => {
         <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
           Provider ekle
         </h2>
-        <input
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-          placeholder="Ad (ör. Prod Cloud)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <select
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-        >
-          {(slugs.length ? slugs : ['hetzner', 'mock']).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <input
-          type="password"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-          placeholder="API token (şifreli saklanır; boş = env varsayılanı)"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
+        <label className="grid gap-1 text-xs text-slate-500">
+          Ad
+          <input
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            placeholder="ör. Prod Cloud"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </label>
+        <label className="grid gap-1 text-xs text-slate-500">
+          Slug
+          <select
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+          >
+            {(slugs.length ? slugs : ['hetzner', 'mock']).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs text-slate-500">
+          Endpoint (API base URL, opsiyonel)
+          <input
+            className="rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-950"
+            placeholder="https://api.example.com/v1"
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-xs text-slate-500">
+          API Key
+          <input
+            type="password"
+            autoComplete="off"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            placeholder="•••••••• (şifreli saklanır; boş = env varsayılanı)"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+        </label>
         <button
           type="submit"
           disabled={saving}
@@ -129,6 +162,7 @@ const CloudProvidersPage: React.FC = () => {
               <tr>
                 <th className="px-4 py-2">Ad</th>
                 <th className="px-4 py-2">Slug</th>
+                <th className="px-4 py-2">Endpoint</th>
                 <th className="px-4 py-2">API Key</th>
                 <th className="px-4 py-2">Durum</th>
               </tr>
@@ -138,14 +172,23 @@ const CloudProvidersPage: React.FC = () => {
                 <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-4 py-2 font-medium">{r.name}</td>
                   <td className="px-4 py-2 font-mono text-xs">{r.slug}</td>
-                  <td className="px-4 py-2">{r.hasApiKey ? '✓' : 'env / yok'}</td>
-                  <td className="px-4 py-2">{r.status}</td>
+                  <td className="max-w-[12rem] truncate px-4 py-2 font-mono text-xs">
+                    {endpointOf(r)}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-xs">
+                    {r.hasApiKey ? '•••••••• (kayıtlı)' : 'env / yok'}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs dark:bg-slate-800">
+                      {r.status}
+                    </span>
+                  </td>
                 </tr>
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                    Henüz provider yok
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                    Henüz provider yok — yukarıdaki formu doldurun.
                   </td>
                 </tr>
               )}

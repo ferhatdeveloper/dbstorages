@@ -136,6 +136,67 @@ function ensureHandlers() {
     const out = await driver.createNetwork(op.request.spec);
     return { resourceId: op.resource_id, externalId: out.network.externalId };
   });
+
+  queue.registerHandler('attach_volume', async (op) => {
+    const { driver } = await resolveDriver(op.provider_id);
+    const volume = await repo.getVolume(op.resource_id);
+    const server = await repo.getServer(op.request.serverId);
+    if (!volume?.external_id) throw cloudError(400, 'Volume has no external id');
+    if (!server?.external_id) throw cloudError(400, 'Server has no external id');
+    const out = await driver.attachVolume(volume.external_id, server.external_id);
+    await repo.updateVolume(volume.id, {
+      serverId: server.id,
+      status: 'attached',
+    });
+    return { action: out.action, serverId: server.id };
+  });
+
+  queue.registerHandler('detach_volume', async (op) => {
+    const { driver } = await resolveDriver(op.provider_id);
+    const volume = await repo.getVolume(op.resource_id);
+    if (!volume?.external_id) throw cloudError(400, 'Volume has no external id');
+    const out = await driver.detachVolume(volume.external_id);
+    await repo.updateVolume(volume.id, {
+      serverId: null,
+      status: 'available',
+    });
+    return { action: out.action };
+  });
+
+  queue.registerHandler('restore_snapshot', async (op) => {
+    const { driver } = await resolveDriver(op.provider_id);
+    const snap = await repo.getSnapshot(op.resource_id);
+    if (!snap?.external_id) throw cloudError(400, 'Snapshot has no external id');
+    const spec = op.request.spec || {};
+    const out = await driver.restoreSnapshot(snap.external_id, spec);
+    const server = await repo.insertServer({
+      id: newId('csrv'),
+      tenantId: op.tenant_id,
+      projectId: op.project_id,
+      providerId: op.provider_id,
+      name: spec.name || `restore-${Date.now()}`,
+      status: out.server?.status || 'running',
+      serverType: spec.serverType,
+      image: snap.external_id,
+      location: spec.location,
+      ipv4: out.server?.ipv4,
+      ipv6: out.server?.ipv6,
+      createdBy: op.created_by,
+    });
+    if (out.server?.externalId) {
+      await repo.updateServer(server.id, {
+        externalId: out.server.externalId,
+        status: out.server.status || 'running',
+        ipv4: out.server.ipv4,
+        ipv6: out.server.ipv6,
+      });
+    }
+    return {
+      resourceId: server.id,
+      externalId: out.server?.externalId,
+      action: out.action,
+    };
+  });
 }
 
 ensureHandlers();
@@ -367,6 +428,47 @@ const CloudService = {
     return repo.listVolumes(tenantId);
   },
 
+  async attachVolume({ tenantId, volumeId, serverId, createdBy }) {
+    const volume = await repo.getVolume(volumeId);
+    if (!volume || volume.tenant_id !== tenantId) {
+      throw cloudError(404, 'Volume not found', 'not_found');
+    }
+    await this.getServer(tenantId, serverId);
+    return enqueueAction({
+      tenantId,
+      projectId: volume.project_id,
+      providerId: volume.provider_id,
+      resourceType: 'volume',
+      resourceId: volume.id,
+      action: 'attach_volume',
+      request: { serverId },
+      createdBy,
+    }).then(async (operation) => {
+      await repo.updateVolume(volume.id, { status: 'attaching' });
+      return { operation };
+    });
+  },
+
+  async detachVolume({ tenantId, volumeId, createdBy }) {
+    const volume = await repo.getVolume(volumeId);
+    if (!volume || volume.tenant_id !== tenantId) {
+      throw cloudError(404, 'Volume not found', 'not_found');
+    }
+    return enqueueAction({
+      tenantId,
+      projectId: volume.project_id,
+      providerId: volume.provider_id,
+      resourceType: 'volume',
+      resourceId: volume.id,
+      action: 'detach_volume',
+      request: {},
+      createdBy,
+    }).then(async (operation) => {
+      await repo.updateVolume(volume.id, { status: 'detaching' });
+      return { operation };
+    });
+  },
+
   async createFirewall({ tenantId, projectId, providerId, name, rules, createdBy }) {
     if (!providerId || !name) {
       throw cloudError(400, 'providerId and name required', 'validation');
@@ -425,6 +527,46 @@ const CloudService = {
 
   listSnapshots(tenantId) {
     return repo.listSnapshots(tenantId);
+  },
+
+  async restoreSnapshot({
+    tenantId,
+    snapshotId,
+    name,
+    serverType,
+    location,
+    sshKeys,
+    userData,
+    createdBy,
+  }) {
+    const snap = await repo.getSnapshot(snapshotId);
+    if (!snap || snap.tenant_id !== tenantId) {
+      throw cloudError(404, 'Snapshot not found', 'not_found');
+    }
+    if (!name || !serverType || !location) {
+      throw cloudError(400, 'name, serverType, location required', 'validation');
+    }
+    const operation = await enqueueAction({
+      tenantId,
+      projectId: snap.project_id,
+      providerId: snap.provider_id,
+      resourceType: 'snapshot',
+      resourceId: snap.id,
+      action: 'restore_snapshot',
+      request: {
+        spec: {
+          name,
+          serverType,
+          location,
+          sshKeys,
+          userData,
+          enableIpv4: true,
+          enableIpv6: true,
+        },
+      },
+      createdBy,
+    });
+    return { operation };
   },
 
   async createSshKey({
