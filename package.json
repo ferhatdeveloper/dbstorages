@@ -1,0 +1,56 @@
+{
+  "name": "graphcore",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@hookform/resolvers": "^3.3.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.263.0",
+    "postcss": "^8.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.45.0",
+    "react-router-dom": "^6.8.0",
+    "socket.io-client": "^4.7.2",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^9.2.4",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "vite": "^4.4.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,console,api -c cyan,magenta,green \"npm run dev:web\" \"npm run dev:console\" \"npm run start:node\"",
+    "dev:web": "npm run dev -w @graphcore/web",
+    "dev:console": "npm run dev -w @graphcore/console",
+    "dev:frontends": "concurrently -n web,console -c cyan,magenta \"npm run dev:web\" \"npm run dev:console\"",
+    "build": "npm run build:web && npm run build:console",
+    "build:web": "npm run build -w @graphcore/web",
+    "build:console": "npm run build -w @graphcore/console",
+    "preview:web": "npm run preview -w @graphcore/web",
+    "preview:console": "npm run preview -w @graphcore/console",
+    "typecheck": "npm run typecheck -w @graphcore/web & npm run typecheck -w @graphcore/console",
+    "start:all": "node start-all.js",
+    "start:node": "npm --prefix backend/node start",
+    "start:go": "go run main.go",
+    "dev:node": "npm --prefix backend/node run dev",
+    "test:backend": "npm --prefix backend/node test",
+    "test": "npm run test:backend"
+  }
+}

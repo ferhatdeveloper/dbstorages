@@ -1,0 +1,37 @@
+{
+  "name": "graphcore-node-backend",
+  "version": "1.0.0",
+  "description": "Node.js backend for GraphCore",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "node scripts/test-fx.js && node scripts/smoke-mvp.js && node scripts/test-cloud.js",
+    "smoke": "node scripts/smoke-mvp.js",
+    "test:fx": "node scripts/test-fx.js",
+    "test:cloud": "node scripts/test-cloud.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "axios": "^1.5.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "cron": "^2.4.4",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.0.0",
+    "iyzipay": "^2.0.69",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.4",
+    "openai": "^4.0.0",
+    "pg": "^8.22.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.7.2",
+    "stripe": "^22.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

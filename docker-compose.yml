@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: graphcore-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: graphcore
+      POSTGRES_PASSWORD: graphcore
+      POSTGRES_DB: graphcore_meta
+    volumes:
+      - graphcore_pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graphcore -d graphcore_meta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # PostgREST — kiracı demo DB üzerinde REST (opsiyonel Studio/REST yolu)
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: graphcore-postgrest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      PGRST_DB_URI: postgres://graphcore:graphcore@postgres:5432/graphcore_demo
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: graphcore
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3001
+
+  # MinIO — S3-compatible object storage (Studio Storage MVP)
+  minio:
+    image: minio/minio:latest
+    container_name: graphcore-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - graphcore_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Full stack (api + web): docker compose -f docker-compose.prod.yml up -d --build
+
+volumes:
+  graphcore_pg_data:
+  graphcore_minio_data:
