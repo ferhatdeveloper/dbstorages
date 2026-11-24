@@ -12,7 +12,7 @@ RUN npm ci || npm install
 
 COPY apps ./apps
 COPY packages ./packages
-COPY tsconfig.json* ./
+COPY tsconfig*.json ./
 
 ARG VITE_NODE_API_BASE=/api
 ARG VITE_GO_API_BASE=/api/v1
