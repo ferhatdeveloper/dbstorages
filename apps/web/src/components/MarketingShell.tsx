@@ -193,7 +193,7 @@ const MarketingShell: React.FC<Props> = ({
               <nav className="hz-footer-nav" aria-label="Footer">
                 <div>
                   <h4>Ürün</h4>
-                  <Link to="/cloud">Cloud / VPS</Link>
+                  <Link to="/cloud">Cloud sunucu</Link>
                   <Link to="/database">Database</Link>
                   <Link to="/storage">Storage</Link>
                   <Link to="/domains">Domain</Link>

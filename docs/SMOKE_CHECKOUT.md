@@ -48,5 +48,5 @@ Beklenen:
 
 - `/cart?plan=pro&interval=month&backup=1` → sepete yazar
 - `/database` kartları → `/cart?plan=…`
-- VPS `/cloud` → Cloud panel (sepet dışı)
+- VPS `/cloud` → Console Cloud only (not Polar / web cart). Polar checkout accepts database, backup storage, and domains only.
 - Kayıt sonrası `from` veya `plan` → `/cart`

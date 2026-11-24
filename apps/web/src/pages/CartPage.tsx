@@ -118,17 +118,34 @@ const CartPage: React.FC = () => {
       (i) => i.type === 'addon' && String(i.id).startsWith('backup-')
     )
     const addons = items.filter(
-      (i) => i.type === 'addon' && !String(i.id).startsWith('backup-')
+      (i) =>
+        i.type === 'addon' &&
+        !String(i.id).startsWith('backup-') &&
+        i.id !== 'vpn' &&
+        i.id !== 'vps'
+    )
+    const blocked = items.filter(
+      (i) =>
+        i.type === 'vps' ||
+        (i.type === 'addon' && (i.id === 'vpn' || i.id === 'vps'))
     )
     const doms = items.filter((i) => i.type === 'domain')
     const vps = items.filter((i) => i.type === 'vps')
-    return { plans, backups, addons, doms, vps }
+    return { plans, backups, addons, doms, vps, blocked }
   }, [items])
+
+  const polarBlockedInfra = payProvider === 'polar' && grouped.blocked.length > 0
 
   const checkout = async () => {
     setError('')
     if (!items.length) {
       setError('Sepet boş')
+      return
+    }
+    if (payProvider === 'polar' && grouped.blocked.length > 0) {
+      setError(
+        'Polar yalnızca database, backup ve domain içindir. VPS/VPN kalemlerini sepetten çıkarın; Console → Cloud’dan açın.'
+      )
       return
     }
     if (!isAuthenticated) {
@@ -137,6 +154,7 @@ const CartPage: React.FC = () => {
     }
     setLoading(true)
     try {
+      const safeAddons = addonIds.filter((id) => id !== 'vpn' && id !== 'vps')
       const body: {
         planId?: string
         provider: string
@@ -147,13 +165,16 @@ const CartPage: React.FC = () => {
       } = {
         provider: payProvider,
         interval: billingInterval,
-        addons: addonIds,
+        addons: safeAddons,
         domains,
-        vps: vpsItems.map((v) => ({
-          id: v.id,
-          name: v.name,
-          priceCents: v.priceCents,
-        })),
+        vps:
+          payProvider === 'polar'
+            ? []
+            : vpsItems.map((v) => ({
+                id: v.id,
+                name: v.name,
+                priceCents: v.priceCents,
+              })),
       }
       if (planItem) body.planId = planItem.id
       else body.planId = 'domains-only'
@@ -280,7 +301,10 @@ const CartPage: React.FC = () => {
               <ShoppingBag size={28} />
             </div>
             <h2>Sepetiniz boş</h2>
-            <p>Database paketi veya alan adı ekleyin, ödemeyi burada bitirin.</p>
+            <p>
+              Database, backup veya alan adı ekleyin. VPS / VPN Console üzerinden
+              açılır (kart sepeti dışı).
+            </p>
             <div className="hz-cart-empty-actions">
               <Link to="/database" className="hz-btn-solid">
                 Paketlere git
@@ -317,28 +341,44 @@ const CartPage: React.FC = () => {
                   </>
                 ),
               })}
-              {renderGroup('Cloud VPS', grouped.vps, {
-                className: 'is-vps',
-                body: (
-                  <>
-                    Bu ödeme VPS&apos;i <strong>otomatik oluşturmaz</strong>.
-                    Ödeme sonrası{' '}
+              {grouped.blocked.length > 0 && (
+                <div
+                  className="hz-cart-honesty is-vps"
+                  role="alert"
+                  style={{ marginBottom: '1rem' }}
+                >
+                  <p>
+                    Sepette VPS/VPN kalemi var. Kart (Polar) ödemesi yalnızca
+                    database, backup ve domain içindir. Bu kalemleri çıkarın;
+                    altyapıyı{' '}
                     <a
                       href={CONSOLE_CLOUD_SERVERS}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Console → Cloud sunucular
+                      Console → Cloud
                     </a>{' '}
-                    panelinden sunucunuzu açın (region, imaj, volume).
-                  </>
-                ),
-              })}
+                    üzerinden açın.
+                  </p>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {grouped.blocked.map((b) => (
+                      <button
+                        key={`${b.type}-${b.id}`}
+                        type="button"
+                        className="hz-cart-clear"
+                        onClick={() => removeItem(b.type, b.id)}
+                      >
+                        {b.name} — kaldır
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="hz-cart-continue">
                 <Link to="/database">+ Paket ekle</Link>
                 <Link to="/storage">+ Backup ekle</Link>
                 <Link to="/domains">+ Domain ekle</Link>
-                <Link to="/cloud">+ VPS ekle</Link>
+                <a href={CONSOLE_CLOUD_SERVERS}>Cloud (Console)</a>
                 <button type="button" className="hz-cart-clear" onClick={clear}>
                   Sepeti temizle
                 </button>
@@ -393,9 +433,7 @@ const CartPage: React.FC = () => {
                     {billingInterval === 'year' ? 'yıllık' : 'aylık'} faturalanır.
                   </p>
                 )}
-                {(grouped.vps.length > 0 ||
-                  grouped.doms.length > 0 ||
-                  grouped.backups.length > 0) && (
+                {(grouped.doms.length > 0 || grouped.backups.length > 0) && (
                   <div
                     className="hz-cart-honesty-stack"
                     role="region"
@@ -409,22 +447,6 @@ const CartPage: React.FC = () => {
                         Backup: Studio → Storage → Veeam / QNAP HBS3.
                       </div>
                     )}
-                    {grouped.vps.length > 0 && (
-                      <div
-                        className="hz-cart-honesty is-vps is-compact"
-                        role="note"
-                      >
-                        VPS otomatik açılmaz. Ödeme sonrası{' '}
-                        <a
-                          href={CONSOLE_CLOUD_SERVERS}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Console Cloud panelinden
-                        </a>{' '}
-                        oluşturun.
-                      </div>
-                    )}
                     {grouped.doms.length > 0 && (
                       <div
                         className="hz-cart-honesty is-domain is-compact"
@@ -436,6 +458,9 @@ const CartPage: React.FC = () => {
                     )}
                   </div>
                 )}
+                <p className="hz-cart-note">
+                  Kart (Polar): database, backup, domain. VPS/VPN → Console Cloud.
+                </p>
 
                 <div
                   className="hz-cart-pay"
@@ -463,14 +488,16 @@ const CartPage: React.FC = () => {
                 <button
                   type="button"
                   className="hz-cart-checkout"
-                  disabled={loading}
+                  disabled={loading || polarBlockedInfra}
                   onClick={checkout}
                 >
                   {loading
                     ? 'İşleniyor…'
-                    : isAuthenticated
-                      ? 'Ödemeyi tamamla'
-                      : 'Giriş yapıp öde'}
+                    : polarBlockedInfra
+                      ? 'Önce VPS/VPN kaldırın'
+                      : isAuthenticated
+                        ? 'Ödemeyi tamamla'
+                        : 'Giriş yapıp öde'}
                 </button>
                 {!isAuthenticated && (
                   <p className="hz-cart-note">

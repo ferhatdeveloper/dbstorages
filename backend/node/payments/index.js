@@ -210,7 +210,7 @@ const ADDONS = [
     interval: 'month',
     billingNote: 'Ayrı ek hizmet — katalog fiyatı (Hetzner × 1.20, EUR)',
     description:
-      'Veritabanı planlarından bağımsız VPS / sunucu kiralama. Studio → Cloud Infrastructure: provider, server, volume, firewall, snapshot. Per-plan retail = upstream × 1.20.',
+      'Console → Cloud ile provision edilen sunucu kiralama (kart sepeti / Polar dışı). Provider, server, volume, firewall, snapshot. Per-plan retail = upstream × 1.20.',
     contactOnly: true,
     studioPath: '/app/cloud/servers',
     catalogPath: '/api/cloud/public-catalog',
@@ -236,7 +236,7 @@ const ADDONS = [
     billingNote:
       'Kullanıcı başına · EUR €5.99/kullanıcı/ay (aktif peer = 1 kullanıcı; DB ve VPS’ten bağımsız)',
     description:
-      'Güvenli erişim: peer config + QR ile WireGuard. Her aktif peer bir faturalandırılabilir kullanıcıdır (€5.99/kullanıcı/ay). Studio → Cloud → VPN.',
+      'Console → Cloud → VPN üzerinden WireGuard peer (kart sepeti / Polar dışı). Aktif peer = faturalandırılabilir kullanıcı (€5.99/kullanıcı/ay).',
     contactOnly: true,
     studioPath: '/cloud/vpn',
     messaging: [
@@ -1342,6 +1342,14 @@ class PolarProvider {
     const resolvedAddons = Array.isArray(addons) ? addons : [];
     const resolvedDomains = Array.isArray(domains) ? domains : [];
     const resolvedVps = Array.isArray(vps) ? vps : [];
+    if (
+      resolvedVps.length ||
+      resolvedAddons.some((a) => a && (a.id === 'vps' || a.id === 'vpn'))
+    ) {
+      throw new Error(
+        'Polar checkout excludes VPS/VPN — use Console → Cloud for infrastructure'
+      );
+    }
     const interval = normalizeInterval(billingInterval);
     const planCents = plan ? Number(plan.priceCents) || 0 : 0;
     const hasRecurringPlan = Boolean(plan && planCents > 0);

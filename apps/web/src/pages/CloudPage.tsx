@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Check, Cpu, HardDrive, MemoryStick, Network } from 'lucide-react'
 import {
   apiService,
@@ -11,7 +10,6 @@ import {
   type VpsServerType,
 } from '@graphcore/shared'
 import MarketingShell from '../components/MarketingShell'
-import { useCart } from '../context/CartContext'
 
 type FamilyFilter = 'all' | 'cx' | 'cpx' | 'cax' | 'ccx'
 
@@ -36,29 +34,17 @@ function diskGb(p: VpsServerType) {
 const CloudPage: React.FC = () => {
   const { formatAmount } = useCurrency()
   const { isAuthenticated } = useAuth()
-  const { addVps } = useCart()
-  const navigate = useNavigate()
   const cloudHref = `${CONSOLE_URL}/cloud/servers`
-  const [cartToast, setCartToast] = useState('')
+  const loginHref = `/login?next=${encodeURIComponent(cloudHref)}`
 
-  const addPlanToCart = (p: VpsServerType) => {
-    const id = String(p.id || p.name)
-    const name = (p.description || p.name || id).toUpperCase()
-    const eur = Number(p.priceRetailMonthly) || 0
-    addVps({
-      id,
-      name,
-      priceCents: Math.round(eur * 100),
-      currency: 'eur',
-      meta: {
-        cores: p.cores,
-        memoryGb: p.memoryGb ?? p.memory,
-        diskGb: p.diskGb ?? p.disk,
-      },
-    })
-    setCartToast(`${name} sepete eklendi`)
-    navigate('/cart')
+  const openConsole = () => {
+    if (isAuthenticated) {
+      window.location.href = cloudHref
+      return
+    }
+    window.location.href = loginHref
   }
+
   const [allPlans, setAllPlans] = useState<VpsServerType[]>(VPS_POPULAR_FALLBACK)
   const [family, setFamily] = useState<FamilyFilter>('all')
 
@@ -96,20 +82,25 @@ const CloudPage: React.FC = () => {
       <section className="hz-hero hz-vps-hero">
         <div className="hz-hero-inner">
           <div className="hz-hero-copy">
-            <span className="hz-pill">VPS kiralama</span>
+            <span className="hz-pill">Cloud sunucu</span>
             <h1>Cloud sunucunuzu dakikalar içinde açın</h1>
             <p>
-              Şeffaf EUR fiyat, net kaynaklar. Sepete ekleyin, ödemeyi sepette
-              bitirin — sonra panelden region, image ve SSH ile açın.
+              Şeffaf EUR fiyat, net kaynaklar. VPS kart sepetinde satılmaz —
+              giriş yapıp Console → Cloud panelinden region, image ve SSH ile
+              açın.
             </p>
             <div className="hz-vps-hero-actions">
               <a href="#vps-plans" className="hz-btn-ghost">
                 Planları gör
                 <ArrowRight size={18} />
               </a>
-              <a href="#vps-plans" className="hz-btn-solid hz-btn-on-hero">
-                Planı sepete ekle
-              </a>
+              <button
+                type="button"
+                className="hz-btn-solid hz-btn-on-hero"
+                onClick={openConsole}
+              >
+                Console’da aç
+              </button>
             </div>
           </div>
           <div className="hz-hero-art hz-vps-hero-art" aria-hidden>
@@ -137,12 +128,6 @@ const CloudPage: React.FC = () => {
       </section>
 
       <main>
-        {cartToast && (
-          <div className="hz-cart-alert" style={{ maxWidth: 'var(--lc-max)', margin: '1rem auto', padding: '0.75rem 1.5rem' }}>
-            {cartToast} — <Link to="/cart">Sepete git</Link>
-          </div>
-        )}
-
         <section className="hz-vps-trust" aria-label="Öne çıkanlar">
           <div>
             <Check size={16} />
@@ -158,7 +143,7 @@ const CloudPage: React.FC = () => {
           </div>
           <div>
             <Check size={16} />
-            <span>Panelden anında provision</span>
+            <span>Panelden provision (sepet dışı)</span>
           </div>
         </section>
 
@@ -166,7 +151,7 @@ const CloudPage: React.FC = () => {
           <h2 className="hz-section-title">Sunucu aileleri</h2>
           <p className="hz-section-lead">
             {activeFamilyMeta?.descriptionTr ||
-              'İhtiyacınıza göre aile seçin. Fiyatlar aylık perakende EUR.'}
+              'İhtiyacınıza göre aile seçin. Fiyatlar aylık perakende EUR. Ödeme ve açılış Console üzerinden.'}
           </p>
 
           <div className="hz-vps-filters" role="tablist" aria-label="Sunucu ailesi">
@@ -246,9 +231,9 @@ const CloudPage: React.FC = () => {
                   <button
                     type="button"
                     className="hz-btn-solid hz-vps-card-cta"
-                    onClick={() => addPlanToCart(p)}
+                    onClick={openConsole}
                   >
-                    Sepete ekle
+                    Console’da aç
                     <ArrowRight size={16} />
                   </button>
                 </article>
@@ -301,9 +286,9 @@ const CloudPage: React.FC = () => {
                         <button
                           type="button"
                           className="hz-vps-row-cta"
-                          onClick={() => addPlanToCart(p)}
+                          onClick={openConsole}
                         >
-                          Sepete
+                          Console
                           <ArrowRight size={14} />
                         </button>
                       </td>
@@ -316,21 +301,16 @@ const CloudPage: React.FC = () => {
         </section>
 
         <section className="hz-cta-band">
-          <h2>Kendi cloud sunucunuzu birkaç adımda açın</h2>
+          <h2>Kendi cloud sunucunuzu panelden açın</h2>
           <p>
-            VPS’i sepete ekleyin, ödemeyi sepette tamamlayın — ardından Cloud
-            panelden region / image ile açın.
+            VPS, web sepeti / kart (Polar) ödemesine dahil değildir. Console →
+            Cloud üzerinden provision edin.
           </p>
           <div className="hz-vps-hero-actions" style={{ justifyContent: 'center' }}>
-            <a href="#vps-plans" className="hz-btn-solid">
-              Plan seç — sepete ekle
+            <button type="button" className="hz-btn-solid" onClick={openConsole}>
+              Console → Cloud
               <ArrowRight size={18} />
-            </a>
-            {isAuthenticated ? (
-              <a href={cloudHref} className="hz-btn-ghost">
-                Cloud panel
-              </a>
-            ) : null}
+            </button>
           </div>
         </section>
       </main>

@@ -254,10 +254,10 @@ const LandingPage: React.FC = () => {
               </p>
             </div>
             <div>
-              <h3>Yedekleme &amp; VPN</h3>
+              <h3>Yedekleme</h3>
               <p>
-                Opsiyonel yedekleme ve WireGuard VPN eklentileri — planlardan
-                bağımsız.
+                Opsiyonel Veeam / QNAP yedekleme eklentileri — database
+                planlarından bağımsız, kart sepetinden.
               </p>
             </div>
           </div>

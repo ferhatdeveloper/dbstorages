@@ -518,6 +518,24 @@ router.post('/checkout', authMiddleware, async (req, res) => {
         error: { code: 'validation', message: vpsErr },
       });
     }
+
+    // Polar MoR: only digital SaaS (database plans, backup storage, domains).
+    // VPS / VPN are Console-provisioned and must not go through Polar checkout.
+    if (providerKey === 'polar') {
+      const hasVpn = addons.some((a) => a && a.id === 'vpn');
+      const hasVpsAddon = addons.some((a) => a && a.id === 'vps');
+      if (vpsLinesRaw.length || hasVpn || hasVpsAddon) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'validation',
+            message:
+              'Polar checkout covers database, backup storage, and domains only. Remove VPS/VPN from the cart — open those from Console → Cloud.',
+          },
+        });
+      }
+    }
+
     // Normalize VPS EUR → catalog currency when needed
     let vpsLines = vpsLinesRaw;
     if (vpsLines.length && String(catalogCurrency).toLowerCase() !== 'eur') {
