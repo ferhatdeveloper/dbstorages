@@ -41,7 +41,7 @@ services:
       - "${POSTGREST_PUBLISH_PORT:-3001}:3000"
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: graphcore-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
