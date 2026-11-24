@@ -52,8 +52,8 @@ Alan adı sepeti ve fiyat kataloğu (`backend/node/lib/domains.js`) vardır:
 
 | Durum | Ne zaman |
 |-------|----------|
-| `active` | Mock fulfillment (`mock: true`) — sipariş hemen “aktif” sayılır (kayıt yok). |
-| `pending_fulfillment` | Gerçek ödeme webhook’u sonrası; **manual / ileride registrar** ile tamamlanmayı bekler. |
+| `pending_fulfillment` | Varsayılan (mock ödeme dahil). Kayıt kurumu bağlı değilken sipariş **beklemede ve manuel** işlenir. |
+| `active` | Yalnızca `DOMAIN_REGISTRAR_ENABLED=1` iken (otomatik kayıt). |
 
 Ödeme metadata’sındaki `domains[]` dizisi `fulfillDomainOrders` ile meta DB’de `domain_orders` tablosuna yazılır.
 

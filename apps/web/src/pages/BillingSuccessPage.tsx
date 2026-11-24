@@ -80,10 +80,17 @@ const BillingSuccessPage: React.FC = () => {
             {Array.isArray(data.domainOrders) && data.domainOrders.length > 0 && (
               <div style={{ marginTop: '1rem' }}>
                 <p className="billing-conn-label">Domain siparişleri</p>
+                <p className="billing-note" role="note">
+                  Kayıt kurumu bağlantısı tamamlanana kadar domain siparişleri
+                  ödeme sonrası beklemede ve manuel işlenir.
+                </p>
                 <ul>
                   {data.domainOrders.map((d: any) => (
                     <li key={d.id || d.domain_name}>
-                      {d.domain_name || d.name} — {d.status || 'ok'}
+                      {d.domain_name || d.name} —{' '}
+                      {d.status === 'pending_fulfillment'
+                        ? 'beklemede (manuel)'
+                        : d.status || 'ok'}
                     </li>
                   ))}
                 </ul>

@@ -41,7 +41,7 @@ Beklenen:
 1. `/database` → plan **Sepete ekle** (ödeme yöntemleri sepette)
 2. Domain mini arama veya `/domains` → müsait → sepete
 3. `/cart` → Polar (kart) veya kripto → **Ödemeyi tamamla**
-4. Mock: payment + domain_orders (`active`); plan varsa instance
+4. Mock: payment + domain_orders (`pending_fulfillment`, manuel); plan varsa instance
 5. `GET /api/domains/suggest?q=ornek` · `GET /api/domains/pricing`
 
 ## Deep-link sepet

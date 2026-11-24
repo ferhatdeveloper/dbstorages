@@ -311,11 +311,9 @@ const CartPage: React.FC = () => {
                 className: 'is-domain',
                 body: (
                   <>
-                    Ödeme alınsa bile alan adı kaydı{' '}
-                    <strong>otomatik başlamaz</strong>. Kayıt kurumu bağlantısı
-                    tamamlanana kadar sipariş{' '}
-                    <strong>beklemede ve manuel</strong> işlenir; hazır olduğunda
-                    bilgilendirilirsiniz.
+                    Kayıt kurumu bağlantısı tamamlanana kadar domain siparişleri
+                    ödeme sonrası <strong>beklemede ve manuel</strong> işlenir.
+                    Hazır olduğunda bilgilendirilirsiniz.
                   </>
                 ),
               })}
@@ -432,8 +430,8 @@ const CartPage: React.FC = () => {
                         className="hz-cart-honesty is-domain is-compact"
                         role="note"
                       >
-                        Domain kaydı otomatik değil; kayıt kurumu bağlanana
-                        kadar beklemede (manuel).
+                        Kayıt kurumu bağlantısı tamamlanana kadar domain
+                        siparişleri ödeme sonrası beklemede ve manuel işlenir.
                       </div>
                     )}
                   </div>

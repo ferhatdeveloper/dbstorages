@@ -209,7 +209,10 @@ async function fulfillDomainOrders({
   const lines = Array.isArray(domains) ? domains : [];
   if (!lines.length) return [];
   const out = [];
-  const status = mock ? 'active' : 'pending_fulfillment';
+  // Registrar not connected: paid domain lines stay pending for manual ops
+  // (mock checkout included). Flip only when DOMAIN_REGISTRAR_ENABLED=1.
+  const registrarReady = process.env.DOMAIN_REGISTRAR_ENABLED === '1';
+  const status = registrarReady ? 'active' : 'pending_fulfillment';
   const now = new Date().toISOString();
   for (const d of lines) {
     const id = store.newId('dom');
@@ -224,7 +227,13 @@ async function fulfillDomainOrders({
       price_cents: d.priceCents,
       currency: d.currency || 'usd',
       status,
-      metadata: { mock: Boolean(mock) },
+      metadata: {
+        mock: Boolean(mock),
+        manual: !registrarReady,
+        note: registrarReady
+          ? null
+          : 'pending_fulfillment until registrar connection is complete',
+      },
       created_at: now,
     };
     if (isMetaReady()) {
