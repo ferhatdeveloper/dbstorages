@@ -56,7 +56,7 @@ function readStoredCurrency(): DisplayCurrency {
   } catch {
     /* ignore */
   }
-  return 'EUR'
+  return 'USD'
 }
 
 function mergeFx(payload: any): FxPayload {
@@ -151,7 +151,8 @@ export const CurrencyProvider: React.FC<{
       formatAmount: (amount, sourceCurrency = 'EUR', opts) =>
         formatAmountConverted(amount, sourceCurrency, currency, rates, opts),
       format: (amount, cur = currency) => formatMoney(amount, cur),
-      fxHint: formatFxHint(fx),
+      // Kur ipucu yalnızca TRY görünümünde — EUR/USD'de döviz satırı yok
+      fxHint: currency === 'TRY' ? formatFxHint(fx) : '',
     }
   }, [currency, fx, loading, refresh, setCurrency])
 

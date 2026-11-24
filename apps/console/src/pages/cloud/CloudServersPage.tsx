@@ -206,7 +206,7 @@ const CloudServersPage: React.FC = () => {
     <div className="space-y-4">
       <CloudPageHeader
         title="Sunucular"
-        description={`Çok adımlı provision · Linux / Windows · perakende ×1,20. ${fxHint}`}
+        description={`Çok adımlı provision · Linux / Windows · perakende ×1,20.${fxHint ? ` ${fxHint}` : ''}`}
         onRefresh={load}
         refreshing={loading}
         actions={

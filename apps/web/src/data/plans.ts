@@ -12,51 +12,52 @@ export type DbPlan = {
   connections: number
   highlight?: boolean
   description: string
-  trialDays?: number
   features?: string[]
 }
 
+/** Kademeli merdiven. Yıllık fiyat ana referans; aylık ≈ yıl / 12. */
 export const FALLBACK_DB_PLANS: DbPlan[] = [
   {
-    id: 'free',
-    name: 'Trial',
-    priceCents: 0,
-    priceYearCents: 0,
+    id: 'starter',
+    name: 'Starter',
+    priceCents: 1250,
+    priceYearCents: 15000,
     currency: 'usd',
     interval: 'month',
-    trialDays: 15,
-    vcpu: 0.5,
-    ramMb: 512,
-    diskGb: 1,
-    storageGb: 0.5,
-    connections: 20,
-    description: '15 gün ücretsiz deneme — yönetilen Database ile başlayın.',
+    vcpu: 1,
+    ramMb: 2048,
+    diskGb: 20,
+    storageGb: 5,
+    connections: 50,
+    description: 'Basic başlangıç — küçük projeler ve ilk adımlar.',
     features: [
-      '15 gün deneme',
-      '0.5 vCPU · 512 MB RAM',
-      '1 GB veritabanı',
-      '20 eşzamanlı bağlantı',
+      '1 vCPU · 2 GB RAM',
+      '20 GB veritabanı diski',
+      '5 GB object storage',
+      '50 eşzamanlı bağlantı',
+      '3 gün yedek saklama',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    priceCents: 3400,
-    priceYearCents: 40800,
+    priceCents: 3333,
+    priceYearCents: 40000,
     currency: 'usd',
     interval: 'month',
     vcpu: 2,
     ramMb: 4096,
-    diskGb: 25,
-    storageGb: 10,
-    connections: 100,
+    diskGb: 50,
+    storageGb: 20,
+    connections: 150,
     highlight: true,
-    description: 'Üretim yükleri için dengeli Database planı.',
+    description: 'Starter’ın bir üstü — dengeli küçük üretim.',
     features: [
       '2 vCPU · 4 GB RAM',
-      '25 GB veritabanı diski',
-      '10 GB object storage',
-      '100 eşzamanlı bağlantı',
+      '50 GB veritabanı diski',
+      '20 GB object storage',
+      '150 eşzamanlı bağlantı',
+      '7 gün yedek saklama',
     ],
   },
   {
@@ -68,57 +69,95 @@ export const FALLBACK_DB_PLANS: DbPlan[] = [
     interval: 'month',
     vcpu: 4,
     ramMb: 8192,
-    diskGb: 80,
+    diskGb: 120,
     storageGb: 50,
     connections: 400,
-    description: 'Büyüyen ekipler için daha fazla CPU, disk ve bağlantı.',
+    description: 'Pro’nun bir üstü — büyüyen ekipler ve trafik.',
     features: [
       '4 vCPU · 8 GB RAM',
-      '80 GB veritabanı diski',
+      '120 GB veritabanı diski',
       '50 GB object storage',
       '400 eşzamanlı bağlantı',
+      '14 gün yedek saklama',
     ],
   },
   {
     id: 'max',
     name: 'Max',
-    priceCents: 9900,
-    priceYearCents: 118800,
+    priceCents: 7500,
+    priceYearCents: 90000,
     currency: 'usd',
     interval: 'month',
     vcpu: 8,
-    ramMb: 32768,
+    ramMb: 24576,
     diskGb: 250,
-    storageGb: 150,
+    storageGb: 120,
     connections: 1000,
-    description: 'Yüksek kaynak ve bağlantı limiti — büyük üretim iş yükleri.',
+    description: 'Scale’in bir üstü — yüksek yük ve daha uzun yedek.',
     features: [
-      '8 vCPU · 32 GB RAM',
+      '8 vCPU · 24 GB RAM',
       '250 GB veritabanı diski',
-      '150 GB object storage',
+      '120 GB object storage',
       '1000 eşzamanlı bağlantı',
+      '30 gün yedek saklama',
+    ],
+  },
+  {
+    id: 'maxplus',
+    name: 'Max+',
+    priceCents: 10000,
+    priceYearCents: 120000,
+    currency: 'usd',
+    interval: 'month',
+    vcpu: 12,
+    ramMb: 49152,
+    diskGb: 400,
+    storageGb: 250,
+    connections: 2000,
+    description: 'Max’in bir üstü — en geniş disk, storage ve bağlantı.',
+    features: [
+      '12 vCPU · 48 GB RAM',
+      '400 GB veritabanı diski',
+      '250 GB object storage',
+      '2000 eşzamanlı bağlantı',
+      '45 gün yedek saklama',
     ],
   },
 ]
 
 export function mergeDbPlansFromApi(apiPlans: DbPlan[]): DbPlan[] {
   if (!apiPlans?.length) return FALLBACK_DB_PLANS
-  const byId = new Map(apiPlans.map((p) => [p.id, p]))
-  return FALLBACK_DB_PLANS.map((fb) => {
-    const api = byId.get(fb.id)
+  const fbById = new Map(FALLBACK_DB_PLANS.map((p) => [p.id, p]))
+  const ids = [
+    ...FALLBACK_DB_PLANS.map((p) => p.id),
+    ...apiPlans
+      .map((p) => p.id)
+      .filter((id) => id !== 'free' && !fbById.has(id)),
+  ]
+  return ids.map((id) => {
+    const fb = fbById.get(id)
+    const api = apiPlans.find((p) => p.id === id)
+    if (!fb && api) {
+      return {
+        ...api,
+        priceYearCents: api.priceYearCents ?? (api.priceCents || 0) * 12,
+      }
+    }
+    if (!api && fb) return fb
     return {
-      ...fb,
+      ...fb!,
       ...api,
-      priceCents: fb.priceCents,
-      priceYearCents: fb.priceYearCents ?? fb.priceCents * 12,
-      name: api?.name || fb.name,
-      description: api?.description || fb.description,
-      features: api?.features?.length ? api.features : fb.features,
-      vcpu: api?.vcpu ?? fb.vcpu,
-      ramMb: api?.ramMb ?? fb.ramMb,
-      diskGb: api?.diskGb ?? fb.diskGb,
-      storageGb: api?.storageGb ?? fb.storageGb,
-      connections: api?.connections ?? fb.connections,
+      priceCents: fb!.priceCents,
+      priceYearCents: fb!.priceYearCents ?? fb!.priceCents * 12,
+      name: api?.name || fb!.name,
+      description: api?.description || fb!.description,
+      features: api?.features?.length ? api.features : fb!.features,
+      vcpu: api?.vcpu ?? fb!.vcpu,
+      ramMb: api?.ramMb ?? fb!.ramMb,
+      diskGb: api?.diskGb ?? fb!.diskGb,
+      storageGb: api?.storageGb ?? fb!.storageGb,
+      connections: api?.connections ?? fb!.connections,
+      highlight: api?.highlight ?? fb!.highlight,
     }
   })
 }

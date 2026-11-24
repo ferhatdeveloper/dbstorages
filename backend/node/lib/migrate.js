@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS instances (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id),
   name TEXT NOT NULL,
-  plan TEXT NOT NULL DEFAULT 'free',
+  plan TEXT NOT NULL DEFAULT 'starter',
   region TEXT NOT NULL DEFAULT 'local',
   status TEXT NOT NULL DEFAULT 'pending',
   host TEXT,

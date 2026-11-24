@@ -4,15 +4,19 @@ Keys boşken (veya sandbox) yerel akış:
 
 ## Ödeme sağlayıcıları
 
-1. Web `http://localhost:5173/pricing` açın.
-2. Database planında **Kart (Stripe)** / **iyzico** / **PayTR** kartlarından birini seçin.
-3. Para birimi TRY ise TR POS’ta tutar kuruşa çevrilir (FX); Stripe plan currency’sini korur.
-4. **Checkout** → mock/sandbox URL veya anında `succeeded` + provision.
+**Birincil:** Polar (kart) · **Kripto:** NOWPayments (USDT vb.)  
+**Pasif (varsayılan `PAYMENTS_DISABLED`):** Stripe, iyzico, PayTR, Lemon Squeezy
+
+1. Web `http://localhost:5173/database` açın.
+2. Sepette **Kart (Polar)** veya **Kripto (USDT)** seçin.
+3. Para birimi TRY ise yalnızca TR POS (iyzico/PayTR — kapalıyken kullanılmaz) için FX; Polar katalog USD/EUR tutarını kullanır.
+4. **Checkout** → Polar mock/sandbox URL, NOWPayments faturası veya anında `succeeded` + provision.
 
 Beklenen:
 
-- `POST /api/billing/checkout` body’de `provider`
-- Mock’ta `data.mock: true` ve instance oluşur (aynı `payment_id` ile ikinci provision yok)
+- `POST /api/billing/checkout` — body’de `provider` (varsayılan `polar`)
+- Polar/NOWPayments key yokken `data.mock: true` (crypto: defer + `/billing/crypto` onayı)
+- Aynı `payment_id` ile ikinci provision yok
 - `/billing/success` → **Console — Database** (`/database`) · Ödeme geçmişi (`/billing`)
 
 ## Console billing
@@ -28,15 +32,15 @@ Beklenen:
 
 ## Webhook
 
-- Stripe: `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted` (iptalde instance `suspended`)
-- iyzico: `POST /api/billing/webhook/iyzico`
-- PayTR: `POST /api/billing/webhook/paytr` — yanıt gövdesi `OK`
+- **Polar (birincil):** `POST /api/billing/webhook/polar` — `order.paid` / `subscription.active` → provision; `subscription.canceled` / `subscription.revoked` / `subscription.past_due` → instance `suspended`
+- Kripto: `POST /api/billing/webhook/crypto` (NOWPayments IPN)
+- Stripe / iyzico / PayTR — `PAYMENTS_DISABLED` ile kapalı; açılırsa: Stripe `customer.subscription.deleted`, iyzico `POST /api/billing/webhook/iyzico`, PayTR `POST /api/billing/webhook/paytr` (gövde `OK`)
 
 ## Sepet + domain
 
-1. `/pricing` → plan **Sepete ekle** (ödeme yöntemleri sepette)
+1. `/database` → plan **Sepete ekle** (ödeme yöntemleri sepette)
 2. Domain mini arama veya `/domains` → müsait → sepete
-3. `/cart` → Stripe/iyzico/PayTR → **Ödemeyi tamamla**
+3. `/cart` → Polar (kart) veya kripto → **Ödemeyi tamamla**
 4. Mock: payment + domain_orders (`active`); plan varsa instance
 5. `GET /api/domains/suggest?q=ornek` · `GET /api/domains/pricing`
 
@@ -46,4 +50,3 @@ Beklenen:
 - `/database` kartları → `/cart?plan=…`
 - VPS `/cloud` → Cloud panel (sepet dışı)
 - Kayıt sonrası `from` veya `plan` → `/cart`
-

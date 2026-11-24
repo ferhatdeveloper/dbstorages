@@ -211,11 +211,11 @@ const AppLayout = () => {
 
         <div className="space-y-1 border-t border-slate-800/90 p-2">
           <a
-            href={webPath('/pricing')}
+            href={webPath('/database')}
             className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[12px] text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Marketing / Pricing
+            Marketing / Database
           </a>
           <div className="truncate px-2.5 text-[11px] text-slate-500">{user?.email}</div>
           <button

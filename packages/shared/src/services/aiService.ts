@@ -36,15 +36,10 @@ export interface Snippet {
   usage_count: number;
 }
 
-// Vite env tipi için
-declare global {
-  interface ImportMeta {
-    env: Record<string, string>;
-  }
-}
-
 class AIService {
-  private apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+  private apiKey =
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env
+      ?.VITE_OPENAI_API_KEY || '';
   private baseUrl = 'https://api.openai.com/v1';
 
   private async request<T>(endpoint: string, data: any): Promise<T> {

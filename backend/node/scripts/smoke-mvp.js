@@ -85,8 +85,11 @@ assert(claims.instanceId === 'ins_demo', 'signed instance');
 
 // --- quota ---
 const { storageQuotaBytes, getPackage } = require(path.join(root, 'payments'));
-assert(storageQuotaBytes('free') > 0, 'free quota');
-assert(storageQuotaBytes('pro') > storageQuotaBytes('free'), 'pro > free quota');
+assert(storageQuotaBytes('starter') > 0, 'starter quota');
+assert(
+  storageQuotaBytes('pro') > storageQuotaBytes('starter'),
+  'pro > starter quota'
+);
 assert(getPackage('scale').storageGb === 50, 'scale storageGb');
 
 // --- functions ---

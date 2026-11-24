@@ -26,6 +26,8 @@ export { default as CurrencyToggle } from './components/CurrencyToggle'
 export {
   default as GraphCoreLogo,
   GraphCoreMark,
+  DbStoragesLogo,
+  DbStoragesMark,
 } from './components/GraphCoreLogo'
 export {
   formatEur,

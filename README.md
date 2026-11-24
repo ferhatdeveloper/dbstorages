@@ -1,6 +1,6 @@
-# GraphCore
+# dbstorages
 
-PostgreSQL veritabanı kiralama / Supabase benzeri BaaS hedefleyen ürün.
+**dbstorages** — PostgreSQL veritabanı kiralama ve Supabase benzeri BaaS; kontrol düzlemi Node, paylaşımlı Postgres provisioning ve Studio konsolu. Eski iç ad: GraphCore. Tam hosted Postgres SaaS değil; MVP sınırları dokümante edilir.
 
 **Dürüst durum:** Landing + paket kiralama + platform JWT + Stripe çalışır. Ödeme sonrası shared Postgres üzerinde `CREATE DATABASE` / `ROLE` provisioning vardır. Tenant izolasyonu (membership RBAC), instance başına PostgREST-compatible Data API (`/api/rest/:instanceId`), Socket.IO Realtime (trigger + `pg_notify`), Storage MVP (MinIO/S3 veya yerel disk), minimal project Auth ve Edge Functions worker MVP vardır. Tam Supabase parity yok (GoTrue/Storage RLS politikaları/wal2json CDC yok). iyzico/PayTR: env key ile gerçek SDK/HMAC; key yoksa mock checkout. Compose PostgREST yalnızca demo DB içindir.
 
@@ -10,7 +10,7 @@ Detay: [`docs/EKSIKLER.md`](docs/EKSIKLER.md) · [`docs/DOMAIN_MODEL.md`](docs/D
 
 ## Supabase karşılaştırması (özet)
 
-| Yetenek | Supabase | GraphCore (şimdi) |
+| Yetenek | Supabase | dbstorages (şimdi) |
 |---------|----------|-------------------|
 | Hosted Postgres | ✅ | ✅ shared multi-DB |
 | Dashboard auth | ✅ | ✅ platform JWT |

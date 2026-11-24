@@ -151,7 +151,7 @@ async function provisionPostgresDatabase({ instanceId, planId }) {
       await grantPool.query(
         `INSERT INTO _graphcore_meta (key, value) VALUES ($1, $2), ($3, $4)
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        ['plan', String(planId || 'free'), 'instance_id', String(instanceId || '')]
+        ['plan', String(planId || 'starter'), 'instance_id', String(instanceId || '')]
       );
       await grantPool.query(
         `GRANT ALL ON TABLE _graphcore_meta TO ${quoteIdent(username)}`

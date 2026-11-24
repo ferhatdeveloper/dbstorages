@@ -9,20 +9,21 @@ export type CartPlanDef = {
   description?: string
 }
 
+/** Yıllık fiyat ana referans; aylık ≈ yıl / 12. */
 export const CART_DB_PLANS: CartPlanDef[] = [
   {
-    id: 'free',
-    name: 'Trial',
-    priceCents: 0,
-    priceYearCents: 0,
+    id: 'starter',
+    name: 'Starter',
+    priceCents: 1250,
+    priceYearCents: 15000,
     currency: 'usd',
-    description: '15 gün ücretsiz deneme',
+    description: '1 vCPU · 2 GB · yıllık $150',
   },
   {
     id: 'pro',
     name: 'Pro',
-    priceCents: 3400,
-    priceYearCents: 40800,
+    priceCents: 3333,
+    priceYearCents: 40000,
     currency: 'usd',
   },
   {
@@ -35,8 +36,15 @@ export const CART_DB_PLANS: CartPlanDef[] = [
   {
     id: 'max',
     name: 'Max',
-    priceCents: 9900,
-    priceYearCents: 118800,
+    priceCents: 7500,
+    priceYearCents: 90000,
+    currency: 'usd',
+  },
+  {
+    id: 'maxplus',
+    name: 'Max+',
+    priceCents: 10000,
+    priceYearCents: 120000,
     currency: 'usd',
   },
 ]

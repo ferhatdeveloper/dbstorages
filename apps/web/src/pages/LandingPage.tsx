@@ -9,9 +9,9 @@ import { localDomainSuggest } from '../lib/domainSuggestLocal'
 
 const BENEFITS = [
   {
-    title: 'Fiyatlandırma',
-    sub: 'Şeffaf sunucu ve Database paketleri',
-    href: '/pricing',
+    title: 'Database',
+    sub: 'Şeffaf Database paketleri',
+    href: '/database',
   },
   {
     title: 'Domain',
@@ -100,13 +100,16 @@ const LandingPage: React.FC = () => {
         <section className="hz-hero">
           <div className="hz-hero-inner">
             <div className="hz-hero-copy">
-              <span className="hz-pill">Cloud</span>
-              <h1>Uygun fiyatlı cloud hosting</h1>
+              <p className="hz-brand-hero" aria-label="dbstorages">
+                <span className="hz-brand-hero-db">db</span>
+                <span className="hz-brand-hero-rest">storages</span>
+              </p>
+              <h1>Cloud hosting &amp; managed database</h1>
               <p>
                 Zorlu projelerinizin hak ettiği sade ve güçlü bulut. Kolay,
                 esnek ve güvenli — sunucu ile yönetilen Database aynı panelde.
               </p>
-              <Link to={cartPath({ plan: 'pro', interval: 'month' })} className="hz-btn-ghost">
+              <Link to={cartPath({ plan: 'starter', interval: 'month' })} className="hz-btn-ghost">
                 Paketi sepete ekle
                 <ArrowRight size={18} />
               </Link>
@@ -267,7 +270,7 @@ const LandingPage: React.FC = () => {
             değil.
           </p>
           <div className="hz-cta-band-actions">
-            <Link to={cartPath({ plan: 'pro', interval: 'month' })} className="hz-btn-solid">
+            <Link to={cartPath({ plan: 'starter', interval: 'month' })} className="hz-btn-solid">
               Database sepete
               <ArrowRight size={18} />
             </Link>

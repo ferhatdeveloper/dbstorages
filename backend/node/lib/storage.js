@@ -18,12 +18,20 @@ const LOCAL_ROOT =
   process.env.STORAGE_LOCAL_PATH ||
   path.join(__dirname, '..', '.storage');
 
+function s3Env() {
+  return {
+    endpoint: process.env.S3_ENDPOINT,
+    accessKey: process.env.S3_ACCESS_KEY,
+    secretKey: process.env.S3_SECRET_KEY,
+    region: process.env.S3_REGION || 'eu-central-1',
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== '0',
+    backend: process.env.S3_ENDPOINT ? 's3' : 'local',
+  };
+}
+
 function isS3Configured() {
-  return Boolean(
-    process.env.S3_ENDPOINT &&
-      process.env.S3_ACCESS_KEY &&
-      process.env.S3_SECRET_KEY
-  );
+  const e = s3Env();
+  return Boolean(e.endpoint && e.accessKey && e.secretKey);
 }
 
 function bucketName(instanceId) {
@@ -57,14 +65,16 @@ function getS3() {
       HeadBucketCommand,
     } = require('@aws-sdk/client-s3');
 
+    const cfg = s3Env();
     s3Client = {
+      backend: cfg.backend,
       client: new S3Client({
-        endpoint: process.env.S3_ENDPOINT,
-        region: process.env.S3_REGION || 'us-east-1',
-        forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== '0',
+        endpoint: cfg.endpoint,
+        region: cfg.region,
+        forcePathStyle: cfg.forcePathStyle,
         credentials: {
-          accessKeyId: process.env.S3_ACCESS_KEY,
-          secretAccessKey: process.env.S3_SECRET_KEY,
+          accessKeyId: cfg.accessKey,
+          secretAccessKey: cfg.secretKey,
         },
       }),
       ListObjectsV2Command,
@@ -105,7 +115,7 @@ async function ensureBucket(instanceId) {
       }
     }
   }
-  return { bucket, backend: 's3' };
+  return { bucket, backend: s3Env().backend || 's3' };
 }
 
 async function listObjects(instanceId, prefix = '') {
@@ -282,11 +292,13 @@ async function deleteObject(instanceId, key) {
 }
 
 function status() {
+  const cfg = s3Env();
   const s3 = isS3Configured();
   return {
     configured: true,
-    backend: s3 ? 's3' : 'local',
-    endpoint: s3 ? process.env.S3_ENDPOINT : LOCAL_ROOT,
+    backend: s3 ? cfg.backend : 'local',
+    endpoint: s3 ? cfg.endpoint : LOCAL_ROOT,
+    region: s3 ? cfg.region : null,
     bucketPrefix: 'gc-',
     signedUrls: true,
   };

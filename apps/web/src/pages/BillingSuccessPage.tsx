@@ -102,8 +102,8 @@ const BillingSuccessPage: React.FC = () => {
               <Link to="/cart" className="landing-btn-ghost">
                 Sepet
               </Link>
-              <Link to="/pricing" className="landing-btn-ghost">
-                Paketler
+              <Link to="/database" className="landing-btn-ghost">
+                Database
               </Link>
             </div>
           </div>

@@ -261,7 +261,7 @@ const LandingPage: React.FC = () => {
       <header className="landing-nav">
         <Link to="/" className="landing-brand">
           <span className="landing-mark" />
-          GraphCore
+          dbstorages
         </Link>
 
         <button
@@ -309,7 +309,7 @@ const LandingPage: React.FC = () => {
         {/* Hero — brand first, one composition */}
         <section className="landing-hero">
           <div className="landing-hero-copy">
-            <p className="landing-brand-hero">GraphCore</p>
+            <p className="landing-brand-hero">dbstorages</p>
             <h1 className="landing-headline">
               Hafta sonu kur.
               <span className="landing-headline-accent"> Milyonlara ölçekle.</span>
@@ -693,7 +693,7 @@ const LandingPage: React.FC = () => {
         <div className="landing-footer-brand">
           <Link to="/" className="landing-brand">
             <span className="landing-mark" />
-            GraphCore
+            dbstorages
           </Link>
           <p>PostgreSQL kiralama ve Studio platformu.</p>
         </div>
@@ -719,7 +719,7 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
         <div className="landing-footer-bar">
-          <span>© {new Date().getFullYear()} GraphCore</span>
+          <span>© {new Date().getFullYear()} dbstorages</span>
           <span>dbstorages</span>
         </div>
       </footer>

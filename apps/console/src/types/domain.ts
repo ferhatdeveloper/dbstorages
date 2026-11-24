@@ -11,7 +11,7 @@ export type InstanceStatus =
   | 'deleting'
   | 'deleted';
 
-export type InstancePlan = 'free' | 'pro' | 'scale';
+export type InstancePlan = 'starter' | 'pro' | 'scale' | 'max' | 'maxplus'
 
 export interface User {
   id: string;

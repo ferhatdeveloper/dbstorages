@@ -53,8 +53,9 @@ const DatabasePage: React.FC = () => {
             <span className="hz-pill">Yönetilen Database</span>
             <h1>Gerçek Database, panelden anında</h1>
             <p>
-              Table Editor, SQL Studio ve REST. Trial 15 gün ücretsiz — Pro ·
-              Scale · Max ile büyütün. Ödeme sonrası connection string hazır.
+              Table Editor, SQL Studio ve REST. Starter · Pro · Scale · Max ·
+              Max+ — USD fiyatlarla büyütün. Ödeme sonrası connection string
+              hazır.
             </p>
             <div className="hz-vps-hero-actions">
               <a href="#db-plans" className="hz-btn-ghost">
@@ -62,10 +63,10 @@ const DatabasePage: React.FC = () => {
                 <ArrowRight size={18} />
               </a>
               <Link
-                to={cartPath({ plan: 'free', interval: 'month' })}
+                to={cartPath({ plan: 'starter', interval: 'month' })}
                 className="hz-btn-solid hz-btn-on-hero"
               >
-                15 gün dene
+                Starter ile başla
               </Link>
             </div>
           </div>
@@ -84,8 +85,8 @@ const DatabasePage: React.FC = () => {
                 <strong>REST</strong>
               </div>
               <div>
-                <span>Trial</span>
-                <strong>15 gün</strong>
+                <span>Starter</span>
+                <strong>$150/yıl</strong>
               </div>
             </div>
           </div>
@@ -119,7 +120,7 @@ const DatabasePage: React.FC = () => {
             Kaynaklar net: vCPU, RAM, disk, bağlantı ve object storage. Faturalama
             aylık veya yıllık.
           </p>
-          <p className="pricing-fx-hint hz-db-fx">{fxHint}</p>
+          {fxHint ? <p className="pricing-fx-hint hz-db-fx">{fxHint}</p> : null}
 
           <div
             className="hz-db-interval"
@@ -310,10 +311,10 @@ const DatabasePage: React.FC = () => {
             hazır. Panelden Table Editor ve SQL Studio ile yönetin.
           </p>
           <Link
-            to={cartPath({ plan: 'pro', interval: 'month' })}
+            to={cartPath({ plan: 'starter', interval: 'month' })}
             className="hz-btn-solid"
           >
-            Pro’yu sepete ekle
+            Starter’ı sepete ekle
             <ArrowRight size={18} />
           </Link>
         </section>

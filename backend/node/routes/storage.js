@@ -33,10 +33,10 @@ function publicBase(req) {
 }
 
 async function quotaForRow(row) {
-  const limit = storageQuotaBytes(row.plan || 'free');
+  const limit = storageQuotaBytes(row.plan || 'starter');
   const usage = await storage.usageBytes(row.id);
   return {
-    plan: row.plan || 'free',
+    plan: row.plan || 'starter',
     usedBytes: usage.usedBytes,
     limitBytes: limit,
     remainingBytes: Math.max(0, limit - usage.usedBytes),

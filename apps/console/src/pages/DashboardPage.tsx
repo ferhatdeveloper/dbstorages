@@ -729,6 +729,14 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+          <p>
+            <span className="font-medium">Demo veri:</span> Widget, bağlantı ve sistem metrikleri örnek/mock veridir;
+            canlı kontrol düzlemine bağlı değildir.
+          </p>
+        </div>
+
         {/* System Stats */}
         <div className="p-4">
           <SystemStats stats={systemStats} />

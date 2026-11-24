@@ -38,15 +38,15 @@ export const DISPLAY_CURRENCIES: {
   symbol: string
   label: string
 }[] = [
-  { code: 'EUR', symbol: '€', label: 'Euro' },
   { code: 'USD', symbol: '$', label: 'US Dollar' },
+  { code: 'EUR', symbol: '€', label: 'Euro' },
   { code: 'TRY', symbol: '₺', label: 'Türk Lirası' },
 ]
 
 export function normalizeCurrency(code?: string | null): DisplayCurrency {
-  const c = String(code || 'EUR').trim().toUpperCase()
+  const c = String(code || 'USD').trim().toUpperCase()
   if (c === 'USD' || c === 'TRY' || c === 'EUR') return c
-  return 'EUR'
+  return 'USD'
 }
 
 export function isValidFxRates(rates?: Partial<FxRates> | null): rates is FxRates {

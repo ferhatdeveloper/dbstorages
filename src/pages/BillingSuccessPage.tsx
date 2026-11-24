@@ -27,7 +27,7 @@ const BillingSuccessPage: React.FC = () => {
       <header className="landing-nav">
         <Link to="/" className="landing-brand">
           <span className="landing-mark" />
-          GraphCore
+          dbstorages
         </Link>
         <nav className="landing-nav-links">
           <ThemeToggle />

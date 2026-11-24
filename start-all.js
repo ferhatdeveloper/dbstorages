@@ -1,5 +1,5 @@
 /**
- * GraphCore — tüm servisleri başlatır.
+ * dbstorages — tüm servisleri başlatır.
  * Portlar: Web 5173 | Console 5174 | Node 4000 | Go 8080
  * Kullanım: npm run start:all   veya   node start-all.js
  */

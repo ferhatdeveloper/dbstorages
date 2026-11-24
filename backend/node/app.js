@@ -5,6 +5,11 @@ const morgan = require('morgan');
 const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
+try {
+  require('./lib/loadSecrets').loadSecrets({ override: true });
+} catch (err) {
+  console.warn('[secrets] load skip:', err.message);
+}
 
 const { initDb, isMetaReady, getMetaPool, isTenantReady, resolveTenantPool } = require('./lib/db');
 const store = require('./lib/store');
@@ -28,6 +33,8 @@ const projectAuthRoutes = require('./routes/projectAuth');
 const {
   router: billingRoutes,
   handleStripeWebhookEvent,
+  handleLemonSqueezyWebhookEvent,
+  handlePolarWebhookEvent,
 } = require('./routes/billing');
 const storageRoutes = require('./routes/storage');
 const functionsRoutes = require('./routes/functions');
@@ -65,6 +72,68 @@ app.use(
   })
 );
 app.use(morgan('dev'));
+
+// Polar webhook — raw body for signature verify
+app.post(
+  '/api/billing/webhook/polar',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    try {
+      const provider = getProvider('polar');
+      const raw =
+        Buffer.isBuffer(req.body) || typeof req.body === 'string'
+          ? req.body
+          : JSON.stringify(req.body || {});
+      if (!provider.verifyWebhook(raw, req.headers)) {
+        return res.status(400).json({ received: false, error: 'bad signature' });
+      }
+      const payload =
+        typeof raw === 'string' || Buffer.isBuffer(raw)
+          ? JSON.parse(raw.toString('utf8'))
+          : raw;
+      const eventType =
+        req.headers['webhook-event'] ||
+        req.headers['x-polar-event'] ||
+        payload?.type ||
+        '';
+      const result = await handlePolarWebhookEvent(eventType, payload);
+      res.json({ received: true, ...result });
+    } catch (err) {
+      console.error('polar webhook error', err.message);
+      res.status(400).json({ received: false, error: err.message });
+    }
+  }
+);
+
+// Lemon Squeezy webhook — raw body for X-Signature
+app.post(
+  '/api/billing/webhook/lemonsqueezy',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    try {
+      const provider = getProvider('lemonsqueezy');
+      const raw =
+        Buffer.isBuffer(req.body) || typeof req.body === 'string'
+          ? req.body
+          : JSON.stringify(req.body || {});
+      const sig = req.headers['x-signature'] || '';
+      if (!provider.verifyWebhook(raw, sig)) {
+        return res.status(400).json({ received: false, error: 'bad signature' });
+      }
+      const payload =
+        typeof raw === 'string' || Buffer.isBuffer(raw)
+          ? JSON.parse(raw.toString('utf8'))
+          : raw;
+      const eventName =
+        req.headers['x-event-name'] || payload?.meta?.event_name || '';
+      const result = await handleLemonSqueezyWebhookEvent(eventName, payload);
+      res.json({ received: true, ...result });
+    } catch (err) {
+      console.error('lemonsqueezy webhook error', err.message);
+      res.status(400).json({ received: false, error: err.message });
+    }
+  }
+);
 
 // Stripe webhook needs raw body — mount before json parser
 app.post(
@@ -428,7 +497,7 @@ app.post('/api/instances', authMiddleware, async (req, res) => {
     id: store.newId('ins'),
     project_id: projectId,
     name,
-    plan: plan || 'free',
+    plan: plan || 'starter',
     region: region || 'local',
     status: 'pending',
     host: null,
@@ -562,7 +631,10 @@ app.post('/api/instances/:id/resize', authMiddleware, async (req, res) => {
     const planId = String(req.body?.planId || req.body?.plan || '').trim();
     if (!planId || !getPackage(planId)) {
       return res.status(400).json({
-        error: { code: 'validation', message: 'valid planId required (free|pro|scale)' },
+        error: {
+          code: 'validation',
+          message: 'valid planId required (starter|pro|scale|max|maxplus)',
+        },
       });
     }
     const row = await getInstanceForUser(req.user.sub, req.params.id);

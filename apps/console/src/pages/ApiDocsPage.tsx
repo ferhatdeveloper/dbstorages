@@ -199,7 +199,7 @@ const ApiDocsPage = () => {
       <div className="w-80 bg-white border-r flex flex-col">
         <div className="p-6 border-b">
           <h1 className="text-xl font-bold text-gray-900">API Dokümantasyonu</h1>
-          <p className="text-sm text-gray-600 mt-1">GraphCore API endpoint'leri</p>
+          <p className="text-sm text-gray-600 mt-1">dbstorages API endpoint'leri</p>
         </div>
         
         <div className="flex-1 overflow-y-auto">

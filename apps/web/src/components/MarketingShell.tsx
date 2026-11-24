@@ -17,7 +17,6 @@ type Props = {
     | 'cloud'
     | 'database'
     | 'storage'
-    | 'pricing'
     | 'login'
     | 'register'
 }
@@ -114,13 +113,6 @@ const MarketingShell: React.FC<Props> = ({
               >
                 Storage
               </Link>
-              <Link
-                to="/pricing"
-                className={active === 'pricing' ? 'is-nav-active' : undefined}
-                onClick={close}
-              >
-                Fiyatlar
-              </Link>
               <Link to="/domains" onClick={close}>
                 Domain
               </Link>
@@ -175,8 +167,8 @@ const MarketingShell: React.FC<Props> = ({
                   Cloud sunucu, Database ve storage — tek panel, şeffaf fiyat.
                 </p>
               </div>
-              <Link to="/cart?plan=pro&interval=month" className="hz-btn-solid hz-footer-cta-btn">
-                Pro’yu sepete ekle
+              <Link to="/cart?plan=starter&interval=month" className="hz-btn-solid hz-footer-cta-btn">
+                Starter’ı sepete ekle
               </Link>
             </div>
           </div>
@@ -192,7 +184,7 @@ const MarketingShell: React.FC<Props> = ({
                   ve object storage.
                 </p>
                 <div className="hz-footer-chips">
-                  <span>EUR fiyat</span>
+                  <span>USD fiyat</span>
                   <span>GDPR</span>
                   <span>99.9% hedef</span>
                 </div>
@@ -204,7 +196,7 @@ const MarketingShell: React.FC<Props> = ({
                   <Link to="/cloud">Cloud / VPS</Link>
                   <Link to="/database">Database</Link>
                   <Link to="/storage">Storage</Link>
-                  <Link to="/pricing">Fiyatlar</Link>
+                  <Link to="/domains">Domain</Link>
                 </div>
                 <div>
                   <h4>Panel</h4>
@@ -216,7 +208,7 @@ const MarketingShell: React.FC<Props> = ({
                   <h4>Hesap</h4>
                   <Link to="/login">Giriş</Link>
                   <Link to="/register">Kayıt</Link>
-                  <Link to="/pricing">Paketler</Link>
+                  <Link to="/database">Database paketleri</Link>
                   <Link to="/domains">Domain</Link>
                   <Link to="/cart">Sepette öde</Link>
                 </div>
@@ -232,7 +224,7 @@ const MarketingShell: React.FC<Props> = ({
 
           <div className="hz-footer-bar">
             <div className="hz-footer-bar-inner">
-              <span>© {new Date().getFullYear()} GraphCore</span>
+              <span>© {new Date().getFullYear()} dbstorages</span>
               <span className="hz-footer-bar-sep" aria-hidden>
                 ·
               </span>

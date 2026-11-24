@@ -1,5 +1,5 @@
 {
-  "name": "graphcore",
+  "name": "dbstorages",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -45,12 +45,13 @@
     "build:console": "npm run build -w @graphcore/console",
     "preview:web": "npm run preview -w @graphcore/web",
     "preview:console": "npm run preview -w @graphcore/console",
-    "typecheck": "npm run typecheck -w @graphcore/web & npm run typecheck -w @graphcore/console",
+    "typecheck": "npm run typecheck -w @graphcore/web && npm run typecheck -w @graphcore/console",
     "start:all": "node start-all.js",
     "start:node": "npm --prefix backend/node start",
     "start:go": "go run main.go",
     "dev:node": "npm --prefix backend/node run dev",
     "test:backend": "npm --prefix backend/node test",
-    "test": "npm run test:backend"
+    "test": "npm run test:backend",
+    "secrets:icloud": "bash scripts/icloud-backup-secrets.sh"
   }
 }

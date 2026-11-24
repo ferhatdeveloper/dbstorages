@@ -71,6 +71,7 @@ function mockTaken(fqdn) {
     'google.com',
     'facebook.com',
     'amazon.com',
+    'dbstorages.com',
     'graphcore.com',
     'localhost.com',
   ]);

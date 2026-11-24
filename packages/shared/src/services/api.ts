@@ -573,6 +573,19 @@ class ApiService {
     );
   }
 
+  async cryptoPayment(paymentId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/billing/crypto/${encodeURIComponent(paymentId)}`
+    );
+  }
+
+  async cryptoConfirm(paymentId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `${NODE_API_BASE}/billing/crypto/confirm`,
+      { method: 'POST', body: JSON.stringify({ paymentId }) }
+    );
+  }
+
   async supervisorOverview() {
     return this.request<{ success: boolean; data: Record<string, number> }>(
       `${NODE_API_BASE}/supervisor/overview`

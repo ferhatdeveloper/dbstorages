@@ -128,7 +128,7 @@ const AppLayout = () => {
             className="mt-2 text-xl font-extrabold tracking-tight text-teal-800 dark:text-slate-100 select-none"
             style={{ fontFamily: 'Syne, sans-serif' }}
           >
-            GraphCore
+            dbstorages
           </span>
           <div className="mt-2">
             <ThemeToggle variant="pill" />

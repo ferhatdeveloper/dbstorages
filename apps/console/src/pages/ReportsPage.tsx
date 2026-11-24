@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Routes, Route, NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, TrendingUp, Activity, Calendar, Download, Filter } from 'lucide-react';
+import { BarChart3, TrendingUp, Activity, Calendar, Download, Filter, Info } from 'lucide-react';
 
 const ReportsPage = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
@@ -39,6 +39,16 @@ const ReportsPage = () => {
               Dışa Aktar
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="border-b border-amber-200 bg-amber-50 px-6 py-3">
+        <div className="flex items-start gap-2 text-sm text-amber-900">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+          <p>
+            <span className="font-medium">Demo veri:</span> Kullanım metrikleri ve denetim günlüğü örnek/statik veridir;
+            canlı telemetri veya audit API&apos;si yoktur.
+          </p>
         </div>
       </div>
 

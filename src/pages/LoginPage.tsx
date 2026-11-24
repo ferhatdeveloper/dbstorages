@@ -53,7 +53,7 @@ const LoginPage = () => {
           <div className="flex items-center justify-center gap-3 mb-3">
             <Link to="/" className="landing-brand justify-center inline-flex">
               <span className="landing-mark" />
-              GraphCore
+              dbstorages
             </Link>
             <ThemeToggle />
           </div>

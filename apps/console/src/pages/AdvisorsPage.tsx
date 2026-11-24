@@ -135,6 +135,16 @@ const AdvisorsPage = () => {
         </div>
       </div>
 
+      <div className="border-b border-amber-200 bg-amber-50 px-6 py-3">
+        <div className="flex items-start gap-2 text-sm text-amber-900">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+          <p>
+            <span className="font-medium">Demo veri:</span> Danışman önerileri ve istatistikler statik örnek listedir;
+            gerçek tenant/instance analizine dayanmaz.
+          </p>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="bg-white border-b px-6 py-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

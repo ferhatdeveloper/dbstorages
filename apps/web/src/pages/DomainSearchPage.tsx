@@ -121,12 +121,16 @@ const DomainSearchPage: React.FC = () => {
   const taken = rows.filter((r) => !r.available)
 
   return (
-    <MarketingShell active="pricing">
+    <MarketingShell>
       <div className="hz-page-band hz-page-band-sm">
         <div className="hz-page-band-inner">
           <span className="hz-pill">Domain</span>
           <h1>Alan adı kaydı</h1>
           <p>Sorgula, sepete ekle, ödemeyi sepetten tamamla.</p>
+          <p className="hz-honesty-notice" role="note">
+            Kayıt kurumu bağlantısı tamamlanana kadar domain siparişleri ödeme
+            sonrası beklemede ve manuel işlenir.
+          </p>
         </div>
         <div className="hz-hero-cut" aria-hidden />
       </div>
@@ -255,7 +259,7 @@ const DomainSearchPage: React.FC = () => {
         )}
 
         <p className="hz-domains-foot">
-          <Link to="/pricing">Paketler</Link>
+          <Link to="/database">Database</Link>
           <span>·</span>
           <Link to="/cart">Sepet</Link>
           <span>·</span>

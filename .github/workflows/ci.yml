@@ -16,6 +16,11 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      # web typecheck is gated; console still has legacy TS debt
+      - run: npm run typecheck -w @graphcore/web
+      - name: typecheck console (non-blocking)
+        continue-on-error: true
+        run: npm run typecheck -w @graphcore/console
       - run: npm run build
 
   backend-smoke:

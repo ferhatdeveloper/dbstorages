@@ -15,12 +15,23 @@ const memberships = [];
 function seedDemo() {
   if (users.size > 0) return;
   const id = 'usr_demo';
+  const demoPasswordHash =
+    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
   users.set('demo@graphcore.com', {
     id,
     email: 'demo@graphcore.com',
     name: 'Demo Kullanıcı',
     // bcrypt of "demo123"
-    password_hash: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+    password_hash: demoPasswordHash,
+    role: 'supervisor',
+    disabled: false,
+    created_at: new Date().toISOString(),
+  });
+  users.set('demo@dbstorages.com', {
+    id: 'usr_demo_dbstorages',
+    email: 'demo@dbstorages.com',
+    name: 'Demo Kullanıcı',
+    password_hash: demoPasswordHash,
     role: 'supervisor',
     disabled: false,
     created_at: new Date().toISOString(),
@@ -43,7 +54,7 @@ function seedDemo() {
     id: 'ins_demo',
     project_id: 'prj_demo',
     name: 'demo-db',
-    plan: 'free',
+    plan: 'starter',
     region: 'local',
     status: 'ready',
     host: 'localhost',

@@ -1,7 +1,20 @@
-# GraphCore — Eksik Listesi
+# dbstorages — Eksik Listesi
 
 > Hedef: PostgreSQL veritabanı kiralama platformu / Supabase benzeri BaaS.
 > Bu liste abartılı “%95 tamam” veya “full Supabase parity” iddiası taşımaz.
+
+---
+
+## Yapılabilir / yapılamaz (kısa)
+
+| Yapılabilir (şimdi) | Yapılamaz / kapalı (şimdi) |
+|---------------------|----------------------------|
+| Shared Postgres provisioning (`CREATE DATABASE` + role) | Container-per-tenant / K8s izolasyon |
+| Polar checkout + webhook fulfillment (birincil ödeme) | Lemon Squeezy varsayılan kapalı (`PAYMENTS_DISABLED`) |
+| Stripe / iyzico / PayTR — env ile açılabilir | Tam Supabase parity (GoTrue, Storage RLS motoru, wal2json CDC) |
+| Domain sepeti + mock müsaitlik + `domain_orders` | Gerçek domain registrar / otomatik DNS kaydı |
+| Domain ödemesi sonrası `pending_fulfillment` kaydı | Registrar’dan otomatik `active` geçişi |
+| Data API, Realtime (NOTIFY), Storage MVP, Edge (Node VM) | Deno Edge, CDN, image transform |
 
 ---
 

@@ -195,7 +195,7 @@ html.dark .theme-toggle:hover {
   border-color: var(--sb-border);
 }
 
-/* —— Landing / marketing (GraphCore brand) —— */
+/* —— Landing / marketing (dbstorages brand) —— */
 .landing-root {
   --lc-bg: #ffffff;
   --lc-surface: #ffffff;
@@ -1509,36 +1509,55 @@ html.dark .landing-cloud-cta {
   font-size: 0.85rem;
   color: var(--lc-muted);
 } 
-/* GraphCore logo (shared with marketing) */
+/* dbstorages logo (shared with marketing) */
 .gc-logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   line-height: 1;
 }
 
 .gc-logo-mark {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: block;
 }
 
 .gc-logo-compact .gc-logo-mark {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
 }
 
 .gc-logo-word {
-  font-family: Montserrat, Inter, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-size: 12px;
-  text-transform: uppercase;
-  color: #ef4444;
+  display: inline-flex;
+  align-items: baseline;
+  font-family: 'Space Grotesk', Syne, Montserrat, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: -0.045em;
+  line-height: 1;
 }
 
-.gc-logo-invert .gc-logo-word,
-.gc-logo-console .gc-logo-word {
-  color: #f87171;
+.gc-logo-word-db {
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.06em;
+}
+
+.gc-logo-word-rest {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: -0.04em;
+}
+
+.gc-logo-invert .gc-logo-word-db,
+.gc-logo-console .gc-logo-word-db,
+.gc-logo-word.is-invert .gc-logo-word-db {
+  color: #fff;
+}
+
+.gc-logo-invert .gc-logo-word-rest,
+.gc-logo-console .gc-logo-word-rest,
+.gc-logo-word.is-invert .gc-logo-word-rest {
+  color: rgba(255, 255, 255, 0.72);
 }

@@ -34,7 +34,7 @@ export const DatabaseConnectionsProvider = ({ children }: { children: ReactNode 
       type: 'postgresql',
       host: 'localhost',
       port: 5432,
-      username: 'graphcore',
+      username: 'dbstorages',
       password: 'password',
       database: 'demo',
       status: 'disconnected',

@@ -159,7 +159,7 @@ const CloudVpnPage: React.FC = () => {
     <div className="space-y-4">
       <CloudPageHeader
         title="VPN / WireGuard"
-        description={`Kullanıcı başına faturalandırma — her aktif peer bir kullanıcı. ${fxHint}`}
+        description={`Kullanıcı başına faturalandırma — her aktif peer bir kullanıcı.${fxHint ? ` ${fxHint}` : ''}`}
         onRefresh={load}
         actions={
           <>

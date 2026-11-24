@@ -20,6 +20,7 @@ const {
   normalizeInterval,
   getProvider,
   listProviders,
+  isProviderEnabled,
 } = require('../payments');
 
 const router = express.Router();
@@ -141,6 +142,7 @@ async function updatePaymentStatus(id, status, externalId, extra = {}) {
   }
 }
 
+/** Polar / Lemon Squeezy / Stripe: subscription ended → instance `suspended`. */
 async function suspendInstancesBySubscription(subscriptionId) {
   if (!subscriptionId) return 0;
   if (isMetaReady()) {
@@ -268,7 +270,7 @@ async function provisionInstanceAfterPayment({
     return mapInstance(existing);
   }
 
-  const plan = getPackage(planId) || getPackage('free');
+  const plan = getPackage(planId) || getPackage('starter');
   const instanceId = store.newId('ins');
   const now = new Date().toISOString();
   const name = `${plan.id}-${instanceId.slice(-6)}`;
@@ -425,7 +427,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
   try {
     const {
       planId: rawPlanId,
-      provider: providerName = 'stripe',
+      provider: providerName = 'polar',
       projectId,
       projectName,
       addons: addonIds = [],
@@ -434,11 +436,28 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       interval: rawInterval = 'month',
     } = req.body || {};
 
-    const providerKey = String(providerName || 'stripe').toLowerCase();
-    if (!['stripe', 'iyzico', 'paytr'].includes(providerKey)) {
+    const providerKey = String(providerName || 'polar').toLowerCase();
+    const knownProviders = [
+      'polar',
+      'lemonsqueezy',
+      'stripe',
+      'iyzico',
+      'paytr',
+      'crypto',
+    ];
+    if (!knownProviders.includes(providerKey)) {
       return res.status(400).json({
         success: false,
         error: { code: 'validation', message: 'unknown payment provider' },
+      });
+    }
+    if (!isProviderEnabled(providerKey)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'validation',
+          message: `payment provider disabled: ${providerKey}`,
+        },
       });
     }
     const provider = getProvider(providerKey);
@@ -469,8 +488,10 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       }
     }
 
-    const addons = plan && plan.priceCents > 0 ? resolveAddons(addonIds) : [];
-    const catalogCurrency = plan?.currency || 'usd';
+    // Veeam / QNAP backup add-ons can be purchased without a paid DB plan
+    const addons = resolveAddons(addonIds);
+    const catalogCurrency =
+      plan?.currency || addons[0]?.currency || 'usd';
     const { lines: domainLines, error: domainErr } = resolveDomainLines(
       rawDomains,
       catalogCurrency
@@ -507,12 +528,12 @@ router.post('/checkout', authMiddleware, async (req, res) => {
         };
       });
     }
-    if (!plan && !domainLines.length && !vpsLines.length) {
+    if (!plan && !domainLines.length && !vpsLines.length && !addons.length) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'validation',
-          message: 'cart empty: planId, domains or vps required',
+          message: 'cart empty: planId, domains, vps or addons required',
         },
       });
     }
@@ -534,8 +555,14 @@ router.post('/checkout', authMiddleware, async (req, res) => {
       email: req.user.email,
     };
 
-    // Free / trial plan (no domains charged on free path unless domains added)
-    if (plan && plan.priceCents === 0 && !domainLines.length) {
+    // Free / trial plan (no domains / paid addons / vps on this path)
+    if (
+      plan &&
+      plan.priceCents === 0 &&
+      !domainLines.length &&
+      !vpsLines.length &&
+      !addons.length
+    ) {
       const paymentId = store.newId('pay');
       await savePayment({
         id: paymentId,
@@ -571,7 +598,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
           instance,
           trialDays: plan.trialDays || 15,
           billingInterval: 'month',
-          redirectUrl: `${FRONTEND}/billing/success?plan=free&paymentId=${paymentId}`,
+          redirectUrl: `${FRONTEND}/billing/success?plan=${plan.id}&paymentId=${paymentId}`,
         },
       });
     }
@@ -687,7 +714,9 @@ router.post('/checkout', authMiddleware, async (req, res) => {
 
     let instance = null;
     let domainOrders = [];
-    if (result.mock || result.status === 'succeeded') {
+    const shouldFulfillNow =
+      (result.mock || result.status === 'succeeded') && !result.deferFulfillment;
+    if (shouldFulfillNow) {
       if (plan && plan.id !== 'domains-only') {
         instance = await provisionInstanceAfterPayment({
           userId: user.id,
@@ -721,6 +750,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
         currency: result.currency || chargeCurrency,
         billingInterval,
         checkoutUrl: result.checkoutUrl,
+        deferFulfillment: Boolean(result.deferFulfillment),
       },
     });
   } catch (err) {
@@ -872,6 +902,313 @@ function paymentMeta(row) {
   }
   return meta || {};
 }
+
+async function fulfillPaidPayment(
+  payment,
+  { externalId, mock = false, provider: providerOverride, subscriptionExternalId } = {}
+) {
+  if (!payment) return { ok: false, reason: 'not_found' };
+  const paymentId = payment.id;
+  const status = payment.status || '';
+  if (String(status).toLowerCase() === 'succeeded') {
+    return { ok: true, already: true, paymentId };
+  }
+  const userId = payment.user_id || payment.userId;
+  const planId = payment.plan_id || payment.planId || 'domains-only';
+  const meta = paymentMeta(payment);
+  const providerName =
+    providerOverride || payment.provider || 'polar';
+  await updatePaymentStatus(
+    paymentId,
+    'succeeded',
+    externalId || payment.external_id || payment.externalId,
+    { subscriptionExternalId }
+  );
+  let instance = null;
+  if (planId && planId !== 'domains-only') {
+    instance = await provisionInstanceAfterPayment({
+      userId,
+      planId,
+      projectId: meta.projectId || null,
+      provider: providerName,
+      paymentId,
+      externalId: externalId || paymentId,
+    });
+  }
+  await fulfillDomainsFromPayment(payment, { mock });
+  return { ok: true, paymentId, instance };
+}
+
+async function fulfillCryptoPayment(payment, opts = {}) {
+  return fulfillPaidPayment(payment, { ...opts, provider: 'crypto' });
+}
+
+/**
+ * Polar webhook → fulfill on order.paid / subscription.active;
+ * suspend on subscription.canceled / subscription.revoked.
+ */
+async function handlePolarWebhookEvent(eventType, payload) {
+  const type = String(eventType || payload?.type || '').toLowerCase();
+  const data = payload?.data || payload;
+  const meta = data?.metadata || payload?.metadata || {};
+  const paymentId = meta.payment_id || meta.paymentId || null;
+  const externalId = String(data?.id || '');
+  const subscriptionId =
+    type.startsWith('subscription')
+      ? externalId
+      : String(data?.subscription_id || data?.subscription?.id || '') || null;
+
+  if (
+    type === 'subscription.canceled' ||
+    type === 'subscription.revoked' ||
+    type === 'subscription.past_due'
+  ) {
+    const n = await suspendInstancesBySubscription(
+      subscriptionId || externalId
+    );
+    return { handled: true, type, suspended: n };
+  }
+
+  const paid = new Set([
+    'order.paid',
+    'checkout.updated', // only when succeeded — checked below
+    'subscription.active',
+    'subscription.created',
+  ]);
+  if (!paid.has(type)) {
+    return { handled: false, type };
+  }
+  if (type === 'checkout.updated') {
+    const status = String(data?.status || '').toLowerCase();
+    if (status !== 'succeeded') {
+      return { handled: true, type, skipped: status };
+    }
+  }
+
+  let payment = paymentId ? await findPayment(paymentId) : null;
+  if (!payment && externalId) payment = await findPayment(externalId);
+  if (!payment) {
+    console.warn('[polar] payment not found', paymentId, externalId);
+    return { handled: true, type, missing: true };
+  }
+  await fulfillPaidPayment(payment, {
+    externalId: externalId || paymentId,
+    mock: false,
+    provider: 'polar',
+    subscriptionExternalId: subscriptionId || undefined,
+  });
+  return { handled: true, type, paymentId: payment.id };
+}
+
+/**
+ * Lemon Squeezy webhook payload → fulfill order / subscription.
+ * Events: order_created, subscription_created, subscription_payment_success,
+ * subscription_cancelled / subscription_expired.
+ */
+async function handleLemonSqueezyWebhookEvent(eventName, payload) {
+  const name = String(eventName || '').toLowerCase();
+  const data = payload?.data || payload;
+  const attrs = data?.attributes || {};
+  const meta = payload?.meta || {};
+  const custom =
+    meta.custom_data ||
+    meta.custom ||
+    attrs.first_order_item?.custom_data ||
+    {};
+  const paymentId =
+    custom.payment_id ||
+    custom.paymentId ||
+    attrs.checkout_data?.custom?.payment_id ||
+    null;
+  const externalId = String(data?.id || attrs.identifier || attrs.order_number || '');
+  const subscriptionId =
+    name.startsWith('subscription')
+      ? String(data?.id || attrs.subscription_id || '')
+      : String(attrs.subscription_id || attrs.first_subscription_item?.subscription_id || '') ||
+        null;
+
+  if (
+    name === 'subscription_cancelled' ||
+    name === 'subscription_expired' ||
+    name === 'subscription_payment_failed'
+  ) {
+    const n = await suspendInstancesBySubscription(
+      subscriptionId || externalId
+    );
+    return { handled: true, type: name, suspended: n };
+  }
+
+  const paidEvents = new Set([
+    'order_created',
+    'subscription_created',
+    'subscription_payment_success',
+  ]);
+  if (!paidEvents.has(name)) {
+    return { handled: false, type: name };
+  }
+
+  // order_created with refunded/failed status — skip
+  const status = String(attrs.status || '').toLowerCase();
+  if (status === 'failed' || status === 'refunded' || status === 'cancelled') {
+    return { handled: true, type: name, skipped: status };
+  }
+
+  let payment = paymentId ? await findPayment(paymentId) : null;
+  if (!payment && externalId) {
+    payment = await findPayment(externalId);
+  }
+  if (!payment) {
+    console.warn('[lemonsqueezy] payment not found', paymentId, externalId);
+    return { handled: true, type: name, missing: true };
+  }
+
+  await fulfillPaidPayment(payment, {
+    externalId: externalId || paymentId,
+    mock: false,
+    provider: 'lemonsqueezy',
+    subscriptionExternalId: subscriptionId || undefined,
+  });
+  return { handled: true, type: name, paymentId: payment.id };
+}
+
+/** Demo / mock: kullanıcı kripto ödemeyi onaylar. */
+router.post('/crypto/confirm', authMiddleware, async (req, res) => {
+  try {
+    const paymentId = String(req.body?.paymentId || '').trim();
+    if (!paymentId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'paymentId required' },
+      });
+    }
+    const payment = await findPayment(paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'not_found', message: 'payment not found' },
+      });
+    }
+    const userId = payment.user_id || payment.userId;
+    if (String(userId) !== String(req.user.sub)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'forbidden', message: 'not your payment' },
+      });
+    }
+    const provider = String(payment.provider || '').toLowerCase();
+    if (provider !== 'crypto') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'not a crypto payment' },
+      });
+    }
+    const cryptoProvider = getProvider('crypto');
+    // Live NOWPayments: confirm only in mock / when explicitly allowed
+    if (cryptoProvider.isConfigured() && process.env.CRYPTO_ALLOW_MANUAL_CONFIRM !== '1') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'validation',
+          message: 'Canlı kripto ödemede onay IPN ile gelir',
+        },
+      });
+    }
+    const result = await fulfillCryptoPayment(payment, {
+      externalId: `manual_${paymentId}`,
+      mock: true,
+    });
+    const planId = payment.plan_id || payment.planId || 'domains-only';
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        redirectUrl: `${FRONTEND}/billing/success?provider=crypto&paymentId=${encodeURIComponent(paymentId)}&plan=${encodeURIComponent(planId)}`,
+      },
+    });
+  } catch (err) {
+    console.error('[crypto] confirm', err.message);
+    res.status(500).json({
+      success: false,
+      error: { code: 'server', message: err.message },
+    });
+  }
+});
+
+router.get('/crypto/:paymentId', authMiddleware, async (req, res) => {
+  try {
+    const payment = await findPayment(req.params.paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'not_found', message: 'payment not found' },
+      });
+    }
+    const userId = payment.user_id || payment.userId;
+    if (String(userId) !== String(req.user.sub)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'forbidden', message: 'not your payment' },
+      });
+    }
+    const meta = paymentMeta(payment);
+    res.json({
+      success: true,
+      data: {
+        paymentId: payment.id,
+        status: payment.status,
+        provider: payment.provider,
+        planId: payment.plan_id || payment.planId,
+        amountCents: payment.amount_cents || payment.amountCents,
+        currency: payment.currency,
+        billingInterval: payment.billing_interval || meta.billingInterval,
+        mock: Boolean(meta.mock),
+        payCurrency:
+          process.env.NOWPAYMENTS_PAY_CURRENCY || 'usdttrc20',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'server', message: err.message },
+    });
+  }
+});
+
+/** NOWPayments IPN callback. */
+router.post('/webhook/crypto', async (req, res) => {
+  try {
+    const provider = getProvider('crypto');
+    const sig =
+      req.headers['x-nowpayments-sig'] ||
+      req.headers['x-nowpayments-signature'] ||
+      '';
+    if (!provider.verifyIpn(req.body, sig)) {
+      return res.status(400).json({ success: false, error: 'bad signature' });
+    }
+    const body = req.body || {};
+    const paymentId = String(body.order_id || body.orderId || '').trim();
+    const status = body.payment_status || body.paymentStatus || body.status;
+    if (!paymentId) {
+      return res.status(400).json({ success: false, error: 'order_id required' });
+    }
+    if (!provider.isPaidStatus(status)) {
+      return res.json({ success: true, ignored: true, status });
+    }
+    const payment = await findPayment(paymentId);
+    if (!payment) {
+      console.warn('[crypto] IPN payment not found', paymentId);
+      return res.status(404).json({ success: false, error: 'not found' });
+    }
+    await fulfillCryptoPayment(payment, {
+      externalId: String(body.payment_id || body.invoice_id || body.id || ''),
+      mock: false,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[crypto] webhook', err.message);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
 
 /** iyzico Checkout Form callback (token POST). */
 router.post('/webhook/iyzico', async (req, res) => {
@@ -1041,9 +1378,12 @@ module.exports = {
   provisionInstanceAfterPayment,
   fulfillDomainOrders,
   fulfillDomainsFromPayment,
+  fulfillPaidPayment,
   updatePaymentStatus,
   savePayment,
   handleStripeWebhookEvent,
+  handleLemonSqueezyWebhookEvent,
+  handlePolarWebhookEvent,
   findInstanceByPayment,
   suspendInstancesBySubscription,
 };

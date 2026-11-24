@@ -31,7 +31,9 @@ const CurrencyToggle: React.FC<Props> = ({ className = '', showHint = false }) =
           </button>
         ))}
       </div>
-      {showHint && <p className="currency-fx-hint">{fxHint}</p>}
+      {showHint && fxHint ? (
+        <p className="currency-fx-hint">{fxHint}</p>
+      ) : null}
     </div>
   )
 }

@@ -54,7 +54,8 @@ const BillingHistoryPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Ödeme geçmişi</h1>
           <p className="text-sm text-gray-500">
-            Stripe / iyzico / PayTR kayıtları · {fxHint}
+            Stripe / iyzico / PayTR kayıtları
+            {fxHint ? ` · ${fxHint}` : ''}
           </p>
         </div>
       </div>

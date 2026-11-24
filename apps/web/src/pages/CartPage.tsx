@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronRight, ShoppingBag, Trash2 } from 'lucide-react'
-import { apiService, useAuth, useCurrency } from '@graphcore/shared'
+import { apiService, useAuth, useCurrency, CONSOLE_URL } from '@graphcore/shared'
 import MarketingShell from '../components/MarketingShell'
 import { useCart, type CartItem } from '../context/CartContext'
 
 type PayProvider = { id: string; configured: boolean }
 
 const PAY_LABELS: Record<string, string> = {
+  polar: 'Kart (Polar)',
+  lemonsqueezy: 'Kart (Lemon Squeezy)',
   stripe: 'Kart (Stripe)',
   iyzico: 'iyzico',
   paytr: 'PayTR',
+  crypto: 'Kripto (USDT)',
 }
 
 const TYPE_LABEL: Record<CartItem['type'], string> = {
@@ -31,9 +34,12 @@ function lineCents(item: CartItem, billingInterval: 'month' | 'year') {
   return item.priceCents
 }
 
+const CONSOLE_CLOUD_SERVERS = `${CONSOLE_URL}/cloud/servers`
+
 function lineMeta(item: CartItem, billingInterval: 'month' | 'year') {
-  if (item.type === 'domain') return `${item.years || 1} yıl kayıt`
-  if (item.type === 'vps') return 'İlk ay · provision panelden'
+  if (item.type === 'domain')
+    return `${item.years || 1} yıl · kayıt beklemede (manuel)`
+  if (item.type === 'vps') return 'İlk ay ücreti · VPS Console’dan açılır'
   if (item.type === 'plan') {
     return billingInterval === 'year' ? 'Yıllık abonelik' : 'Aylık abonelik'
   }
@@ -61,11 +67,10 @@ const CartPage: React.FC = () => {
   const canceled = params.get('canceled')
 
   const [payProviders, setPayProviders] = useState<PayProvider[]>([
-    { id: 'stripe', configured: false },
-    { id: 'iyzico', configured: false },
-    { id: 'paytr', configured: false },
+    { id: 'polar', configured: false },
+    { id: 'crypto', configured: false },
   ])
-  const [payProvider, setPayProvider] = useState('stripe')
+  const [payProvider, setPayProvider] = useState('polar')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [hydrated, setHydrated] = useState(false)
@@ -76,8 +81,11 @@ const CartPage: React.FC = () => {
       .then((res) => {
         if (res.providers?.length) {
           setPayProviders(res.providers)
-          const stripe = res.providers.find((p: PayProvider) => p.id === 'stripe')
-          setPayProvider(stripe?.id || res.providers[0].id)
+          const preferred =
+            res.providers.find((p: PayProvider) => p.id === 'polar') ||
+            res.providers.find((p: PayProvider) => p.configured) ||
+            res.providers[0]
+          setPayProvider(preferred.id)
         }
       })
       .catch(() => undefined)
@@ -106,10 +114,15 @@ const CartPage: React.FC = () => {
 
   const grouped = useMemo(() => {
     const plans = items.filter((i) => i.type === 'plan')
-    const addons = items.filter((i) => i.type === 'addon')
+    const backups = items.filter(
+      (i) => i.type === 'addon' && String(i.id).startsWith('backup-')
+    )
+    const addons = items.filter(
+      (i) => i.type === 'addon' && !String(i.id).startsWith('backup-')
+    )
     const doms = items.filter((i) => i.type === 'domain')
     const vps = items.filter((i) => i.type === 'vps')
-    return { plans, addons, doms, vps }
+    return { plans, backups, addons, doms, vps }
   }, [items])
 
   const checkout = async () => {
@@ -147,9 +160,18 @@ const CartPage: React.FC = () => {
 
       const res = await apiService.checkout(body)
       const data = res.data
-      if (data?.checkoutUrl && !data.mock && data.status === 'pending') {
+      // Real redirect (Stripe/iyzico/PayTR/NOWPayments) or deferred crypto mock page
+      if (
+        data?.checkoutUrl &&
+        data.status === 'pending' &&
+        (!data.mock || data.deferFulfillment)
+      ) {
         clear()
-        window.location.href = data.checkoutUrl
+        if (/^https?:\/\//i.test(data.checkoutUrl)) {
+          window.location.href = data.checkoutUrl
+        } else {
+          navigate(data.checkoutUrl)
+        }
         return
       }
       clear()
@@ -174,11 +196,23 @@ const CartPage: React.FC = () => {
     }
   }
 
-  const renderGroup = (title: string, list: CartItem[]) => {
+  const renderGroup = (
+    title: string,
+    list: CartItem[],
+    honesty?: { className: string; body: React.ReactNode }
+  ) => {
     if (!list.length) return null
     return (
       <div className="hz-cart-group">
         <h3>{title}</h3>
+        {honesty ? (
+          <div
+            className={`hz-cart-honesty ${honesty.className}`}
+            role="note"
+          >
+            {honesty.body}
+          </div>
+        ) : null}
         <ul className="hz-cart-lines">
           {list.map((item) => {
             const cents = lineCents(item, billingInterval)
@@ -220,7 +254,7 @@ const CartPage: React.FC = () => {
   }
 
   return (
-    <MarketingShell active="pricing">
+    <MarketingShell>
       <div className="hz-page-band hz-page-band-sm">
         <div className="hz-page-band-inner">
           <span className="hz-pill">Sepet</span>
@@ -248,7 +282,7 @@ const CartPage: React.FC = () => {
             <h2>Sepetiniz boş</h2>
             <p>Database paketi veya alan adı ekleyin, ödemeyi burada bitirin.</p>
             <div className="hz-cart-empty-actions">
-              <Link to="/pricing" className="hz-btn-solid">
+              <Link to="/database" className="hz-btn-solid">
                 Paketlere git
                 <ChevronRight size={16} />
               </Link>
@@ -261,11 +295,50 @@ const CartPage: React.FC = () => {
           <div className="hz-cart-layout">
             <section className="hz-cart-items" aria-label="Sepet kalemleri">
               {renderGroup('Database planı', grouped.plans)}
+              {renderGroup('Veeam Backup · QNAP', grouped.backups, {
+                className: 'is-backup',
+                body: (
+                  <>
+                    S3 yedek kotası ödemeden sonra{' '}
+                    <strong>Studio → Storage</strong> üzerinden kullanılır
+                    (endpoint / erişim anahtarı). Veeam Backup veya QNAP HBS3’e
+                    bağlayın; bucket paneldedir.
+                  </>
+                ),
+              })}
               {renderGroup('Eklentiler', grouped.addons)}
-              {renderGroup('Alan adları', grouped.doms)}
-              {renderGroup('Cloud VPS', grouped.vps)}
+              {renderGroup('Alan adları', grouped.doms, {
+                className: 'is-domain',
+                body: (
+                  <>
+                    Ödeme alınsa bile alan adı kaydı{' '}
+                    <strong>otomatik başlamaz</strong>. Kayıt kurumu bağlantısı
+                    tamamlanana kadar sipariş{' '}
+                    <strong>beklemede ve manuel</strong> işlenir; hazır olduğunda
+                    bilgilendirilirsiniz.
+                  </>
+                ),
+              })}
+              {renderGroup('Cloud VPS', grouped.vps, {
+                className: 'is-vps',
+                body: (
+                  <>
+                    Bu ödeme VPS&apos;i <strong>otomatik oluşturmaz</strong>.
+                    Ödeme sonrası{' '}
+                    <a
+                      href={CONSOLE_CLOUD_SERVERS}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Console → Cloud sunucular
+                    </a>{' '}
+                    panelinden sunucunuzu açın (region, imaj, volume).
+                  </>
+                ),
+              })}
               <div className="hz-cart-continue">
-                <Link to="/pricing">+ Paket ekle</Link>
+                <Link to="/database">+ Paket ekle</Link>
+                <Link to="/storage">+ Backup ekle</Link>
                 <Link to="/domains">+ Domain ekle</Link>
                 <Link to="/cloud">+ VPS ekle</Link>
                 <button type="button" className="hz-cart-clear" onClick={clear}>
@@ -318,11 +391,53 @@ const CartPage: React.FC = () => {
                 </dl>
                 {planItem && planItem.priceCents > 0 && (
                   <p className="hz-cart-note">
-                    Plan {billingInterval === 'year' ? 'yıllık' : 'aylık'}; domain
-                    yıllık; VPS ilk ay. Ödeme sepetten sonra provision.
+                    Database planı{' '}
+                    {billingInterval === 'year' ? 'yıllık' : 'aylık'} faturalanır.
                   </p>
                 )}
-                {fxHint && <p className="hz-cart-fx">{fxHint}</p>}
+                {(grouped.vps.length > 0 ||
+                  grouped.doms.length > 0 ||
+                  grouped.backups.length > 0) && (
+                  <div
+                    className="hz-cart-honesty-stack"
+                    role="region"
+                    aria-label="Ödeme sonrası süreç"
+                  >
+                    {grouped.backups.length > 0 && (
+                      <div
+                        className="hz-cart-honesty is-backup is-compact"
+                        role="note"
+                      >
+                        Backup: Studio → Storage → Veeam / QNAP HBS3.
+                      </div>
+                    )}
+                    {grouped.vps.length > 0 && (
+                      <div
+                        className="hz-cart-honesty is-vps is-compact"
+                        role="note"
+                      >
+                        VPS otomatik açılmaz. Ödeme sonrası{' '}
+                        <a
+                          href={CONSOLE_CLOUD_SERVERS}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Console Cloud panelinden
+                        </a>{' '}
+                        oluşturun.
+                      </div>
+                    )}
+                    {grouped.doms.length > 0 && (
+                      <div
+                        className="hz-cart-honesty is-domain is-compact"
+                        role="note"
+                      >
+                        Domain kaydı otomatik değil; kayıt kurumu bağlanana
+                        kadar beklemede (manuel).
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div
                   className="hz-cart-pay"

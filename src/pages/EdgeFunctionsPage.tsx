@@ -3,12 +3,12 @@ import { apiService } from '../services/api';
 import { getActiveProjectId } from '../components/ProjectSwitcher';
 import { Play, Save, Trash2, Zap } from 'lucide-react';
 
-const DEFAULT_SOURCE = `// GraphCore Edge Function (Node VM MVP — no Deno / no network)
+const DEFAULT_SOURCE = `// dbstorages Edge Function (Node VM MVP — no Deno / no network)
 module.exports = async (req) => {
   return {
     status: 200,
     body: {
-      message: 'hello from GraphCore',
+      message: 'hello from dbstorages',
       method: req.method,
       received: req.body,
     },

@@ -29,7 +29,7 @@ type AddDatabasePlanOpts = {
   planId: string
   interval?: 'month' | 'year'
   backup?: boolean
-  /** Override catalog (e.g. from PricingPage live plan) */
+  /** Override catalog (e.g. from DatabasePage live plan) */
   plan?: {
     id: string
     name: string
@@ -65,7 +65,7 @@ type CartContextValue = {
   totalCents: number
 }
 
-const STORAGE_KEY = 'graphcore_cart_v1'
+const STORAGE_KEY = 'dbstorages_cart_v1'
 
 const CartContext = createContext<CartContextValue | undefined>(undefined)
 
