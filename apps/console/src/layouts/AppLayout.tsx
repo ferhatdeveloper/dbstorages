@@ -125,16 +125,7 @@ const AppLayout = () => {
       <aside className="flex w-[232px] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800/90 dark:bg-[#0e141b]">
         <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-800/90">
           <div className="min-w-0">
-            <GraphCoreLogo
-              variant="compact"
-              invert={false}
-              className="gc-logo-console dark:hidden"
-            />
-            <GraphCoreLogo
-              variant="compact"
-              invert
-              className="gc-logo-console hidden dark:block"
-            />
+            <GraphCoreLogo variant="compact" className="gc-logo-console" />
             <div className="mt-0.5 truncate text-[10px] uppercase tracking-wider text-slate-500">
               {t('console.brand')}
             </div>

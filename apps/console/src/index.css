@@ -1710,12 +1710,13 @@ html.dark .landing-cloud-cta {
   font-size: 0.85rem;
   color: var(--lc-muted);
 } 
-/* dbstorages logo (shared with marketing) */
+/* dbstorages logo — theme-aware (light sidebar + dark sidebar) */
 .gc-logo {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
   line-height: 1;
+  max-width: 100%;
 }
 
 .gc-logo-mark {
@@ -1741,24 +1742,35 @@ html.dark .landing-cloud-cta {
 
 .gc-logo-word-db {
   font-weight: 700;
-  color: #fff;
+  color: #0b5bc7;
   letter-spacing: -0.06em;
 }
 
 .gc-logo-word-rest {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.72);
+  color: #475569;
   letter-spacing: -0.04em;
 }
 
+html.dark .gc-logo-word-db {
+  color: #f8fafc;
+}
+
+html.dark .gc-logo-word-rest {
+  color: rgba(248, 250, 252, 0.72);
+}
+
+/* Explicit invert only (e.g. marketing footer on dark band) */
 .gc-logo-invert .gc-logo-word-db,
-.gc-logo-console .gc-logo-word-db,
 .gc-logo-word.is-invert .gc-logo-word-db {
   color: #fff;
 }
 
 .gc-logo-invert .gc-logo-word-rest,
-.gc-logo-console .gc-logo-word-rest,
 .gc-logo-word.is-invert .gc-logo-word-rest {
   color: rgba(255, 255, 255, 0.72);
+}
+
+.gc-logo-console {
+  display: inline-flex;
 }
