@@ -58,6 +58,31 @@ const LoadingSpinner: React.FC = () => (
   </div>
 );
 
+/** React #31: never render raw objects/arrays as children (jsonb etc.). */
+function formatCellValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function parseEditedCellValue(raw: string, original: unknown): unknown {
+  if (original !== null && typeof original === 'object') {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 const TableEditorPage: React.FC = () => {
   const { selectedConnection } = useDatabaseConnections();
   const instanceKey = selectedConnection?.id || '';
@@ -754,16 +779,30 @@ const TableEditorPage: React.FC = () => {
                               {rowIndex + 1}
                             </td>
                             {columns.map((column) => (
-                              <td key={column.name} className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              <td
+                                key={column.name}
+                                className="max-w-[280px] truncate px-4 py-3 text-sm text-gray-900"
+                                title={formatCellValue(row[column.name])}
+                              >
                                 {editingRow === rowIndex ? (
                                   <input
                                     type="text"
-                                    value={editRowData?.[column.name] || ''}
-                                    onChange={(e) => setEditRowData(prev => ({ ...prev, [column.name]: e.target.value }))}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                    value={formatCellValue(editRowData?.[column.name])}
+                                    onChange={(e) =>
+                                      setEditRowData((prev: any) => ({
+                                        ...prev,
+                                        [column.name]: parseEditedCellValue(
+                                          e.target.value,
+                                          row[column.name]
+                                        ),
+                                      }))
+                                    }
+                                    className="w-full rounded border border-gray-300 px-2 py-1 focus:ring-2 focus:ring-blue-500"
                                   />
                                 ) : (
-                                  <span>{row[column.name]}</span>
+                                  <span className="font-mono text-[12px]">
+                                    {formatCellValue(row[column.name])}
+                                  </span>
                                 )}
                               </td>
                             ))}
