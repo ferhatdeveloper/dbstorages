@@ -60,7 +60,7 @@ async function resolveInstanceDatabase(req) {
     const meta = getMetaPool();
     if (!meta) return null;
     const { rows } = await meta.query(
-      `SELECT database FROM instances WHERE id = $1 LIMIT 1`,
+      `SELECT database_name AS database FROM instances WHERE id = $1 LIMIT 1`,
       [id]
     );
     return rows[0]?.database || null;
@@ -527,7 +527,7 @@ router.post('/schema/sync-retailex', async (req, res) => {
       const meta = getMetaPool();
       if (meta) {
         const { rows } = await meta.query(
-          `SELECT database FROM instances WHERE id = $1 LIMIT 1`,
+          `SELECT database_name AS database FROM instances WHERE id = $1 LIMIT 1`,
           [instanceId]
         );
         tenantCode = rows[0]?.database || null;
