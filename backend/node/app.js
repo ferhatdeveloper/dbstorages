@@ -641,10 +641,21 @@ app.post('/api/instances/:id/resize', authMiddleware, async (req, res) => {
     if (!row) {
       return res.status(404).json({ error: { code: 'not_found', message: 'Instance not found' } });
     }
-    const result = await provision.resizeInstancePlan({
-      connectionString: row.connection_string,
-      planId,
-    });
+    let result = { soft: true };
+    try {
+      result = await provision.resizeInstancePlan({
+        connectionString: row.connection_string,
+        planId,
+      });
+    } catch (provErr) {
+      // Shared/seeded DBs may have rotated credentials — still update plan label.
+      console.warn('[resize] provision soft-fail:', provErr.message);
+      result = {
+        soft: true,
+        provisionSkipped: true,
+        reason: provErr.message,
+      };
+    }
     await updateInstanceStatus(row.id, row.status === 'paused' ? 'paused' : row.status || 'ready', {
       plan: planId,
     });
