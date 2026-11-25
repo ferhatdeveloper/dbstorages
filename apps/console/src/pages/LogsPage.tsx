@@ -1,25 +1,33 @@
-import React, { useState } from 'react';
-import { FileText, AlertCircle, Info, XCircle, CheckCircle, Search, Download, Filter } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { FileText, AlertCircle, Info, XCircle, Search, Download, Filter } from 'lucide-react';
+import { useLocale } from '@graphcore/shared';
 
 const LogsPage = () => {
+  const { t } = useLocale();
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTimeRange, setSelectedTimeRange] = useState('1h');
 
-  const levels = [
-    { value: 'all', label: 'Tümü' },
-    { value: 'error', label: 'Hata' },
-    { value: 'warning', label: 'Uyarı' },
-    { value: 'info', label: 'Bilgi' },
-    { value: 'debug', label: 'Debug' },
-  ];
+  const levels = useMemo(
+    () => [
+      { value: 'all', label: t('logs.all') },
+      { value: 'error', label: t('logs.error') },
+      { value: 'warning', label: t('logs.warning') },
+      { value: 'info', label: t('logs.info') },
+      { value: 'debug', label: t('logs.debug') },
+    ],
+    [t]
+  );
 
-  const timeRanges = [
-    { value: '1h', label: 'Son 1 Saat' },
-    { value: '6h', label: 'Son 6 Saat' },
-    { value: '24h', label: 'Son 24 Saat' },
-    { value: '7d', label: 'Son 7 Gün' },
-  ];
+  const timeRanges = useMemo(
+    () => [
+      { value: '1h', label: t('logs.last1h') },
+      { value: '6h', label: t('logs.last6h') },
+      { value: '24h', label: t('logs.last24h') },
+      { value: '7d', label: t('logs.last7d') },
+    ],
+    [t]
+  );
 
   const logs = [
     {
@@ -113,20 +121,27 @@ const LogsPage = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Sistem Günlükleri</h1>
-            <p className="text-gray-600 mt-1">Uygulama ve sistem logları</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {t('logs.title')}
+            </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
               <Filter className="h-4 w-4" />
-              Filtrele
+              {t('logs.filter')}
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
               <Download className="h-4 w-4" />
-              Dışa Aktar
+              {t('logs.export')}
             </button>
           </div>
         </div>
@@ -141,7 +156,7 @@ const LogsPage = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Log mesajı veya servis ara..."
+                placeholder={t('logs.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"

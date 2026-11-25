@@ -1,6 +1,7 @@
 import React from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useLocaleOptional } from '../context/LocaleContext';
 
 type Props = {
   className?: string;
@@ -10,8 +11,18 @@ type Props = {
 
 const ThemeToggle: React.FC<Props> = ({ className = '', variant = 'icon' }) => {
   const { resolved, toggle } = useTheme();
+  const locale = useLocaleOptional();
   const isDark = resolved === 'dark';
-  const label = isDark ? 'Açık temaya geç' : 'Koyu temaya geç';
+  const label = locale
+    ? locale.t(isDark ? 'common.themeToLight' : 'common.themeToDark')
+    : isDark
+      ? 'Açık temaya geç'
+      : 'Koyu temaya geç';
+  const short = locale
+    ? locale.t(isDark ? 'common.light' : 'common.dark')
+    : isDark
+      ? 'Açık'
+      : 'Koyu';
 
   if (variant === 'pill') {
     return (
@@ -23,7 +34,7 @@ const ThemeToggle: React.FC<Props> = ({ className = '', variant = 'icon' }) => {
         title={label}
       >
         {isDark ? <Sun size={15} /> : <Moon size={15} />}
-        <span>{isDark ? 'Açık' : 'Koyu'}</span>
+        <span>{short}</span>
       </button>
     );
   }

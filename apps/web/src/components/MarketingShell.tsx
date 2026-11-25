@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import {
-  ThemeToggle,
-  CurrencyToggle,
+  PrefsBar,
   GraphCoreLogo,
   CONSOLE_URL,
+  useLocale,
 } from '@graphcore/shared'
 
 type Props = {
@@ -29,6 +29,7 @@ const MarketingShell: React.FC<Props> = ({
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const { count: cartCount } = useCart()
+  const { t } = useLocale()
   const close = () => setMenuOpen(false)
 
   useEffect(() => {
@@ -64,7 +65,7 @@ const MarketingShell: React.FC<Props> = ({
           <button
             type="button"
             className={`landing-menu-btn${menuOpen ? ' is-open' : ''}`}
-            aria-label={menuOpen ? 'Menüyü kapat' : 'Menü'}
+            aria-label={menuOpen ? t('common.closeMenu') : t('common.openMenu')}
             aria-expanded={menuOpen}
             aria-controls="hz-mobile-nav"
             onClick={() => setMenuOpen((v) => !v)}
@@ -79,7 +80,7 @@ const MarketingShell: React.FC<Props> = ({
           <button
             type="button"
             className="hz-nav-backdrop"
-            aria-label="Menüyü kapat"
+            aria-label={t('common.closeMenu')}
             onClick={close}
           />
         ) : null}
@@ -97,38 +98,42 @@ const MarketingShell: React.FC<Props> = ({
                 className={active === 'cloud' ? 'is-nav-active' : undefined}
                 onClick={close}
               >
-                Cloud
+                {t('web.nav.cloud')}
               </Link>
               <Link
                 to="/database"
                 className={active === 'database' ? 'is-nav-active' : undefined}
                 onClick={close}
               >
-                Database
+                {t('web.nav.database')}
               </Link>
               <Link
                 to="/storage"
                 className={active === 'storage' ? 'is-nav-active' : undefined}
                 onClick={close}
               >
-                Storage
+                {t('web.nav.storage')}
               </Link>
               <Link to="/domains" onClick={close}>
-                Domain
+                {t('web.nav.domain')}
               </Link>
               <Link
                 to="/cart"
                 className="hz-nav-cart"
                 onClick={close}
-                aria-label={cartCount ? `Sepet, ${cartCount} ürün` : 'Sepet'}
+                aria-label={
+                  cartCount
+                    ? `${t('common.cart')}, ${cartCount}`
+                    : t('common.cart')
+                }
               >
-                Sepet{cartCount > 0 ? ` (${cartCount})` : ''}
+                {t('common.cart')}
+                {cartCount > 0 ? ` (${cartCount})` : ''}
               </Link>
             </>
           )}
           <div className="landing-nav-tools">
-            {variant === 'full' && <CurrencyToggle />}
-            <ThemeToggle />
+            <PrefsBar showCurrency={variant === 'full'} />
           </div>
           {variant === 'full' ? (
             <div className="hz-nav-auth-row">
@@ -141,15 +146,15 @@ const MarketingShell: React.FC<Props> = ({
                 }
                 onClick={close}
               >
-                Giriş
+                {t('common.login')}
               </Link>
               <Link to="/register" className="landing-cta-sm" onClick={close}>
-                Başla
+                {t('common.start')}
               </Link>
             </div>
           ) : (
             <Link to="/" onClick={close}>
-              Ana sayfa
+              {t('common.home')}
             </Link>
           )}
         </nav>
@@ -162,13 +167,14 @@ const MarketingShell: React.FC<Props> = ({
           <div className="hz-footer-cta">
             <div className="hz-footer-cta-inner">
               <div>
-                <h2>Bulutu sade tutun</h2>
-                <p>
-                  Cloud sunucu, Database ve storage — tek panel, şeffaf fiyat.
-                </p>
+                <h2>{t('web.footer.keepSimple')}</h2>
+                <p>{t('web.footer.keepSimpleBody')}</p>
               </div>
-              <Link to="/cart?plan=starter&interval=month" className="hz-btn-solid hz-footer-cta-btn">
-                Starter’ı sepete ekle
+              <Link
+                to="/cart?plan=starter&interval=month"
+                className="hz-btn-solid hz-footer-cta-btn"
+              >
+                {t('web.footer.addStarter')}
               </Link>
             </div>
           </div>
@@ -192,30 +198,30 @@ const MarketingShell: React.FC<Props> = ({
 
               <nav className="hz-footer-nav" aria-label="Footer">
                 <div>
-                  <h4>Ürün</h4>
-                  <Link to="/cloud">Cloud sunucu</Link>
-                  <Link to="/database">Database</Link>
-                  <Link to="/storage">Storage</Link>
-                  <Link to="/domains">Domain</Link>
+                  <h4>{t('web.footer.product')}</h4>
+                  <Link to="/cloud">{t('web.nav.cloud')}</Link>
+                  <Link to="/database">{t('web.nav.database')}</Link>
+                  <Link to="/storage">{t('web.nav.storage')}</Link>
+                  <Link to="/domains">{t('web.nav.domain')}</Link>
                 </div>
                 <div>
-                  <h4>Panel</h4>
-                  <a href={`${CONSOLE_URL}/cloud/servers`}>Cloud sunucular</a>
-                  <a href={`${CONSOLE_URL}/dashboard`}>DB Studio</a>
+                  <h4>{t('web.footer.panel')}</h4>
+                  <a href={`${CONSOLE_URL}/cloud/servers`}>{t('console.cloudInfra')}</a>
+                  <a href={`${CONSOLE_URL}/dashboard`}>{t('console.dbStudio')}</a>
                   <a href={`${CONSOLE_URL}/cloud/vpn`}>VPN</a>
                 </div>
                 <div>
-                  <h4>Hesap</h4>
-                  <Link to="/login">Giriş</Link>
-                  <Link to="/register">Kayıt</Link>
-                  <Link to="/database">Database paketleri</Link>
-                  <Link to="/domains">Domain</Link>
-                  <Link to="/cart">Sepette öde</Link>
+                  <h4>{t('web.footer.account')}</h4>
+                  <Link to="/login">{t('common.login')}</Link>
+                  <Link to="/register">{t('common.register')}</Link>
+                  <Link to="/database">{t('web.nav.database')}</Link>
+                  <Link to="/domains">{t('web.nav.domain')}</Link>
+                  <Link to="/cart">{t('common.cart')}</Link>
                 </div>
                 <div>
-                  <h4>Kaynak</h4>
-                  <Link to="/cloud">Sunucu aileleri</Link>
-                  <Link to="/database">Database paketleri</Link>
+                  <h4>{t('web.footer.resources')}</h4>
+                  <Link to="/cloud">{t('web.nav.cloud')}</Link>
+                  <Link to="/database">{t('web.nav.database')}</Link>
                   <a href={`${CONSOLE_URL}/cloud/servers`}>Provision</a>
                 </div>
               </nav>
@@ -232,7 +238,7 @@ const MarketingShell: React.FC<Props> = ({
               <span className="hz-footer-bar-sep" aria-hidden>
                 ·
               </span>
-              <span>Avrupa altyapı</span>
+              <span>EU</span>
             </div>
           </div>
         </footer>

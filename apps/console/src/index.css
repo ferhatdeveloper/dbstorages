@@ -155,6 +155,132 @@ html.dark .currency-toggle-btn.is-active {
   text-align: right;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Compact prefs: language · currency · theme */
+.prefs-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+html.dark .prefs-bar {
+  border-color: #334155;
+  background: #0f172a;
+}
+
+.prefs-bar-sep {
+  width: 1px;
+  height: 1.15rem;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+html.dark .prefs-bar-sep {
+  background: #475569;
+}
+
+.prefs-bar .currency-toggle-wrap {
+  gap: 0;
+}
+
+.prefs-bar .currency-toggle {
+  border: none;
+  border-radius: 4px;
+}
+
+.prefs-bar .theme-toggle {
+  border: none;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 4px;
+}
+
+.locale-toggle-select {
+  display: inline-flex;
+  align-items: center;
+}
+
+.locale-toggle-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 1.85rem;
+  min-width: 2.6rem;
+  padding: 0 0.45rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2364748b' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E")
+    no-repeat right 0.35rem center;
+  padding-right: 1.1rem;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+html.dark .locale-toggle-select select {
+  color: #cbd5e1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+}
+
+.locale-toggle-select select:hover,
+.locale-toggle-select select:focus {
+  background-color: #e2e8f0;
+  outline: none;
+}
+
+html.dark .locale-toggle-select select:hover,
+html.dark .locale-toggle-select select:focus {
+  background-color: #1e293b;
+}
+
+.locale-toggle-segment {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.locale-toggle-btn {
+  min-width: 1.75rem;
+  height: 1.85rem;
+  padding: 0 0.35rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.locale-toggle-btn.is-active {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+html.dark .locale-toggle-btn.is-active {
+  color: #f1f5f9;
+  background: #334155;
+}
+
 /* Theme toggle outside landing-root (Studio) */
 .theme-toggle {
   display: inline-flex;

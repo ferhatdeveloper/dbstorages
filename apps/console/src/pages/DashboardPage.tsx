@@ -11,6 +11,7 @@ import {
   Table2,
   X,
 } from 'lucide-react';
+import { useLocale } from '@graphcore/shared';
 import { api } from '../services/api';
 
 type DashInstance = {
@@ -65,17 +66,19 @@ function statusBadge(status: string) {
   return 'bg-gray-100 text-gray-700';
 }
 
-function statusLabel(status: string) {
-  const s = String(status || '').toLowerCase();
-  if (s === 'ready') return 'Hazır';
-  if (s === 'paused') return 'Duraklatıldı';
-  if (['provisioning', 'pending', 'creating'].includes(s)) return 'Kuruluyor';
-  if (s === 'error' || s === 'failed') return 'Hata';
-  return status || '—';
-}
-
 const DashboardPage: React.FC = () => {
+  const { t } = useLocale();
   const [stats, setStats] = useState<DashStats | null>(null);
+
+  const statusLabel = (status: string) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'ready') return t('dashboard.statusReady');
+    if (s === 'paused') return t('dashboard.statusPaused');
+    if (['provisioning', 'pending', 'creating'].includes(s))
+      return t('dashboard.statusProvisioning');
+    if (s === 'error' || s === 'failed') return t('dashboard.statusError');
+    return status || '—';
+  };
   const [widgets, setWidgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,10 +151,10 @@ const DashboardPage: React.FC = () => {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Dashboard
+            {t('dashboard.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Hesabınızdaki veritabanı sunucuları ve platform durumu
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,7 +163,7 @@ const DashboardPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Database size={16} />
-            Bağlantılar
+            {t('dashboard.connections')}
           </Link>
           <button
             type="button"
@@ -169,7 +172,7 @@ const DashboardPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Yenile
+            {t('common.refresh')}
           </button>
         </div>
       </div>
@@ -184,21 +187,21 @@ const DashboardPage: React.FC = () => {
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard
           icon={<Server className="text-blue-600" size={22} />}
-          label="Toplam DB"
+          label={t('dashboard.totalDb')}
           value={stats?.instanceCount ?? 0}
         />
         <MetricCard
           icon={<CheckCircle className="text-emerald-600" size={22} />}
-          label="Hazır"
+          label={t('dashboard.ready')}
           value={stats?.readyCount ?? 0}
         />
         <MetricCard
           icon={<Table2 className="text-indigo-600" size={22} />}
-          label="Tablolar"
+          label={t('dashboard.tables')}
           value={stats?.totalTables ?? 0}
           hint={
             stats?.totalRows
-              ? `${Number(stats.totalRows).toLocaleString('tr-TR')} satır`
+              ? Number(stats.totalRows).toLocaleString()
               : undefined
           }
         />
@@ -210,15 +213,17 @@ const DashboardPage: React.FC = () => {
               <AlertCircle className="text-amber-600" size={22} />
             )
           }
-          label="Sistem"
+          label={t('dashboard.system')}
           value={
             health === 'ok'
-              ? 'Sağlıklı'
+              ? t('dashboard.healthy')
               : health === 'degraded'
-                ? 'Kısmi'
-                : 'Boş'
+                ? t('dashboard.partial')
+                : t('dashboard.empty')
           }
-          hint={stats?.metaDb ? 'Meta DB bağlı' : 'Meta DB yok'}
+          hint={
+            stats?.metaDb ? t('dashboard.metaOk') : t('dashboard.metaNo')
+          }
         />
       </div>
 
@@ -246,10 +251,10 @@ const DashboardPage: React.FC = () => {
       <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Veritabanı sunucuları
+            {t('dashboard.servers')}
           </h2>
           <span className="text-xs text-slate-500">
-            {instances.length} kayıt
+            {instances.length} {t('dashboard.records')}
           </span>
         </div>
 
@@ -257,16 +262,14 @@ const DashboardPage: React.FC = () => {
           <div className="px-4 py-16 text-center">
             <Database className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
             <p className="mt-3 text-sm font-medium text-slate-900 dark:text-slate-100">
-              Henüz veritabanı yok
+              {t('dashboard.noDb')}
             </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Sipariş veya seed sonrası sunucular burada listelenir.
-            </p>
+            <p className="mt-1 text-sm text-slate-500">{t('dashboard.noDbHint')}</p>
             <Link
               to="/billing"
               className="mt-4 inline-flex text-sm text-blue-600 hover:underline dark:text-blue-400"
             >
-              Faturalandırmaya git
+              {t('dashboard.goBilling')}
             </Link>
           </div>
         ) : (
@@ -274,11 +277,11 @@ const DashboardPage: React.FC = () => {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Firma</th>
-                  <th className="px-4 py-3 font-medium">Veritabanı</th>
-                  <th className="px-4 py-3 font-medium">Durum</th>
-                  <th className="px-4 py-3 font-medium">Plan</th>
-                  <th className="px-4 py-3 font-medium">Tarih</th>
+                  <th className="px-4 py-3 font-medium">{t('dashboard.company')}</th>
+                  <th className="px-4 py-3 font-medium">{t('dashboard.database')}</th>
+                  <th className="px-4 py-3 font-medium">{t('dashboard.status')}</th>
+                  <th className="px-4 py-3 font-medium">{t('dashboard.plan')}</th>
+                  <th className="px-4 py-3 font-medium">{t('dashboard.date')}</th>
                   <th className="px-4 py-3 font-medium"> </th>
                 </tr>
               </thead>
@@ -320,7 +323,7 @@ const DashboardPage: React.FC = () => {
                           to="/tables"
                           className="text-xs text-blue-600 hover:underline dark:text-blue-400"
                         >
-                          Studio
+                          {t('dashboard.studio')}
                         </Link>
                         {inst.restUrl ? (
                           <a

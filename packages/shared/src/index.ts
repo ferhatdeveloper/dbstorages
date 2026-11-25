@@ -18,11 +18,21 @@ export {
   useCurrencyOptional,
 } from './context/CurrencyContext'
 export {
+  LocaleProvider,
+  useLocale,
+  useLocaleOptional,
+} from './context/LocaleContext'
+export {
   DatabaseConnectionsProvider,
   useDatabaseConnections,
 } from './context/DatabaseConnectionsContext'
 export { default as ThemeToggle } from './components/ThemeToggle'
 export { default as CurrencyToggle } from './components/CurrencyToggle'
+export { default as LocaleToggle } from './components/LocaleToggle'
+export { default as PrefsBar } from './components/PrefsBar'
+export type { AppLocale } from './i18n/types'
+export { LOCALES, LOCALE_META, LOCALE_STORAGE_KEY } from './i18n/types'
+export { translate, MESSAGES } from './i18n/messages'
 export {
   default as GraphCoreLogo,
   GraphCoreMark,
