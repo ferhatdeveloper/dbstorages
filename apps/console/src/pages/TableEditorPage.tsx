@@ -32,6 +32,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { apiService, TableInfo, ColumnInfo, TableData } from '../services/api';
+import { useDatabaseConnections } from '../context/DatabaseConnectionsContext';
+import InstancePicker from '../components/InstancePicker';
 
 // Toast notification component
 const Toast: React.FC<{ type: 'success' | 'error'; message: string; onClose: () => void }> = ({ type, message, onClose }) => (
@@ -57,6 +59,9 @@ const LoadingSpinner: React.FC = () => (
 );
 
 const TableEditorPage: React.FC = () => {
+  const { selectedConnection } = useDatabaseConnections();
+  const instanceKey = selectedConnection?.id || '';
+
   // State management
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>('');
@@ -97,37 +102,57 @@ const TableEditorPage: React.FC = () => {
     setTimeout(() => setShowToast(null), 3000);
   }, []);
 
-  // Load tables on component mount
+  // API Functions
+  const loadTables = useCallback(async () => {
+    if (!instanceKey) {
+      setTables([]);
+      setSelectedTable('');
+      setTableData(null);
+      setLoadingTables(false);
+      return;
+    }
+    setLoadingTables(true);
+    try {
+      const response = await apiService.getTables();
+      if (response.success && response.data) {
+        setTables(response.data);
+        setSelectedTable((prev) => {
+          if (response.data!.some((t) => t.name === prev)) return prev;
+          return response.data![0]?.name || '';
+        });
+      } else {
+        setTables([]);
+        setSelectedTable('');
+        showNotification(
+          'error',
+          typeof response.error === 'string'
+            ? response.error
+            : 'Tablolar yüklenemedi'
+        );
+      }
+    } catch (error: any) {
+      setTables([]);
+      setSelectedTable('');
+      showNotification('error', error?.message || 'Tablolar yüklenirken hata oluştu');
+    } finally {
+      setLoadingTables(false);
+    }
+  }, [instanceKey, showNotification]);
+
+  // Reload when active instance changes
   useEffect(() => {
+    setTableData(null);
+    setColumns([]);
+    setSelectedRows([]);
     loadTables();
-  }, []);
+  }, [loadTables]);
 
   // Load table data when selected table changes
   useEffect(() => {
     if (selectedTable) {
       loadTableData();
     }
-  }, [selectedTable, currentPage, pageSize, filters, sortBy, sortOrder]);
-
-  // API Functions
-  const loadTables = async () => {
-    setLoadingTables(true);
-    try {
-      const response = await apiService.getTables();
-      if (response.success && response.data) {
-        setTables(response.data);
-        if (response.data.length > 0 && !selectedTable) {
-          setSelectedTable(response.data[0].name);
-        }
-      } else {
-        showNotification('error', response.error || 'Tablolar yüklenemedi');
-      }
-    } catch (error) {
-      showNotification('error', 'Tablolar yüklenirken hata oluştu');
-    } finally {
-      setLoadingTables(false);
-    }
-  };
+  }, [selectedTable, currentPage, pageSize, filters, sortBy, sortOrder, instanceKey]);
 
   const loadTableData = async () => {
     if (!selectedTable) return;
@@ -460,11 +485,6 @@ const TableEditorPage: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [editingRow, editRowData]);
 
-  // Loading state
-  if (loadingTables) {
-    return <LoadingSpinner />;
-  }
-
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Toast Notification */}
@@ -479,6 +499,9 @@ const TableEditorPage: React.FC = () => {
       {/* Left Sidebar - Tables */}
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
+          <div className="mb-3">
+            <InstancePicker />
+          </div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Tablolar</h2>
             <button

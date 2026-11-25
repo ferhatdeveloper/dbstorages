@@ -15,6 +15,8 @@ import {
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import { api } from '../services/api';
+import { useDatabaseConnections } from '../context/DatabaseConnectionsContext';
+import { useNavigate } from 'react-router-dom';
 
 interface Connection {
   id: string;
@@ -32,9 +34,21 @@ interface Connection {
   maxConnections: number;
   activeConnections: number;
   idleConnections: number;
+  plan?: string;
+  restUrl?: string;
+  projectAuthUrl?: string;
 }
 
 const ConnectionsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const {
+    connections: ctxConnections,
+    selectedConnection,
+    selectConnection,
+    refreshConnections,
+    loading: ctxLoading,
+  } = useDatabaseConnections();
+
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,19 +69,84 @@ const ConnectionsPage: React.FC = () => {
   });
 
   useEffect(() => {
+    // Prefer live instances from shared context
+    if (ctxConnections.length) {
+      setConnections(
+        ctxConnections.map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          host: c.host || '—',
+          port: c.port || 5432,
+          database: c.database,
+          username: c.username || '',
+          password: c.password || '',
+          ssl: false,
+          status:
+            c.status === 'connected'
+              ? 'connected'
+              : c.status === 'error'
+                ? 'error'
+                : 'disconnected',
+          poolSize: 10,
+          maxConnections: 100,
+          activeConnections: c.status === 'connected' ? 1 : 0,
+          idleConnections: 0,
+          plan: c.plan,
+          restUrl: c.restUrl,
+        }))
+      );
+      setLoading(false);
+      return;
+    }
     loadConnections();
-  }, []);
+  }, [ctxConnections]);
 
   const loadConnections = async () => {
     setLoading(true);
     try {
-      const response = await api.getConnections();
-      setConnections(response.connections || []);
+      await refreshConnections();
+      const response = await api.getInstances().catch(() => api.getConnections());
+      const list =
+        (response as any).instances ||
+        (response as any).connections ||
+        [];
+      setConnections(
+        list.map((c: any) => ({
+          id: c.id,
+          name: c.name || c.database || 'Database',
+          type: (c.type || 'postgresql') as Connection['type'],
+          host: c.host || '—',
+          port: Number(c.port) || 5432,
+          database: c.database || c.database_name || '',
+          username: c.username || '',
+          password: c.password || '',
+          ssl: !!c.ssl,
+          status:
+            c.status === 'ready' || c.status === 'connected'
+              ? 'connected'
+              : c.status === 'error'
+                ? 'error'
+                : 'disconnected',
+          poolSize: c.poolSize || 10,
+          maxConnections: c.maxConnections || 100,
+          activeConnections: c.activeConnections || 0,
+          idleConnections: c.idleConnections || 0,
+          plan: c.plan,
+          restUrl: c.restUrl || c.rest_url,
+          projectAuthUrl: c.projectAuthUrl,
+        }))
+      );
     } catch (error) {
       console.error('Bağlantılar yüklenemedi:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const useInStudio = (id: string) => {
+    selectConnection(id);
+    navigate('/tables');
   };
 
   const testConnection = async (connection: Connection) => {
@@ -292,14 +371,21 @@ const ConnectionsPage: React.FC = () => {
         </div>
 
         {/* Connections Grid */}
-        {loading ? (
+        {(loading || ctxLoading) ? (
           <div className="flex justify-center items-center py-12">
             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {connections.map((connection) => (
-              <div key={connection.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+              <div
+                key={connection.id}
+                className={`bg-white rounded-lg shadow hover:shadow-lg transition-shadow ${
+                  selectedConnection?.id === connection.id
+                    ? 'ring-2 ring-blue-500'
+                    : ''
+                }`}
+              >
                 <div className="p-6">
                   {/* Header */}
                   <div className="flex items-center justify-between mb-4">
@@ -307,7 +393,10 @@ const ConnectionsPage: React.FC = () => {
                       {getDatabaseIcon(connection.type)}
                       <div>
                         <h3 className="font-semibold text-gray-900">{connection.name}</h3>
-                        <p className="text-sm text-gray-500 capitalize">{connection.type}</p>
+                        <p className="text-sm text-gray-500 capitalize">
+                          {connection.type}
+                          {connection.plan ? ` · ${connection.plan}` : ''}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -377,20 +466,31 @@ const ConnectionsPage: React.FC = () => {
                   {/* Actions */}
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => testConnection(connection)}
-                      disabled={connection.status === 'testing'}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                      type="button"
+                      onClick={() => useInStudio(connection.id)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       <PlayIcon className="w-4 h-4 mr-1" />
-                      Test Et
+                      Studio'da kullan
                     </button>
                     <button
+                      type="button"
+                      onClick={() => testConnection(connection)}
+                      disabled={connection.status === 'testing'}
+                      className="flex items-center px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                      title="Test"
+                    >
+                      <PlayIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => openEditModal(connection)}
                       className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                     >
                       <PencilIcon className="w-4 h-4" />
                     </button>
                     <button
+                      type="button"
                       onClick={() => deleteConnection(connection.id)}
                       className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition-colors"
                     >

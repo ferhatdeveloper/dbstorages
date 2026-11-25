@@ -37,9 +37,50 @@ export interface TableData {
   pageSize: number;
 }
 
+const INSTANCE_STORAGE_KEY = 'dbstorages-instance';
+
+let activeInstanceId: string | null =
+  typeof localStorage !== 'undefined'
+    ? localStorage.getItem(INSTANCE_STORAGE_KEY)
+    : null;
+
+export function getActiveInstanceId(): string | null {
+  return activeInstanceId || localStorage.getItem(INSTANCE_STORAGE_KEY);
+}
+
+export function setActiveInstanceId(id: string | null) {
+  activeInstanceId = id;
+  try {
+    if (id) localStorage.setItem(INSTANCE_STORAGE_KEY, id);
+    else localStorage.removeItem(INSTANCE_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('dbstorages:instance', { detail: { id } })
+    );
+  }
+}
+
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const instanceId = getActiveInstanceId();
+  if (instanceId) headers['x-graphcore-instance'] = instanceId;
+  return headers;
+}
+
+function withInstanceQuery(url: string): string {
+  const instanceId = getActiveInstanceId();
+  if (!instanceId) return url;
+  if (!url.includes('/api/db') && !url.includes('/api/sql') && !url.includes('/api/schema')) {
+    return url;
+  }
+  const sep = url.includes('?') ? '&' : '?';
+  if (url.includes('instanceId=')) return url;
+  return `${url}${sep}instanceId=${encodeURIComponent(instanceId)}`;
 }
 
 function normalizeError(payload: any, status: number): string {
@@ -52,7 +93,8 @@ function normalizeError(payload: any, status: number): string {
 
 class ApiService {
   private async request<T>(url: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(url, {
+    const finalUrl = withInstanceQuery(url);
+    const response = await fetch(finalUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -221,9 +263,13 @@ class ApiService {
   }
 
   async executeSQL(query: string) {
+    const instanceId = getActiveInstanceId();
     return this.request<ApiResponse<any>>(`${NODE_API_BASE}/sql/execute`, {
       method: 'POST',
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({
+        query,
+        ...(instanceId ? { instanceId } : {}),
+      }),
     });
   }
 

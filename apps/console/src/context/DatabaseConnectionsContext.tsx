@@ -6,7 +6,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { api } from '../services/api';
+import { api, setActiveInstanceId, getActiveInstanceId } from '../services/api';
 
 type DatabaseType = 'postgresql' | 'mysql' | 'mssql' | 'sqlite' | 'oracle';
 
@@ -23,6 +23,7 @@ export interface DatabaseConnection {
   createdAt?: string;
   plan?: string;
   region?: string;
+  restUrl?: string;
 }
 
 interface DatabaseConnectionsContextProps {
@@ -55,11 +56,26 @@ function mapApiConnection(c: any): DatabaseConnection {
         ? 'connected'
         : c.status === 'error'
           ? 'error'
-          : 'disconnected',
+          : c.status === 'paused'
+            ? 'disconnected'
+            : 'disconnected',
     createdAt: c.createdAt || c.created_at,
     plan: c.plan,
     region: c.region,
+    restUrl: c.restUrl || c.rest_url,
   };
+}
+
+function pickInitial(
+  list: DatabaseConnection[],
+  preferredId: string | null
+): DatabaseConnection | null {
+  if (!list.length) return null;
+  if (preferredId) {
+    const found = list.find((c) => c.id === preferredId);
+    if (found) return found;
+  }
+  return list.find((c) => c.status === 'connected') || list[0] || null;
 }
 
 export const DatabaseConnectionsProvider = ({
@@ -75,29 +91,24 @@ export const DatabaseConnectionsProvider = ({
   const refreshConnections = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getConnections();
-      const list = (res.connections || []).map(mapApiConnection);
-      setConnections(list);
-      setSelectedConnection((prev) => {
-        if (prev && list.some((c) => c.id === prev.id)) {
-          return list.find((c) => c.id === prev.id) || null;
-        }
-        return list[0] || null;
-      });
-    } catch {
+      let list: DatabaseConnection[] = [];
       try {
         const res = await api.getInstances();
-        const list = (res.instances || []).map(mapApiConnection);
-        setConnections(list);
-        setSelectedConnection((prev) => {
-          if (prev && list.some((c) => c.id === prev.id)) {
-            return list.find((c) => c.id === prev.id) || null;
-          }
-          return list[0] || null;
-        });
+        list = (res.instances || [])
+          .filter((i: any) => i.status !== 'deleted')
+          .map(mapApiConnection);
       } catch {
-        setConnections([]);
+        const res = await api.getConnections();
+        list = (res.connections || []).map(mapApiConnection);
       }
+      setConnections(list);
+      const next = pickInitial(list, getActiveInstanceId());
+      setSelectedConnection(next);
+      setActiveInstanceId(next?.id || null);
+    } catch {
+      setConnections([]);
+      setSelectedConnection(null);
+      setActiveInstanceId(null);
     } finally {
       setLoading(false);
     }
@@ -118,12 +129,19 @@ export const DatabaseConnectionsProvider = ({
 
   const removeConnection = (id: string) => {
     setConnections((prev) => prev.filter((c) => c.id !== id));
-    setSelectedConnection((prev) => (prev?.id === id ? null : prev));
+    setSelectedConnection((prev) => {
+      if (prev?.id !== id) return prev;
+      const rest = connections.filter((c) => c.id !== id);
+      const next = rest[0] || null;
+      setActiveInstanceId(next?.id || null);
+      return next;
+    });
   };
 
   const selectConnection = (id: string) => {
     const found = connections.find((c) => c.id === id) || null;
     setSelectedConnection(found);
+    setActiveInstanceId(found?.id || null);
   };
 
   const updateConnection = (conn: DatabaseConnection) => {

@@ -19,8 +19,14 @@ const defaultPorts: Record<string, number> = {
 };
 
 const SelectDatabasePage: React.FC = () => {
-  const { connections, selectConnection, addConnection, loading, refreshConnections } =
-    useDatabaseConnections();
+  const {
+    connections,
+    selectedConnection,
+    selectConnection,
+    addConnection,
+    loading,
+    refreshConnections,
+  } = useDatabaseConnections();
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
@@ -96,10 +102,14 @@ const SelectDatabasePage: React.FC = () => {
           {connections.map((conn) => (
             <div
               key={conn.id}
-              className="bg-white rounded-xl shadow-md p-6 flex flex-col items-start border border-gray-200 hover:border-blue-500 cursor-pointer transition group mx-auto min-w-[260px] max-w-[320px]"
+              className={`bg-white rounded-xl shadow-md p-6 flex flex-col items-start border cursor-pointer transition group mx-auto min-w-[260px] max-w-[320px] ${
+                selectedConnection?.id === conn.id
+                  ? 'border-blue-500 ring-2 ring-blue-200'
+                  : 'border-gray-200 hover:border-blue-500'
+              }`}
               onClick={() => handleSelect(conn.id)}
             >
-              <div className="flex items-center mb-2">
+              <div className="flex items-center mb-2 w-full">
                 <span className="mr-2 text-2xl">
                   {conn.type === 'postgresql' && '🐘'}
                   {conn.type === 'mysql' && '🦦'}
@@ -107,10 +117,29 @@ const SelectDatabasePage: React.FC = () => {
                   {conn.type === 'sqlite' && '💾'}
                   {conn.type === 'oracle' && '🦉'}
                 </span>
-                <span className="font-semibold text-lg group-hover:text-blue-600 transition">{conn.name}</span>
+                <span className="font-semibold text-lg group-hover:text-blue-600 transition truncate">
+                  {conn.name}
+                </span>
+                {selectedConnection?.id === conn.id && (
+                  <span className="ml-auto shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                    Aktif
+                  </span>
+                )}
               </div>
-              <div className="text-gray-500 text-sm mb-1">{conn.type.toUpperCase()}</div>
-              <div className="text-xs text-gray-400">{conn.host}:{conn.port}</div>
+              <div className="text-gray-500 text-sm mb-1">
+                {(conn.type || 'postgresql').toUpperCase()}
+                {conn.plan ? ` · ${conn.plan}` : ''}
+              </div>
+              <div className="text-xs text-gray-400">
+                {conn.database || `${conn.host}:${conn.port}`}
+              </div>
+              <div className="mt-2 text-xs text-gray-400">
+                {conn.status === 'connected'
+                  ? 'Hazır'
+                  : conn.status === 'error'
+                    ? 'Hata'
+                    : 'Duraklatılmış'}
+              </div>
             </div>
           ))}
           {/* Yeni bağlantı ekle kartı */}

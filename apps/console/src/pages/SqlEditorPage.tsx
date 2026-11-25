@@ -28,6 +28,8 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import InstancePicker from '../components/InstancePicker';
+import { useDatabaseConnections } from '../context/DatabaseConnectionsContext';
 import { apiService } from '../services/api';
 
 // SQL Syntax Highlighting Component
@@ -197,6 +199,9 @@ const ResultTable: React.FC<{ data: any[]; columns: string[] }> = ({ data, colum
 );
 
 const SqlEditorPage: React.FC = () => {
+  const { selectedConnection } = useDatabaseConnections();
+  const instanceKey = selectedConnection?.id || '';
+
   // State management
   const [sqlQuery, setSqlQuery] = useState('');
   const [queryHistory, setQueryHistory] = useState<Array<{
@@ -301,6 +306,10 @@ const SqlEditorPage: React.FC = () => {
 
   // Execute SQL query
   const executeQuery = async () => {
+    if (!instanceKey) {
+      showNotification('error', 'Önce bir veritabanı seçin');
+      return;
+    }
     if (!sqlQuery.trim()) {
       showNotification('error', 'Lütfen bir SQL sorgusu girin');
       return;
@@ -563,12 +572,15 @@ const SqlEditorPage: React.FC = () => {
       {/* Left Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">SQL Editörü</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">SQL Editörü</h2>
+          <div className="mb-3">
+            <InstancePicker />
+          </div>
           
           <div className="space-y-2">
             <button
               onClick={executeQuery}
-              disabled={isExecuting || !sqlQuery.trim()}
+              disabled={isExecuting || !sqlQuery.trim() || !instanceKey}
               className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
             >
               {isExecuting ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}

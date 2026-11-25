@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiService } from '../services/api';
-import { getActiveProjectId } from '../components/ProjectSwitcher';
+import { useDatabaseConnections } from '../context/DatabaseConnectionsContext';
+import InstancePicker from '../components/InstancePicker';
 import { GitBranch, Play } from 'lucide-react';
 
 /**
- * Migration motor MVP — apply named SQL scripts per instance.
- * Replaces the previous mock-heavy UI.
+ * Migration motor — apply named SQL scripts per instance.
  */
 const MigrationPage: React.FC = () => {
-  const [instances, setInstances] = useState<any[]>([]);
-  const [instanceId, setInstanceId] = useState('');
+  const { selectedConnection } = useDatabaseConnections();
+  const instanceId = selectedConnection?.id || '';
   const [applied, setApplied] = useState<any[]>([]);
   const [name, setName] = useState('001_init');
   const [sql, setSql] = useState(
@@ -19,34 +19,26 @@ const MigrationPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    const projectId = getActiveProjectId() || undefined;
-    const res = await apiService.getInstances(projectId);
-    const list = (res.instances || []).filter(
-      (i: any) => i.status === 'ready' || i.status === 'paused'
-    );
-    setInstances(list);
-    if (!instanceId && list[0]) setInstanceId(list[0].id);
-  }, [instanceId]);
-
   const refreshApplied = useCallback(async (id: string) => {
-    if (!id) return;
+    if (!id) {
+      setApplied([]);
+      return;
+    }
     const res = await apiService.listMigrations(id);
     setApplied(res.data || []);
   }, []);
 
   useEffect(() => {
-    load().catch((e) => setError(e.message));
-    const onProj = () => load().catch(() => {});
-    window.addEventListener('graphcore:project', onProj);
-    return () => window.removeEventListener('graphcore:project', onProj);
-  }, [load]);
-
-  useEffect(() => {
-    if (instanceId) refreshApplied(instanceId).catch((e) => setError(e.message));
+    setError(null);
+    setMsg(null);
+    refreshApplied(instanceId).catch((e) => setError(e.message));
   }, [instanceId, refreshApplied]);
 
   const apply = async () => {
+    if (!instanceId) {
+      setError('Önce bir veritabanı seçin');
+      return;
+    }
     setBusy(true);
     setError(null);
     setMsg(null);
@@ -63,29 +55,20 @@ const MigrationPage: React.FC = () => {
 
   return (
     <div className="h-full bg-[#f8fafb] p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <GitBranch className="h-5 w-5 text-blue-700" />
-        <div>
-          <h1 className="text-xl font-semibold">Migrations</h1>
-          <p className="text-sm text-gray-500">
-            Instance başına SQL migration uygula (`_graphcore_migrations` ile izlenir).
-          </p>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-5 w-5 text-blue-700" />
+          <div>
+            <h1 className="text-xl font-semibold">Migrations</h1>
+            <p className="text-sm text-gray-500">
+              Instance başına SQL migration uygula (`_graphcore_migrations` ile izlenir).
+            </p>
+          </div>
         </div>
+        <InstancePicker className="ml-auto" />
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <select
-          className="rounded border px-2 py-1.5 text-sm"
-          value={instanceId}
-          onChange={(e) => setInstanceId(e.target.value)}
-        >
-          {instances.length === 0 && <option value="">Instance yok</option>}
-          {instances.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name} · {i.status}
-            </option>
-          ))}
-        </select>
         <input
           className="rounded border px-2 py-1.5 text-sm"
           value={name}
