@@ -113,11 +113,16 @@ router.get('/tables', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
     const pool = await poolFor(req);
+    // Match RetailEX / PostgREST discovery: public base tables, stable order
     const { rows } = await pool.query(`
       SELECT table_name AS name
       FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      ORDER BY table_name
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name NOT LIKE 'pg_%'
+      ORDER BY
+        CASE WHEN table_name LIKE '\\_graphcore%' ESCAPE '\\' THEN 1 ELSE 0 END,
+        table_name
     `);
     const tables = [];
     for (const row of rows) {

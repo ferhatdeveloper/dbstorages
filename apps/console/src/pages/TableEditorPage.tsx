@@ -113,12 +113,17 @@ const TableEditorPage: React.FC = () => {
     }
     setLoadingTables(true);
     try {
-      const response = await apiService.getTables();
-      if (response.success && response.data) {
-        setTables(response.data);
+      const response = await apiService.getTables(instanceKey);
+      const list = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray((response as any).tables)
+          ? (response as any).tables
+          : [];
+      if (response.success !== false) {
+        setTables(list);
         setSelectedTable((prev) => {
-          if (response.data!.some((t) => t.name === prev)) return prev;
-          return response.data![0]?.name || '';
+          if (list.some((t: TableInfo) => t.name === prev)) return prev;
+          return list[0]?.name || '';
         });
       } else {
         setTables([]);
@@ -155,7 +160,7 @@ const TableEditorPage: React.FC = () => {
   }, [selectedTable, currentPage, pageSize, filters, sortBy, sortOrder, instanceKey]);
 
   const loadTableData = async () => {
-    if (!selectedTable) return;
+    if (!selectedTable || !instanceKey) return;
     
     setLoadingTableData(true);
     try {
@@ -165,7 +170,8 @@ const TableEditorPage: React.FC = () => {
         pageSize,
         filters,
         sortBy,
-        sortOrder
+        sortOrder,
+        instanceKey
       );
       
       if (response.success && response.data) {
@@ -485,8 +491,14 @@ const TableEditorPage: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [editingRow, editRowData]);
 
+  const visibleTables = tables.filter((t) =>
+    !searchQuery.trim()
+      ? true
+      : t.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  );
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-full min-h-0 bg-gray-50">
       {/* Toast Notification */}
       {showToast && (
         <Toast
@@ -497,51 +509,70 @@ const TableEditorPage: React.FC = () => {
       )}
 
       {/* Left Sidebar - Tables */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
+      <div className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-4">
           <div className="mb-3">
             <InstancePicker />
           </div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Tablolar</h2>
             <button
-              onClick={() => setShowCreateTable(true)}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-              title="Yeni Tablo Oluştur"
+              type="button"
+              onClick={() => loadTables()}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              title="Yenile"
             >
-              <Plus size={16} />
+              <RefreshCw size={16} className={loadingTables ? 'animate-spin' : ''} />
             </button>
           </div>
           
           {/* Search Tables */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 transform text-gray-400" size={16} />
             <input
               type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tablolarda ara..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 focus:border-transparent focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
 
         {/* Tables List */}
-        <div className="flex-1 overflow-y-auto">
-          {tables.map((table) => (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {loadingTables && (
+            <div className="flex items-center gap-2 px-4 py-6 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+            </div>
+          )}
+          {!loadingTables && !instanceKey && (
+            <div className="px-4 py-6 text-sm text-amber-700">
+              Önce bir veritabanı seçin.
+            </div>
+          )}
+          {!loadingTables && instanceKey && visibleTables.length === 0 && (
+            <div className="px-4 py-6 text-sm text-gray-500">
+              Public şemada tablo yok. SQL Editor veya Migration ile oluşturun.
+            </div>
+          )}
+          {visibleTables.map((table) => (
             <div
               key={table.name}
-              className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                selectedTable === table.name ? 'bg-blue-50 border-blue-200' : ''
+              className={`cursor-pointer border-b border-gray-100 p-3 hover:bg-gray-50 ${
+                selectedTable === table.name ? 'border-blue-200 bg-blue-50' : ''
               }`}
               onClick={() => handleTableSelect(table.name)}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Table size={16} className="text-gray-500" />
-                  <span className="text-sm font-medium text-gray-900">{table.name}</span>
+                <div className="flex min-w-0 items-center space-x-2">
+                  <Table size={16} className="shrink-0 text-gray-500" />
+                  <span className="truncate text-sm font-medium text-gray-900">{table.name}</span>
                   {table.locked && <Lock size={12} className="text-gray-400" />}
                 </div>
                 <div className="flex items-center space-x-1">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(table.name);

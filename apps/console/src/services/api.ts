@@ -117,11 +117,15 @@ class ApiService {
     return payload as T;
   }
 
-  /** Prefer Node /api/db (real Database); fall back shape-compatible */
-  async getTables(): Promise<ApiResponse<TableInfo[]>> {
+  /** Prefer Node /api/db (real multi-tenant). Do not fall back to Go when an instance is selected. */
+  async getTables(instanceId?: string | null): Promise<ApiResponse<TableInfo[]>> {
+    const id = instanceId || getActiveInstanceId();
+    if (id) setActiveInstanceId(id);
     try {
       return await this.request(`${NODE_API_BASE}/db/tables`);
-    } catch {
+    } catch (err) {
+      // Go /api/v1/tables is single-DB and ignores instance — only use without instance
+      if (id) throw err;
       const go = await this.request<any>(`${GO_API_BASE}/tables`);
       return {
         success: go.success !== false,
@@ -137,8 +141,11 @@ class ApiService {
     pageSize = 50,
     _filters?: Record<string, any>,
     sortBy?: string,
-    sortOrder?: 'asc' | 'desc'
+    sortOrder?: 'asc' | 'desc',
+    instanceId?: string | null
   ): Promise<ApiResponse<TableData>> {
+    const id = instanceId || getActiveInstanceId();
+    if (id) setActiveInstanceId(id);
     const qs = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
@@ -150,7 +157,8 @@ class ApiService {
       return await this.request(
         `${NODE_API_BASE}/db/tables/${encodeURIComponent(tableName)}?${qs}`
       );
-    } catch {
+    } catch (err) {
+      if (id) throw err;
       const go = await this.request<any>(
         `${GO_API_BASE}/tables/${encodeURIComponent(tableName)}?${qs}`
       );
@@ -273,7 +281,9 @@ class ApiService {
     });
   }
 
-  async getSchema() {
+  async getSchema(instanceId?: string | null) {
+    const id = instanceId || getActiveInstanceId();
+    if (id) setActiveInstanceId(id);
     return this.request<ApiResponse<{ tables: TableInfo[] }>>(
       `${NODE_API_BASE}/db/schema`
     );

@@ -23,7 +23,7 @@ const SchemaPage = () => {
     setLoading(true)
     setError('')
     try {
-      const res = await apiService.getSchema()
+      const res = await apiService.getSchema(instanceKey)
       if (res.success && res.data?.tables) {
         setTables(res.data.tables)
         setSelected(res.data.tables[0] || null)
