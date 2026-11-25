@@ -19,7 +19,8 @@ const defaultPorts: Record<string, number> = {
 };
 
 const SelectDatabasePage: React.FC = () => {
-  const { connections, selectConnection, addConnection } = useDatabaseConnections();
+  const { connections, selectConnection, addConnection, loading, refreshConnections } =
+    useDatabaseConnections();
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
@@ -73,7 +74,24 @@ const SelectDatabasePage: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-0px)] bg-[#f8fafb]">
       <div className="w-full max-w-3xl mt-24">
-        <h1 className="text-2xl font-bold mb-8 text-center">Veritabanı Seç veya Oluştur</h1>
+        <div className="mb-8 flex items-center justify-center gap-3">
+          <h1 className="text-2xl font-bold text-center">Veritabanı Seç veya Oluştur</h1>
+          <button
+            type="button"
+            onClick={() => refreshConnections()}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Yenile
+          </button>
+        </div>
+        {loading && (
+          <p className="mb-6 text-center text-sm text-gray-500">Bağlantılar yükleniyor…</p>
+        )}
+        {!loading && connections.length === 0 && (
+          <p className="mb-6 text-center text-sm text-gray-500">
+            Hesabınıza ait hazır veritabanı bulunamadı.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 justify-center">
           {connections.map((conn) => (
             <div

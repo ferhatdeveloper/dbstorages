@@ -1,6 +1,13 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { api } from '../services/api';
 
-// Desteklenen veritabanı türleri
 type DatabaseType = 'postgresql' | 'mysql' | 'mssql' | 'sqlite' | 'oracle';
 
 export interface DatabaseConnection {
@@ -13,34 +20,97 @@ export interface DatabaseConnection {
   password: string;
   database: string;
   status?: 'connected' | 'disconnected' | 'error';
+  createdAt?: string;
+  plan?: string;
+  region?: string;
 }
 
 interface DatabaseConnectionsContextProps {
   connections: DatabaseConnection[];
   selectedConnection: DatabaseConnection | null;
+  loading: boolean;
+  refreshConnections: () => Promise<void>;
   addConnection: (conn: DatabaseConnection) => void;
   removeConnection: (id: string) => void;
   selectConnection: (id: string) => void;
   updateConnection: (conn: DatabaseConnection) => void;
 }
 
-const DatabaseConnectionsContext = createContext<DatabaseConnectionsContextProps | undefined>(undefined);
+const DatabaseConnectionsContext = createContext<
+  DatabaseConnectionsContextProps | undefined
+>(undefined);
 
-export const DatabaseConnectionsProvider = ({ children }: { children: ReactNode }) => {
-  const [connections, setConnections] = useState<DatabaseConnection[]>([
-    {
-      id: 'default-database',
-      name: 'Demo Database',
-      type: 'postgresql',
-      host: 'localhost',
-      port: 5432,
-      username: 'dbstorages',
-      password: 'password',
-      database: 'demo',
-      status: 'disconnected',
-    },
-  ]);
-  const [selectedConnection, setSelectedConnection] = useState<DatabaseConnection | null>(connections[0] || null);
+function mapApiConnection(c: any): DatabaseConnection {
+  return {
+    id: c.id,
+    name: c.name || c.database || c.database_name || 'Database',
+    type: (c.type || 'postgresql') as DatabaseType,
+    host: c.host || '',
+    port: Number(c.port) || 5432,
+    username: c.username || '',
+    password: c.password || '',
+    database: c.database || c.database_name || '',
+    status:
+      c.status === 'ready' || c.status === 'connected'
+        ? 'connected'
+        : c.status === 'error'
+          ? 'error'
+          : 'disconnected',
+    createdAt: c.createdAt || c.created_at,
+    plan: c.plan,
+    region: c.region,
+  };
+}
+
+export const DatabaseConnectionsProvider = ({
+  children,
+}: {
+  children: ReactNode;
+}) => {
+  const [connections, setConnections] = useState<DatabaseConnection[]>([]);
+  const [selectedConnection, setSelectedConnection] =
+    useState<DatabaseConnection | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refreshConnections = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.getConnections();
+      const list = (res.connections || []).map(mapApiConnection);
+      setConnections(list);
+      setSelectedConnection((prev) => {
+        if (prev && list.some((c) => c.id === prev.id)) {
+          return list.find((c) => c.id === prev.id) || null;
+        }
+        return list[0] || null;
+      });
+    } catch {
+      try {
+        const res = await api.getInstances();
+        const list = (res.instances || []).map(mapApiConnection);
+        setConnections(list);
+        setSelectedConnection((prev) => {
+          if (prev && list.some((c) => c.id === prev.id)) {
+            return list.find((c) => c.id === prev.id) || null;
+          }
+          return list[0] || null;
+        });
+      } catch {
+        setConnections([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    refreshConnections();
+  }, [refreshConnections]);
 
   const addConnection = (conn: DatabaseConnection) => {
     setConnections((prev) => [...prev, conn]);
@@ -48,7 +118,7 @@ export const DatabaseConnectionsProvider = ({ children }: { children: ReactNode 
 
   const removeConnection = (id: string) => {
     setConnections((prev) => prev.filter((c) => c.id !== id));
-    if (selectedConnection?.id === id) setSelectedConnection(null);
+    setSelectedConnection((prev) => (prev?.id === id ? null : prev));
   };
 
   const selectConnection = (id: string) => {
@@ -58,12 +128,21 @@ export const DatabaseConnectionsProvider = ({ children }: { children: ReactNode 
 
   const updateConnection = (conn: DatabaseConnection) => {
     setConnections((prev) => prev.map((c) => (c.id === conn.id ? conn : c)));
-    if (selectedConnection?.id === conn.id) setSelectedConnection(conn);
+    setSelectedConnection((prev) => (prev?.id === conn.id ? conn : prev));
   };
 
   return (
     <DatabaseConnectionsContext.Provider
-      value={{ connections, selectedConnection, addConnection, removeConnection, selectConnection, updateConnection }}
+      value={{
+        connections,
+        selectedConnection,
+        loading,
+        refreshConnections,
+        addConnection,
+        removeConnection,
+        selectConnection,
+        updateConnection,
+      }}
     >
       {children}
     </DatabaseConnectionsContext.Provider>
@@ -72,6 +151,10 @@ export const DatabaseConnectionsProvider = ({ children }: { children: ReactNode 
 
 export const useDatabaseConnections = () => {
   const ctx = useContext(DatabaseConnectionsContext);
-  if (!ctx) throw new Error('useDatabaseConnections must be used within DatabaseConnectionsProvider');
+  if (!ctx) {
+    throw new Error(
+      'useDatabaseConnections must be used within DatabaseConnectionsProvider'
+    );
+  }
   return ctx;
-}; 
+};

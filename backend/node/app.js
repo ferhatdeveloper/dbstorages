@@ -718,11 +718,15 @@ app.get('/api/me/memberships', authMiddleware, async (req, res) => {
   }
 });
 
-// Dashboard / connections / AI / integrations (honest stubs where not real)
+// Dashboard — real instance + schema stats for the signed-in user
 app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
   let totalTables = 0;
   let totalRows = 0;
-  let activeConnections = 0;
+  let instances = [];
+  let readyCount = 0;
+  let pausedCount = 0;
+  let provisioningCount = 0;
+
   try {
     const pool = await resolveTenantPool({
       userId: req.user.sub,
@@ -734,50 +738,167 @@ app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
         WHERE table_schema='public' AND table_type='BASE TABLE'
       `);
       totalTables = t.rows[0].n;
-      activeConnections = 1;
+      try {
+        const r = await pool.query(`
+          SELECT COALESCE(SUM(n_live_tup), 0)::bigint AS n
+          FROM pg_stat_user_tables
+        `);
+        totalRows = Number(r.rows[0]?.n || 0);
+      } catch {
+        /* pg_stat may be unavailable */
+      }
     }
   } catch {
     /* no ready instance */
   }
+
   if (isMetaReady()) {
     try {
       const { rows } = await getMetaPool().query(
-        `SELECT COUNT(*)::int AS n FROM instances i
+        `SELECT i.id, i.name, i.database_name, i.status, i.host, i.port,
+                i.plan, i.region, i.created_at, i.rest_url
+         FROM instances i
          JOIN projects p ON p.id = i.project_id
          JOIN memberships m ON m.tenant_id = p.tenant_id
-         WHERE m.user_id = $1 AND i.status = 'ready'`,
+         WHERE m.user_id = $1 AND i.status <> 'deleted'
+         ORDER BY i.created_at DESC`,
         [req.user.sub]
       );
-      activeConnections = rows[0]?.n || 0;
+      instances = rows.map((i) => ({
+        id: i.id,
+        name: i.name,
+        database: i.database_name,
+        status: i.status,
+        host: i.host,
+        port: i.port,
+        plan: i.plan,
+        region: i.region,
+        createdAt: i.created_at,
+        restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
+      }));
+      readyCount = instances.filter((x) => x.status === 'ready').length;
+      pausedCount = instances.filter((x) => x.status === 'paused').length;
+      provisioningCount = instances.filter((x) =>
+        ['provisioning', 'pending', 'creating'].includes(String(x.status))
+      ).length;
     } catch {
       /* ignore */
     }
+  } else {
+    const mineTenants = new Set(
+      store.memberships
+        .filter((m) => m.user_id === req.user.sub)
+        .map((m) => m.tenant_id)
+    );
+    const mineProjects = new Set(
+      store.projects.filter((p) => mineTenants.has(p.tenant_id)).map((p) => p.id)
+    );
+    instances = store.instances
+      .filter((i) => i.status !== 'deleted' && mineProjects.has(i.project_id))
+      .map((i) => ({
+        id: i.id,
+        name: i.name,
+        database: i.database_name,
+        status: i.status,
+        host: i.host,
+        port: i.port,
+        plan: i.plan,
+        region: i.region,
+        createdAt: i.created_at,
+        restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
+      }));
+    readyCount = instances.filter((x) => x.status === 'ready').length;
+    pausedCount = instances.filter((x) => x.status === 'paused').length;
   }
+
+  const activeConnections = readyCount;
   res.json({
     totalTables,
     totalRows,
     activeConnections,
-    systemHealth: activeConnections > 0 ? 'ok' : 'degraded',
-    recentActivity: [],
+    instanceCount: instances.length,
+    readyCount,
+    pausedCount,
+    provisioningCount,
+    instances,
+    recentActivity: instances.slice(0, 8).map((i) => ({
+      label: i.name || i.database,
+      database: i.database,
+      status: i.status,
+      createdAt: i.createdAt,
+    })),
+    systemHealth: readyCount > 0 ? 'ok' : instances.length ? 'degraded' : 'empty',
     metaDb: isMetaReady(),
     tenantDb: isTenantReady(),
   });
 });
 
-app.get('/api/dashboard/widgets', (_req, res) => {
+app.get('/api/dashboard/widgets', authMiddleware, async (req, res) => {
+  let ready = 0;
+  let total = 0;
+  let tables = 0;
+  if (isMetaReady()) {
+    try {
+      const { rows } = await getMetaPool().query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE i.status = 'ready')::int AS ready
+         FROM instances i
+         JOIN projects p ON p.id = i.project_id
+         JOIN memberships m ON m.tenant_id = p.tenant_id
+         WHERE m.user_id = $1 AND i.status <> 'deleted'`,
+        [req.user.sub]
+      );
+      total = rows[0]?.total || 0;
+      ready = rows[0]?.ready || 0;
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    const pool = await resolveTenantPool({
+      userId: req.user.sub,
+      requireAuth: false,
+    });
+    if (pool) {
+      const t = await pool.query(`
+        SELECT COUNT(*)::int AS n FROM information_schema.tables
+        WHERE table_schema='public' AND table_type='BASE TABLE'
+      `);
+      tables = t.rows[0].n;
+    }
+  } catch {
+    /* ignore */
+  }
   res.json({
     widgets: [
       {
-        id: 1,
+        id: 'ready_dbs',
         type: 'metric',
-        title: 'Meta DB',
-        value: isMetaReady() ? 'connected' : 'offline',
+        title: 'Hazır veritabanları',
+        value: ready,
+        label: `${total} toplam`,
       },
       {
-        id: 2,
+        id: 'tables',
         type: 'metric',
-        title: 'Tenant DB',
-        value: isTenantReady() ? 'connected' : 'offline',
+        title: 'Aktif şema tabloları',
+        value: tables,
+        label: 'public',
+      },
+      {
+        id: 'meta',
+        type: 'status',
+        title: 'Platform',
+        value: isMetaReady() ? 'online' : 'offline',
+        label: 'Meta DB',
+      },
+      {
+        id: 'tenant',
+        type: 'status',
+        title: 'Tenant pool',
+        value: isTenantReady() ? 'online' : 'offline',
+        label: 'Bağlantı havuzu',
       },
     ],
   });
@@ -805,6 +926,9 @@ app.get('/api/connections', authMiddleware, async (req, res) => {
           database: i.database_name,
           username: i.username,
           status: 'connected',
+          createdAt: i.created_at,
+          plan: i.plan,
+          region: i.region,
           connectionString: i.connection_string,
           restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
           projectAuthUrl: `${publicApiBase(req)}/api/project-auth/${i.id}`,
@@ -831,6 +955,9 @@ app.get('/api/connections', authMiddleware, async (req, res) => {
           database: i.database_name,
           username: i.username,
           status: 'connected',
+          createdAt: i.created_at,
+          plan: i.plan,
+          region: i.region,
           connectionString: i.connection_string,
           restUrl: i.rest_url || `${publicApiBase(req)}/api/rest/${i.id}`,
           projectAuthUrl: `${publicApiBase(req)}/api/project-auth/${i.id}`,
