@@ -133,20 +133,6 @@ router.post('/login', async (req, res) => {
 
     let user = await findUserByEmail(email);
 
-    // Bootstrap demo user if missing (legacy + dbstorages demo email)
-    const normalizedEmail = email.toLowerCase();
-    const isDemoEmail =
-      normalizedEmail === 'demo@graphcore.com' ||
-      normalizedEmail === 'demo@dbstorages.com';
-    if (!user && isDemoEmail && password === 'demo123') {
-      user = await createUser({
-        email: normalizedEmail,
-        name: 'Demo Kullanıcı',
-        password: 'demo123',
-        role: 'supervisor',
-      });
-    }
-
     if (!user) {
       return res.status(401).json({
         success: false,

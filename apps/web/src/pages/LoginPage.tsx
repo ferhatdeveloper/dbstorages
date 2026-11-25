@@ -131,7 +131,6 @@ const LoginPage = () => {
             Hesabınız yok mu?{' '}
             <Link to="/register">Kayıt olun</Link>
           </p>
-          <p className="hz-auth-demo">Demo: demo@dbstorages.com / demo123</p>
         </div>
       </div>
     </MarketingShell>

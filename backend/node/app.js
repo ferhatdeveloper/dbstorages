@@ -1123,13 +1123,6 @@ app.get('/health', (_req, res) => {
 
 async function start() {
   await initDb();
-  // Ensure demo password hash is valid bcrypt
-  const bcrypt = require('bcryptjs');
-  const demo = store.users.get('demo@graphcore.com');
-  if (demo) {
-    demo.password_hash = bcrypt.hashSync('demo123', 10);
-    demo.role = 'supervisor';
-  }
   try {
     await ensureSupervisorSeed();
   } catch (err) {

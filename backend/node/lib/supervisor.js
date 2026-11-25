@@ -4,6 +4,7 @@
 
 const { isMetaReady, getMetaPool } = require('./db');
 const store = require('./store');
+const { hashPassword } = require('./auth');
 
 const SUPERVISOR_ROLES = new Set(['supervisor', 'admin']);
 
@@ -57,28 +58,91 @@ async function writeAudit({ actorUserId, action, entityType, entityId, meta }) {
   return record;
 }
 
-/**
- * Promote configured emails / demo user to supervisor on boot (idempotent).
- */
-async function ensureSupervisorSeed() {
-  const emails = String(process.env.SUPERVISOR_EMAIL || 'demo@graphcore.com')
+function supervisorEmailsFromEnv() {
+  return String(process.env.SUPERVISOR_EMAIL || 'info@dbstorages.com')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * Promote / upsert configured supervisor emails (idempotent).
+ * Optional SUPERVISOR_PASSWORD creates the first supervisor if missing.
+ */
+async function ensureSupervisorSeed() {
+  const emails = supervisorEmailsFromEnv();
   if (!emails.length) return;
 
+  const password = String(process.env.SUPERVISOR_PASSWORD || '').trim();
+  const displayName = String(
+    process.env.SUPERVISOR_NAME || 'Supervisor'
+  ).trim();
+
   if (isMetaReady()) {
+    const pool = getMetaPool();
     for (const email of emails) {
-      await getMetaPool().query(
-        `UPDATE platform_users SET role = 'supervisor'
-         WHERE lower(email) = $1 AND role IS DISTINCT FROM 'supervisor'`,
+      const existing = await pool.query(
+        `SELECT id, role FROM platform_users WHERE lower(email) = $1 LIMIT 1`,
         [email]
       );
+      if (existing.rows[0]) {
+        await pool.query(
+          `UPDATE platform_users
+           SET role = 'supervisor', disabled = FALSE
+           WHERE id = $1 AND (role IS DISTINCT FROM 'supervisor' OR disabled IS TRUE)`,
+          [existing.rows[0].id]
+        );
+      } else if (password.length >= 8) {
+        const id = store.newId('usr');
+        const password_hash = await hashPassword(password);
+        const created_at = new Date().toISOString();
+        await pool.query(
+          `INSERT INTO platform_users (id, email, name, password_hash, role, created_at)
+           VALUES ($1,$2,$3,$4,'supervisor',$5)`,
+          [id, email, displayName, password_hash, created_at]
+        );
+      }
     }
+
+    // Retire legacy demo supervisor accounts
+    await pool.query(
+      `UPDATE platform_users
+       SET disabled = TRUE,
+           role = CASE WHEN role IN ('supervisor','admin') THEN 'member' ELSE role END
+       WHERE lower(email) IN ('demo@dbstorages.com', 'demo@graphcore.com')
+         AND disabled IS DISTINCT FROM TRUE`
+    );
   } else {
-    for (const [, user] of store.users) {
-      if (emails.includes(String(user.email || '').toLowerCase())) {
+    for (const email of emails) {
+      let user = store.users.get(email);
+      if (!user && password.length >= 8) {
+        const id = store.newId('usr');
+        const password_hash = await hashPassword(password);
+        user = {
+          id,
+          email,
+          name: displayName,
+          password_hash,
+          role: 'supervisor',
+          disabled: false,
+          created_at: new Date().toISOString(),
+        };
+        store.users.set(email, user);
+      } else if (user) {
         user.role = 'supervisor';
+        user.disabled = false;
+        if (password.length >= 8) {
+          user.password_hash = await hashPassword(password);
+        }
+      }
+    }
+    for (const demoEmail of ['demo@dbstorages.com', 'demo@graphcore.com']) {
+      const demo = store.users.get(demoEmail);
+      if (demo) {
+        demo.disabled = true;
+        if (demo.role === 'supervisor' || demo.role === 'admin') {
+          demo.role = 'member';
+        }
       }
     }
   }
@@ -90,4 +154,5 @@ module.exports = {
   requireSupervisor,
   writeAudit,
   ensureSupervisorSeed,
+  supervisorEmailsFromEnv,
 };
