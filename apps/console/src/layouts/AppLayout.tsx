@@ -84,6 +84,13 @@ const studioSections: NavSection[] = [
   },
 ]
 
+const navIdle =
+  'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/70'
+const navActiveStudio =
+  'bg-slate-100 text-red-600 dark:bg-slate-800 dark:text-red-400'
+const navActiveCloud =
+  'bg-red-600/10 text-red-600 dark:bg-red-600/15 dark:text-red-400'
+
 const AppLayout = () => {
   const location = useLocation()
   const { logout, user } = useAuth()
@@ -114,13 +121,21 @@ const AppLayout = () => {
   }, [location.pathname, isCloud, isSupervisor])
 
   return (
-    <div className="flex h-screen bg-[#0b0f14] text-slate-200">
-      {/* Hetzner-like dense left rail */}
-      <aside className="flex w-[232px] shrink-0 flex-col border-r border-slate-800/90 bg-[#0e141b]">
-        <div className="border-b border-slate-800/90 px-3 py-3">
+    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800 dark:bg-[#0b0f14] dark:text-slate-200">
+      <aside className="flex w-[232px] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800/90 dark:bg-[#0e141b]">
+        <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-800/90">
           <div className="flex items-center gap-2">
             <div className="min-w-0">
-              <GraphCoreLogo variant="compact" invert className="gc-logo-console" />
+              <GraphCoreLogo
+                variant="compact"
+                invert={false}
+                className="gc-logo-console dark:hidden"
+              />
+              <GraphCoreLogo
+                variant="compact"
+                invert
+                className="gc-logo-console hidden dark:block"
+              />
               <div className="truncate text-[10px] uppercase tracking-wider text-slate-500">
                 Console
               </div>
@@ -135,14 +150,12 @@ const AppLayout = () => {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-2">
+        <nav className="console-scroll flex-1 overflow-y-auto overscroll-contain px-2 py-2">
           <NavLink
             to="/cloud/servers"
             className={({ isActive }) =>
               `mb-1 flex items-center gap-2 rounded px-2.5 py-2 text-[13px] font-medium ${
-                isActive || isCloud
-                  ? 'bg-red-600/15 text-red-400'
-                  : 'text-slate-300 hover:bg-slate-800/70'
+                isActive || isCloud ? navActiveCloud : navIdle
               }`
             }
           >
@@ -155,9 +168,7 @@ const AppLayout = () => {
               to="/supervisor"
               className={({ isActive }) =>
                 `mb-1 flex items-center gap-2 rounded px-2.5 py-2 text-[13px] font-medium ${
-                  isActive || isSupervisor
-                    ? 'bg-red-600/15 text-red-400'
-                    : 'text-slate-300 hover:bg-slate-800/70'
+                  isActive || isSupervisor ? navActiveCloud : navIdle
                 }`
               }
             >
@@ -169,7 +180,7 @@ const AppLayout = () => {
           <button
             type="button"
             onClick={() => setStudioOpen((v) => !v)}
-            className="mb-1 flex w-full items-center gap-2 rounded px-2.5 py-2 text-[13px] font-medium text-slate-300 hover:bg-slate-800/70"
+            className={`mb-1 flex w-full items-center gap-2 rounded px-2.5 py-2 text-[13px] font-medium ${navIdle}`}
           >
             <Database className="h-4 w-4 shrink-0" />
             <span className="flex-1 text-left">DB Studio</span>
@@ -195,8 +206,8 @@ const AppLayout = () => {
                           : isActive || location.pathname.startsWith(item.to)
                         return `flex items-center gap-2 rounded px-2.5 py-1.5 text-[12.5px] ${
                           match && !isCloud
-                            ? 'bg-slate-800 text-red-400'
-                            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                            ? navActiveStudio
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
                         }`
                       }}
                     >
@@ -209,10 +220,10 @@ const AppLayout = () => {
             ))}
         </nav>
 
-        <div className="space-y-1 border-t border-slate-800/90 p-2">
+        <div className="space-y-1 border-t border-slate-200 p-2 dark:border-slate-800/90">
           <a
             href={webPath('/database')}
-            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[12px] text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[12px] text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Marketing / Database
@@ -221,7 +232,7 @@ const AppLayout = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-[12.5px] text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+            className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-[12.5px] text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
           >
             <Lock className="h-3.5 w-3.5" />
             Logout
@@ -229,12 +240,14 @@ const AppLayout = () => {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-11 shrink-0 items-center border-b border-slate-800/90 bg-[#0e141b] px-4">
-          <div className="text-[13px] font-medium text-slate-200">{activeLabel}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-11 shrink-0 items-center border-b border-slate-200 bg-white px-4 dark:border-slate-800/90 dark:bg-[#0e141b]">
+          <div className="text-[13px] font-medium text-slate-800 dark:text-slate-200">
+            {activeLabel}
+          </div>
           <div className="ml-auto text-[11px] text-slate-500">Cloud console</div>
         </header>
-        <main className="min-h-0 flex-1 overflow-hidden bg-[#0b0f14]">
+        <main className="console-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 dark:bg-[#0b0f14]">
           <Outlet />
         </main>
       </div>

@@ -1686,7 +1686,11 @@ html.dark .hz-nav .landing-nav-links a {
 }
 
 .hz-nav-login {
-  color: #383838 !important;
+  color: var(--lc-ink) !important;
+}
+
+html.dark .hz-nav-login {
+  color: var(--lc-ink) !important;
 }
 
 .hz-hero {

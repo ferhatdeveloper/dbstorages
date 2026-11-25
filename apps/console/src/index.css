@@ -13,16 +13,72 @@
   --sb-placeholder: #94a3b8;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
 body {
   background: var(--sb-bg);
+  color: #0f172a;
+  overflow: hidden;
 }
 
 html.dark body {
   background: #070b0a;
+  color: #e2e8f0;
 }
 
 html.light body {
   background: #f4f7f5;
+  color: #0f172a;
+}
+
+/* Scrollable console panes — visible + usable scrollbar */
+.console-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+html.dark .console-scroll {
+  scrollbar-color: #475569 transparent;
+}
+
+.console-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.console-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.console-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+html.dark .console-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
+  background-clip: padding-box;
+}
+
+.console-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  background-clip: padding-box;
+}
+
+html.dark .console-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  background-clip: padding-box;
 }
 
 /* Currency toggle (€ / $ / ₺) */
@@ -36,7 +92,7 @@ html.light body {
 .currency-toggle {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #334155;
+  border: 1px solid #cbd5e1;
   border-radius: 2px;
   overflow: hidden;
   background: transparent;
@@ -47,9 +103,9 @@ html.light body {
   height: 1.85rem;
   padding: 0 0.4rem;
   border: none;
-  border-right: 1px solid #334155;
+  border-right: 1px solid #cbd5e1;
   background: transparent;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -62,11 +118,30 @@ html.light body {
 }
 
 .currency-toggle-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.currency-toggle-btn.is-active {
+  color: #365314;
+  background: #ecfccb;
+}
+
+html.dark .currency-toggle {
+  border-color: #334155;
+}
+
+html.dark .currency-toggle-btn {
+  border-right-color: #334155;
+  color: #94a3b8;
+}
+
+html.dark .currency-toggle-btn:hover {
   color: #e2e8f0;
   background: #1e293b;
 }
 
-.currency-toggle-btn.is-active {
+html.dark .currency-toggle-btn.is-active {
   color: #d9f99d;
   background: rgba(132, 204, 22, 0.18);
 }
