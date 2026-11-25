@@ -602,6 +602,15 @@ const TableEditorPage: React.FC = () => {
                     <span>{tableData?.total || 0} satır</span>
                     <span>•</span>
                     <span>{columns.length} kolon</span>
+                    {(tableData as any)?.database && (
+                      <>
+                        <span>•</span>
+                        <span className="font-mono text-xs text-slate-400">
+                          {(tableData as any).database}
+                          {(tableData as any).source === 'retailex' ? ' · live' : ''}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 
