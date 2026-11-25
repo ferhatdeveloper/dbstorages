@@ -51,8 +51,21 @@ type ServerRow = {
   cost_provider?: number | null
   price_retail?: number | null
   currency?: string
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, any>
   labels?: Record<string, string>
+}
+
+function serverMeta(r: ServerRow) {
+  const m = r.metadata || {}
+  return {
+    cores: m.cores as number | undefined,
+    memoryGb: m.memoryGb as number | undefined,
+    diskGb: m.diskGb as number | undefined,
+    bandwidthTb: m.bandwidthTb as number | undefined,
+    weeklyBackups: Boolean(m.weeklyBackups),
+    priceYearlyUsd: m.priceYearlyUsd as number | undefined,
+    features: Array.isArray(m.features) ? (m.features as string[]) : [],
+  }
 }
 
 const ADVANCED_ACTIONS: [string, string][] = [
@@ -252,6 +265,8 @@ const CloudServersPage: React.FC = () => {
                       const win = /windows/i.test(
                         `${r.image || ''} ${(r.metadata as any)?.osFamily || ''} ${r.labels?.os_family || ''}`
                       )
+                      const meta = serverMeta(r)
+                      const cur = (r.currency || 'EUR').toUpperCase()
                       return (
                         <tr key={r.id} className={cloudTr}>
                           <td className={`${cloudTd} font-medium text-slate-900 dark:text-slate-100`}>
@@ -261,9 +276,13 @@ const CloudServersPage: React.FC = () => {
                             >
                               {r.name}
                             </Link>
-                            {win && (
+                            {win ? (
                               <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300">
                                 Win
+                              </span>
+                            ) : (
+                              <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                Linux
                               </span>
                             )}
                           </td>
@@ -275,18 +294,31 @@ const CloudServersPage: React.FC = () => {
                               {r.server_type || '—'}
                             </span>
                             <span className="mt-0.5 block">
-                              {r.image || '—'} · {r.location || '—'}
+                              {meta.cores
+                                ? `${meta.cores} vCPU · ${meta.memoryGb} GB · ${meta.diskGb} GB NVMe`
+                                : `${r.image || '—'} · ${r.location || '—'}`}
                             </span>
+                            {meta.weeklyBackups && (
+                              <span className="mt-0.5 block text-[10px] text-emerald-700 dark:text-emerald-400">
+                                Ücretsiz haftalık yedek
+                              </span>
+                            )}
                           </td>
                           <td className={`${cloudTd} text-xs text-slate-600 dark:text-slate-300`}>
                             {r.price_retail != null ? (
                               <>
                                 <span className="font-medium">
-                                  {formatAmount(Number(r.price_retail), 'EUR')}/ay
+                                  {formatAmount(Number(r.price_retail), cur)}/ay
                                 </span>
-                                <span className="mt-0.5 block text-[10px] text-slate-400">
-                                  maliyet {formatAmount(Number(r.cost_provider), 'EUR')}
-                                </span>
+                                {meta.priceYearlyUsd != null ? (
+                                  <span className="mt-0.5 block text-[10px] text-slate-400">
+                                    ${meta.priceYearlyUsd}/yıl
+                                  </span>
+                                ) : r.cost_provider != null ? (
+                                  <span className="mt-0.5 block text-[10px] text-slate-400">
+                                    maliyet {formatAmount(Number(r.cost_provider), cur)}
+                                  </span>
+                                ) : null}
                               </>
                             ) : (
                               '—'

@@ -10,6 +10,8 @@ const {
   provisionInstanceAfterPayment,
   findInstanceByPayment,
 } = require('./billing');
+const { CloudService } = require('../lib/cloud');
+const cloudRepo = require('../lib/cloud/repository');
 
 const router = express.Router();
 
@@ -643,6 +645,190 @@ router.post('/seed-customer-databases', async (req, res) => {
     });
   } catch (err) {
     console.error('seed-customer-databases', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'server', message: err.message },
+    });
+  }
+});
+
+/**
+ * Seed ready Linux cloud servers for a customer (no live provider call).
+ * Body: {
+ *   email,
+ *   servers: [{ name, cores?, memoryGb?, diskGb?, bandwidthTb?, priceYearlyUsd?, weeklyBackups? }]
+ * }
+ */
+router.post('/seed-customer-cloud-servers', async (req, res) => {
+  try {
+    if (!isMetaReady()) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'meta_unavailable', message: 'Meta DB required' },
+      });
+    }
+    const email = String(req.body?.email || '')
+      .trim()
+      .toLowerCase();
+    const servers = Array.isArray(req.body?.servers) ? req.body.servers : [];
+    if (!email || !servers.length) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'validation',
+          message: 'email and servers[] required',
+        },
+      });
+    }
+
+    const pool = getMetaPool();
+    const { rows: users } = await pool.query(
+      `SELECT * FROM platform_users WHERE email = $1 LIMIT 1`,
+      [email]
+    );
+    const user = users[0];
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'not_found', message: 'user not found' },
+      });
+    }
+
+    const scope = await ensureDefaultOrgForUser(
+      user.id,
+      `${user.name || email.split('@')[0]} Org`
+    );
+    const tenantId = scope.tenantId;
+    const projectId = scope.projectId;
+
+    let providers = await CloudService.listProviders(tenantId);
+    let provider = providers.find((p) => p.slug === 'mock') || providers[0];
+    if (!provider) {
+      provider = await CloudService.createProvider({
+        tenantId,
+        projectId,
+        name: 'Managed Cloud',
+        slug: 'mock',
+        apiKey: 'seed-mock',
+        config: { seeded: true },
+        createdBy: req.user.sub,
+      });
+    }
+
+    const created = [];
+    const skipped = [];
+    for (const s of servers) {
+      const name = String(s.name || '').trim();
+      if (!name) {
+        skipped.push({ name, reason: 'missing_name' });
+        continue;
+      }
+      const dup = await pool.query(
+        `SELECT id FROM cloud_servers
+         WHERE tenant_id = $1 AND lower(name) = lower($2) AND status <> 'deleted'
+         LIMIT 1`,
+        [tenantId, name]
+      );
+      if (dup.rows[0]) {
+        skipped.push({ name, reason: 'exists', id: dup.rows[0].id });
+        continue;
+      }
+
+      const cores = Number(s.cores) || 4;
+      const memoryGb = Number(s.memoryGb) || 16;
+      const diskGb = Number(s.diskGb) || 200;
+      const bandwidthTb = Number(s.bandwidthTb) || 16;
+      const priceYearlyUsd = Number(s.priceYearlyUsd) || 620;
+      const priceMonthly = Math.round((priceYearlyUsd / 12) * 100) / 100;
+      const weeklyBackups = s.weeklyBackups !== false;
+      const location = String(s.location || 'eu-central').trim();
+      const image = String(s.image || 'ubuntu-24.04').trim();
+      const serverType =
+        String(s.serverType || '').trim() ||
+        `${cores}vCPU-${memoryGb}GB`;
+
+      const row = await cloudRepo.insertServer({
+        id: store.newId('csrv'),
+        tenantId,
+        projectId,
+        providerId: provider.id,
+        name,
+        status: 'running',
+        serverType,
+        image,
+        location,
+        ipv4: s.ipv4 || null,
+        ipv6: s.ipv6 || null,
+        labels: {
+          os_family: 'linux',
+          seeded: '1',
+          ...(s.labels && typeof s.labels === 'object' ? s.labels : {}),
+        },
+        metadata: {
+          osFamily: 'linux',
+          cores,
+          memoryGb,
+          diskGb,
+          diskType: s.diskType || 'nvme',
+          bandwidthTb,
+          weeklyBackups,
+          priceYearlyUsd,
+          billingInterval: 'year',
+          features: [
+            `${cores} vCPU çekirdeği`,
+            `${memoryGb} GB RAM`,
+            `${diskGb} GB NVMe Disk alanı`,
+            `${bandwidthTb} TB bant genişliği`,
+            weeklyBackups ? 'Ücretsiz haftalık yedeklemeler' : null,
+          ].filter(Boolean),
+          seeded: true,
+        },
+        costProvider: null,
+        priceRetail: priceMonthly,
+        currency: 'USD',
+        createdBy: user.id,
+      });
+
+      // stamp external id for UI
+      await cloudRepo.updateServer(row.id, {
+        externalId: `seed-${row.id}`,
+        status: 'running',
+      });
+
+      created.push({
+        id: row.id,
+        name,
+        cores,
+        memoryGb,
+        diskGb,
+        bandwidthTb,
+        priceYearlyUsd,
+        priceMonthlyUsd: priceMonthly,
+        status: 'running',
+      });
+    }
+
+    await writeAudit({
+      actorUserId: req.user.sub,
+      action: 'seed.customer_cloud_servers',
+      entityType: 'user',
+      entityId: user.id,
+      meta: { email, created: created.length, skipped: skipped.length },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: { id: user.id, email: user.email, name: user.name },
+        tenantId,
+        projectId,
+        providerId: provider.id,
+        created,
+        skipped,
+      },
+    });
+  } catch (err) {
+    console.error('seed-customer-cloud-servers', err);
     res.status(500).json({
       success: false,
       error: { code: 'server', message: err.message },

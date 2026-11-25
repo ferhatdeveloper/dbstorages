@@ -304,15 +304,56 @@ const CloudServerDetailPage: React.FC = () => {
                 <dt className="text-slate-400">Perakende</dt>
                 <dd>
                   {server.price_retail != null
-                    ? `${formatAmount(Number(server.price_retail), 'EUR')}/ay`
+                    ? `${formatAmount(
+                        Number(server.price_retail),
+                        String((server as any).currency || 'EUR').toUpperCase()
+                      )}/ay`
                     : '—'}
+                  {(server.metadata as any)?.priceYearlyUsd != null && (
+                    <span className="mt-0.5 block text-[10px] text-slate-400">
+                      ${(server.metadata as any).priceYearlyUsd}/yıl
+                    </span>
+                  )}
                 </dd>
               </div>
               <div>
                 <dt className="text-slate-400">External ID</dt>
                 <dd className="font-mono">{server.external_id || '—'}</dd>
               </div>
+              {(server.metadata as any)?.cores != null && (
+                <>
+                  <div>
+                    <dt className="text-slate-400">Kaynaklar</dt>
+                    <dd>
+                      {(server.metadata as any).cores} vCPU ·{' '}
+                      {(server.metadata as any).memoryGb} GB RAM ·{' '}
+                      {(server.metadata as any).diskGb} GB{' '}
+                      {String((server.metadata as any).diskType || 'NVMe').toUpperCase()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Ağ / Yedek</dt>
+                    <dd>
+                      {(server.metadata as any).bandwidthTb} TB bant genişliği
+                      {(server.metadata as any).weeklyBackups
+                        ? ' · Ücretsiz haftalık yedek'
+                        : ''}
+                    </dd>
+                  </div>
+                </>
+              )}
             </dl>
+            {Array.isArray((server.metadata as any)?.features) &&
+              (server.metadata as any).features.length > 0 && (
+                <ul className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                  {((server.metadata as any).features as string[]).map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
 
           <div className={`${cloudPanelClass} p-4`}>
