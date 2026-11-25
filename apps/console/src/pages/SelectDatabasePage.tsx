@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Check,
-  Database,
-  Plus,
-  RefreshCw,
-  Search,
-  X,
-} from 'lucide-react'
+import { Check, Database, Plus, Search, X } from 'lucide-react'
 import { useDatabaseConnections } from '../context/DatabaseConnectionsContext'
 import {
   CloudPageHeader,
