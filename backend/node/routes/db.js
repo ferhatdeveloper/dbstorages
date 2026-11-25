@@ -3,6 +3,10 @@ const { isTenantReady, resolveTenantPool, getMetaPool } = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { notifyChange, ensureRealtimeTriggers } = require('../lib/realtime');
 const { syncSchemaFromRetailEx } = require('../lib/openapiSchemaSync');
+const {
+  enabled: retailExDataEnabled,
+  fetchTableRows: fetchRetailExTableRows,
+} = require('../lib/retailexData');
 
 const router = express.Router();
 
@@ -46,6 +50,23 @@ function instanceIdOf(req) {
     req.body?.instanceId ||
     null
   );
+}
+
+/** Tenant DB name on the instance row — used as RetailEX path code. */
+async function resolveInstanceDatabase(req) {
+  const id = instanceIdOf(req);
+  if (!id) return null;
+  try {
+    const meta = getMetaPool();
+    if (!meta) return null;
+    const { rows } = await meta.query(
+      `SELECT database FROM instances WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    return rows[0]?.database || null;
+  } catch {
+    return null;
+  }
 }
 
 function quoteIdent(name) {
@@ -242,6 +263,49 @@ router.get('/tables/:table', async (req, res) => {
     const search = req.query.search || req.query.q;
 
     const meta = await introspectTable(pool, table);
+    const dbName = await resolveInstanceDatabase(req);
+
+    // Prefer live rows from RetailEX by database name when local table is empty
+    // (schema was synced from OpenAPI; data still lives on the tenant API).
+    const preferRemote =
+      retailExDataEnabled() &&
+      dbName &&
+      (meta.rowCount === 0 || req.query.source === 'retailex');
+
+    if (preferRemote) {
+      try {
+        const remote = await fetchRetailExTableRows(dbName, table, {
+          page,
+          pageSize,
+          sortBy,
+          sortOrder: sortOrder.toLowerCase(),
+          search,
+          columns: meta.columns,
+        });
+        return res.json(
+          ok({
+            columns: meta.columns,
+            rows: remote.rows,
+            total: remote.total,
+            page,
+            pageSize,
+            source: remote.source,
+            database: dbName,
+          })
+        );
+      } catch (remoteErr) {
+        // Fall through to local SELECT if RetailEX is down
+        if (req.query.source === 'retailex') {
+          return fail(
+            res,
+            remoteErr.status || 502,
+            remoteErr.message,
+            remoteErr.code || 'retailex_fetch_failed'
+          );
+        }
+      }
+    }
+
     const offset = (page - 1) * pageSize;
 
     let where = '';
@@ -275,6 +339,8 @@ router.get('/tables/:table', async (req, res) => {
         total: meta.rowCount,
         page,
         pageSize,
+        source: 'local',
+        database: dbName || undefined,
       })
     );
   } catch (err) {
