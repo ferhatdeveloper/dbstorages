@@ -41,11 +41,11 @@ const InstancePicker: React.FC<Props> = ({ className = '' }) => {
 
   return (
     <label
-      className={`inline-flex items-center gap-1.5 ${className}`.trim()}
+      className={`flex w-full min-w-0 items-center gap-1.5 ${className}`.trim()}
       title="Aktif veritabanı"
     >
       <select
-        className="max-w-[260px] truncate rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        className="w-full min-w-0 max-w-full truncate rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         value={selectedConnection?.id || ''}
         onChange={(e) => selectConnection(e.target.value)}
         aria-label="Aktif veritabanı"

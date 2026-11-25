@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import ProjectSwitcher from '../components/ProjectSwitcher'
-import InstancePicker from '../components/InstancePicker'
 import { GraphCoreLogo, PrefsBar, useLocale } from '@graphcore/shared'
 import { webPath } from '../lib/urls'
 import {
@@ -231,9 +230,6 @@ const AppLayout = () => {
           <div className="min-w-0 truncate text-[13px] font-medium text-slate-800 dark:text-slate-200">
             {activeLabel}
           </div>
-          {!isCloud && !isSupervisor && (
-            <InstancePicker compact className="hidden sm:inline-flex" />
-          )}
           <div className="ml-auto flex items-center gap-3">
             <PrefsBar />
             <span className="hidden text-[11px] text-slate-400 sm:inline">

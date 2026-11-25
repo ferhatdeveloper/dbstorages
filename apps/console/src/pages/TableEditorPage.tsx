@@ -510,8 +510,8 @@ const TableEditorPage: React.FC = () => {
 
       {/* Left Sidebar - Tables */}
       <div className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
-        <div className="border-b border-gray-200 p-4">
-          <div className="mb-3">
+        <div className="border-b border-gray-200 p-3">
+          <div className="mb-3 min-w-0">
             <InstancePicker />
           </div>
           <div className="mb-4 flex items-center justify-between">
