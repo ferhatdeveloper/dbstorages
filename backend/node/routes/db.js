@@ -1,7 +1,8 @@
 const express = require('express');
-const { isTenantReady, resolveTenantPool } = require('../lib/db');
+const { isTenantReady, resolveTenantPool, getMetaPool } = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { notifyChange, ensureRealtimeTriggers } = require('../lib/realtime');
+const { syncSchemaFromRetailEx } = require('../lib/openapiSchemaSync');
 
 const router = express.Router();
 
@@ -54,50 +55,151 @@ function quoteIdent(name) {
   return `"${name}"`;
 }
 
-async function introspectTable(pool, tableName) {
-  const cols = await pool.query(
-    `
+/** Batch introspect all public base tables — pgAdmin-style column metadata. */
+async function introspectPublicTables(pool, { exactCounts = false } = {}) {
+  const tablesRes = await pool.query(`
     SELECT
+      c.relname AS name,
+      COALESCE(c.reltuples, 0)::bigint AS est_rows,
+      CASE c.relkind WHEN 'r' THEN 'table' WHEN 'p' THEN 'table' WHEN 'v' THEN 'view' WHEN 'm' THEN 'view' ELSE 'other' END AS kind
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p', 'v', 'm')
+      AND c.relname NOT LIKE 'pg_%'
+    ORDER BY
+      CASE WHEN c.relname LIKE '\\_graphcore%' ESCAPE '\\' THEN 1 ELSE 0 END,
+      c.relname
+  `);
+
+  const colsRes = await pool.query(`
+    SELECT
+      c.table_name,
       c.column_name AS name,
-      c.data_type AS type,
+      CASE
+        WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
+        WHEN c.data_type = 'ARRAY' THEN c.udt_name
+        WHEN c.character_maximum_length IS NOT NULL
+          THEN c.data_type || '(' || c.character_maximum_length || ')'
+        WHEN c.data_type = 'numeric' AND c.numeric_precision IS NOT NULL
+          THEN c.data_type || '(' || c.numeric_precision
+            || COALESCE(',' || c.numeric_scale, '') || ')'
+        ELSE c.data_type
+      END AS type,
+      c.udt_name,
       c.is_nullable = 'YES' AS nullable,
       c.column_default AS default_value,
-      EXISTS (
-        SELECT 1 FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.table_schema = 'public'
-          AND tc.table_name = c.table_name
-          AND kcu.column_name = c.column_name
-          AND tc.constraint_type = 'PRIMARY KEY'
-      ) AS is_primary
+      c.ordinal_position
     FROM information_schema.columns c
-    WHERE c.table_schema = 'public' AND c.table_name = $1
-    ORDER BY c.ordinal_position
-    `,
-    [tableName]
-  );
+    WHERE c.table_schema = 'public'
+    ORDER BY c.table_name, c.ordinal_position
+  `);
 
-  const countRes = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM ${quoteIdent(tableName)}`
-  );
+  const pkRes = await pool.query(`
+    SELECT kcu.table_name, kcu.column_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+     AND tc.table_schema = kcu.table_schema
+    WHERE tc.table_schema = 'public'
+      AND tc.constraint_type = 'PRIMARY KEY'
+  `);
 
-  return {
-    name: tableName,
-    columns: cols.rows.map((r) => ({
+  const fkRes = await pool.query(`
+    SELECT
+      kcu.table_name,
+      kcu.column_name,
+      ccu.table_name AS referenced_table,
+      ccu.column_name AS referenced_column
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+     AND tc.table_schema = kcu.table_schema
+    JOIN information_schema.constraint_column_usage ccu
+      ON ccu.constraint_name = tc.constraint_name
+     AND ccu.table_schema = tc.table_schema
+    WHERE tc.table_schema = 'public'
+      AND tc.constraint_type = 'FOREIGN KEY'
+  `);
+
+  const pkSet = new Set(pkRes.rows.map((r) => `${r.table_name}.${r.column_name}`));
+  const fkMap = new Map();
+  for (const r of fkRes.rows) {
+    fkMap.set(`${r.table_name}.${r.column_name}`, {
+      referenced_table: r.referenced_table,
+      referenced_column: r.referenced_column,
+    });
+  }
+
+  const colsByTable = new Map();
+  for (const r of colsRes.rows) {
+    if (!colsByTable.has(r.table_name)) colsByTable.set(r.table_name, []);
+    const key = `${r.table_name}.${r.name}`;
+    const fk = fkMap.get(key);
+    colsByTable.get(r.table_name).push({
       name: r.name,
       type: r.type,
       nullable: r.nullable,
       default_value: r.default_value,
-      is_primary: r.is_primary,
-      is_foreign_key: false,
-    })),
-    rowCount: countRes.rows[0].n,
-    locked: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+      is_primary: pkSet.has(key),
+      is_foreign_key: Boolean(fk),
+      referenced_table: fk?.referenced_table,
+      referenced_column: fk?.referenced_column,
+    });
+  }
+
+  const now = new Date().toISOString();
+  const tables = [];
+  for (const row of tablesRes.rows) {
+    let rowCount = Number(row.est_rows) || 0;
+    if (exactCounts && row.kind === 'table') {
+      try {
+        const countRes = await pool.query(
+          `SELECT COUNT(*)::int AS n FROM ${quoteIdent(row.name)}`
+        );
+        rowCount = countRes.rows[0].n;
+      } catch {
+        /* keep estimate */
+      }
+    }
+    tables.push({
+      name: row.name,
+      kind: row.kind,
+      schema: 'public',
+      columns: colsByTable.get(row.name) || [],
+      rowCount,
+      locked: false,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+  return tables;
+}
+
+async function introspectTable(pool, tableName) {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+    throw Object.assign(new Error(`Invalid table: ${tableName}`), {
+      status: 400,
+      code: 'validation',
+    });
+  }
+  const all = await introspectPublicTables(pool, { exactCounts: false });
+  const found = all.find((t) => t.name === tableName);
+  if (!found) {
+    throw Object.assign(new Error(`table not found: ${tableName}`), {
+      status: 404,
+      code: 'not_found',
+    });
+  }
+  try {
+    const countRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM ${quoteIdent(tableName)}`
+    );
+    found.rowCount = countRes.rows[0].n;
+  } catch {
+    /* keep estimate */
+  }
+  return found;
 }
 
 router.use(authMiddleware);
@@ -113,22 +215,10 @@ router.get('/tables', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
     const pool = await poolFor(req);
-    // Match RetailEX / PostgREST discovery: public base tables, stable order
-    const { rows } = await pool.query(`
-      SELECT table_name AS name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-        AND table_type = 'BASE TABLE'
-        AND table_name NOT LIKE 'pg_%'
-      ORDER BY
-        CASE WHEN table_name LIKE '\\_graphcore%' ESCAPE '\\' THEN 1 ELSE 0 END,
-        table_name
-    `);
-    const tables = [];
-    for (const row of rows) {
-      tables.push(await introspectTable(pool, row.name));
-    }
-    res.json(ok(tables));
+    const exact = String(req.query.exactCounts || '') === '1';
+    const tables = await introspectPublicTables(pool, { exactCounts: exact });
+    // Table Editor expects base tables primarily
+    res.json(ok(tables.filter((t) => t.kind === 'table')));
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'query_failed');
   }
@@ -331,19 +421,63 @@ router.get('/schema', async (req, res) => {
   if (!requireTenant(res)) return;
   try {
     const pool = await poolFor(req);
-    const tablesRes = await pool.query(`
-      SELECT table_name AS name
-      FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `);
-    const schemas = [];
-    for (const t of tablesRes.rows) {
-      schemas.push(await introspectTable(pool, t.name));
-    }
-    res.json(ok({ tables: schemas }));
+    const objects = await introspectPublicTables(pool, { exactCounts: false });
+    const tables = objects.filter((t) => t.kind === 'table');
+    const views = objects.filter((t) => t.kind === 'view');
+    res.json(
+      ok({
+        schemas: [
+          {
+            name: 'public',
+            tables,
+            views,
+          },
+        ],
+        tables, // backward-compatible flat list for SchemaPage
+        views,
+      })
+    );
   } catch (err) {
     fail(res, err.status || 500, err.message, err.code || 'query_failed');
+  }
+});
+
+/**
+ * Import full table/column structures from RetailEX PostgREST OpenAPI
+ * into the selected instance (DDL only — no row data).
+ */
+router.post('/schema/sync-retailex', async (req, res) => {
+  if (!requireTenant(res)) return;
+  try {
+    const pool = await poolFor(req);
+    const instanceId = instanceIdOf(req);
+    let tenantCode =
+      req.body?.tenantCode ||
+      req.body?.code ||
+      req.query.tenantCode ||
+      null;
+
+    if (!tenantCode && instanceId) {
+      const meta = getMetaPool();
+      if (meta) {
+        const { rows } = await meta.query(
+          `SELECT database FROM instances WHERE id = $1 LIMIT 1`,
+          [instanceId]
+        );
+        tenantCode = rows[0]?.database || null;
+      }
+    }
+
+    if (!tenantCode) {
+      return fail(res, 400, 'tenantCode or instanceId required', 'validation');
+    }
+
+    const dryRun = Boolean(req.body?.dryRun);
+    const result = await syncSchemaFromRetailEx(pool, tenantCode, { dryRun });
+    await ensureRealtimeTriggers(pool).catch(() => {});
+    res.json(ok(result));
+  } catch (err) {
+    fail(res, err.status || 500, err.message, err.code || 'sync_failed');
   }
 });
 

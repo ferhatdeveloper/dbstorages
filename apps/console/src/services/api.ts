@@ -16,6 +16,8 @@ export interface TableInfo {
   locked: boolean;
   created_at: string;
   updated_at: string;
+  kind?: 'table' | 'view' | 'other';
+  schema?: string;
 }
 
 export interface ColumnInfo {
@@ -284,9 +286,42 @@ class ApiService {
   async getSchema(instanceId?: string | null) {
     const id = instanceId || getActiveInstanceId();
     if (id) setActiveInstanceId(id);
-    return this.request<ApiResponse<{ tables: TableInfo[] }>>(
-      `${NODE_API_BASE}/db/schema`
-    );
+    return this.request<
+      ApiResponse<{
+        tables: TableInfo[];
+        views?: TableInfo[];
+        schemas?: Array<{
+          name: string;
+          tables: TableInfo[];
+          views: TableInfo[];
+        }>;
+      }>
+    >(`${NODE_API_BASE}/db/schema`);
+  }
+
+  /** DDL-only: create missing tables/columns from RetailEX PostgREST OpenAPI */
+  async syncSchemaFromRetailEx(
+    instanceId?: string | null,
+    tenantCode?: string
+  ) {
+    const id = instanceId || getActiveInstanceId();
+    if (id) setActiveInstanceId(id);
+    return this.request<
+      ApiResponse<{
+        tenantCode: string;
+        tablesInSource: number;
+        created: number;
+        altered: number;
+        skippedColumns: number;
+        errors: Array<{ table: string; message: string }>;
+      }>
+    >(`${NODE_API_BASE}/db/schema/sync-retailex`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(id ? { instanceId: id } : {}),
+        ...(tenantCode ? { tenantCode } : {}),
+      }),
+    });
   }
 
   async getFiles() {
