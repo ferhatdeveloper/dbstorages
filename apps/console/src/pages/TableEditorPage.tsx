@@ -152,16 +152,9 @@ const TableEditorPage: React.FC = () => {
     loadTables();
   }, [loadTables]);
 
-  // Load table data when selected table changes
-  useEffect(() => {
-    if (selectedTable) {
-      loadTableData();
-    }
-  }, [selectedTable, currentPage, pageSize, filters, sortBy, sortOrder, instanceKey]);
-
-  const loadTableData = async () => {
+  const loadTableData = useCallback(async () => {
     if (!selectedTable || !instanceKey) return;
-    
+
     setLoadingTableData(true);
     try {
       const response = await apiService.getTableData(
@@ -173,19 +166,40 @@ const TableEditorPage: React.FC = () => {
         sortOrder,
         instanceKey
       );
-      
+
       if (response.success && response.data) {
         setTableData(response.data);
         setColumns(response.data.columns);
       } else {
-        showNotification('error', response.error || 'Tablo verisi yüklenemedi');
+        showNotification(
+          'error',
+          typeof response.error === 'string'
+            ? response.error
+            : 'Tablo verisi yüklenemedi'
+        );
       }
-    } catch (error) {
+    } catch {
       showNotification('error', 'Tablo verisi yüklenirken hata oluştu');
     } finally {
       setLoadingTableData(false);
     }
-  };
+  }, [
+    selectedTable,
+    instanceKey,
+    currentPage,
+    pageSize,
+    filters,
+    sortBy,
+    sortOrder,
+    showNotification,
+  ]);
+
+  // Load table data when selection / paging changes (stable callback — no loop)
+  useEffect(() => {
+    if (selectedTable && instanceKey) {
+      void loadTableData();
+    }
+  }, [selectedTable, instanceKey, loadTableData]);
 
   const handleTableSelect = async (tableName: string) => {
     setSelectedTable(tableName);

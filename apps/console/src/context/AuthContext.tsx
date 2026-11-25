@@ -63,11 +63,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (res.user) {
             setUser(res.user);
             localStorage.setItem('user', JSON.stringify(res.user));
+          } else if (!savedUser) {
+            // Keep token for one session if /me body is empty but login just handed off
+            setUser(null);
           }
         } catch {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
+          // Soft-fail: keep cached user so we don't bounce login ↔ /app in a loop
+          // when /me is briefly unavailable. Clear only if we have no cached profile.
+          if (!savedUser) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
         }
       }
       setLoading(false);

@@ -14,7 +14,11 @@ import { CONSOLE_URL } from '@graphcore/shared'
 
 function ConsoleRedirect({ to = '/dashboard' }: { to?: string }) {
   React.useEffect(() => {
-    window.location.assign(`${CONSOLE_URL}${to}`)
+    const target = `${CONSOLE_URL}${to.startsWith('/') ? to : `/${to}`}`
+    // One-shot replace — assign() on /app/* while marketing still owns the
+    // history entry can bounce forever (login ↔ /app/dashboard).
+    if (window.location.href.split('#')[0] === target) return
+    window.location.replace(target)
   }, [to])
   return (
     <div className="landing-root flex min-h-screen items-center justify-center p-6 text-[var(--lc-muted)]">
@@ -37,7 +41,7 @@ function App() {
       <Route path="/domains" element={<DomainSearchPage />} />
       <Route path="/billing/success" element={<BillingSuccessPage />} />
       <Route path="/billing/crypto" element={<CryptoPayPage />} />
-      {/* Old studio URLs → console */}
+      {/* Dev-only fallback; prod nginx serves console for /app/* */}
       <Route path="/app/*" element={<ConsoleRedirect to="/dashboard" />} />
       <Route path="/app" element={<ConsoleRedirect to="/dashboard" />} />
       <Route path="*" element={<Navigate to="/" replace />} />

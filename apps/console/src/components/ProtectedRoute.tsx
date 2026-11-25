@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { redirectToWebLogin } from '../lib/urls'
@@ -17,11 +17,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, loading, user } = useAuth()
   const location = useLocation()
+  const redirected = useRef(false)
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      redirectToWebLogin(location.pathname + location.search)
-    }
+    if (loading || isAuthenticated || redirected.current) return
+    redirected.current = true
+    redirectToWebLogin(location.pathname + location.search)
   }, [loading, isAuthenticated, location.pathname, location.search])
 
   if (loading) {

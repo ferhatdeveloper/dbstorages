@@ -51,6 +51,15 @@ export function getActiveInstanceId(): string | null {
 }
 
 export function setActiveInstanceId(id: string | null) {
+  const prev =
+    activeInstanceId ||
+    (typeof localStorage !== 'undefined'
+      ? localStorage.getItem(INSTANCE_STORAGE_KEY)
+      : null);
+  if (prev === id) {
+    activeInstanceId = id;
+    return;
+  }
   activeInstanceId = id;
   try {
     if (id) localStorage.setItem(INSTANCE_STORAGE_KEY, id);

@@ -1,22 +1,30 @@
-import React, { useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import React, { useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { redirectToWebLogin, WEB_URL } from '../lib/urls'
 
 /**
  * Console has no marketing login UI.
  * /login here either accepts ?token= (AuthProvider) or sends user to web.
+ * Always stay under /app basename — never replace('/dashboard') on the host root
+ * (that leaves console and can bounce login ↔ /app forever).
  */
 const ConsoleLoginBridge: React.FC = () => {
   const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const sent = useRef(false)
 
   useEffect(() => {
-    if (params.get('token')) {
-      // AuthProvider already consumed token on boot; go home
-      window.location.replace('/dashboard')
+    if (sent.current) return
+    const hasToken =
+      Boolean(params.get('token')) || Boolean(localStorage.getItem('token'))
+    if (hasToken) {
+      sent.current = true
+      navigate('/dashboard', { replace: true })
       return
     }
+    sent.current = true
     redirectToWebLogin('/dashboard')
-  }, [params])
+  }, [params, navigate])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 text-slate-300">
