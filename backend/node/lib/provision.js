@@ -73,8 +73,11 @@ function buildConnString({ user, password, host, port, database }) {
 /**
  * CREATE DATABASE + ROLE on shared Postgres.
  */
-async function provisionPostgresDatabase({ instanceId, planId }) {
-  const database = makeDbName(instanceId);
+async function provisionPostgresDatabase({ instanceId, planId, databaseName }) {
+  const database =
+    databaseName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(String(databaseName))
+      ? String(databaseName)
+      : makeDbName(instanceId);
   const username = database;
   const password = makePassword();
   const host = publicHost();
@@ -248,9 +251,9 @@ function demoPlaceholder() {
   };
 }
 
-async function provisionOrFallback({ instanceId, planId }) {
+async function provisionOrFallback({ instanceId, planId, databaseName }) {
   try {
-    return await provisionPostgresDatabase({ instanceId, planId });
+    return await provisionPostgresDatabase({ instanceId, planId, databaseName });
   } catch (err) {
     console.warn(
       '[provision] CREATE DATABASE failed — falling back to shared demo DB:',

@@ -1,8 +1,11 @@
 const express = require('express');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, hashPassword } = require('../lib/auth');
 const { requireSupervisor, writeAudit } = require('../lib/supervisor');
-const { isMetaReady, getMetaPool } = require('../lib/db');
+const { isMetaReady, getMetaPool, setTenantConnection } = require('../lib/db');
 const store = require('../lib/store');
+const { ensureDefaultOrgForUser } = require('../lib/rbac');
+const { provisionOrFallback } = require('../lib/provision');
+const { startListenerForInstanceRow } = require('../lib/realtime');
 const {
   provisionInstanceAfterPayment,
   findInstanceByPayment,
@@ -451,6 +454,195 @@ router.get('/cloud/servers', async (req, res) => {
     }
     res.json({ success: true, data: [], page, pageSize, total: 0 });
   } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'server', message: err.message },
+    });
+  }
+});
+
+/**
+ * Seed a customer account + ready DB instances (custom names + created_at).
+ * Body: { email, password, name?, servers: [{ database, company, createdAt }] }
+ */
+router.post('/seed-customer-databases', async (req, res) => {
+  try {
+    if (!isMetaReady()) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'meta_unavailable', message: 'Meta DB required' },
+      });
+    }
+    const email = String(req.body?.email || '')
+      .trim()
+      .toLowerCase();
+    const password = String(req.body?.password || '');
+    const displayName = String(req.body?.name || email.split('@')[0] || 'Customer');
+    const servers = Array.isArray(req.body?.servers) ? req.body.servers : [];
+    if (!email || !password || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'validation',
+          message: 'email and password (min 8) required',
+        },
+      });
+    }
+    if (!servers.length) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'validation', message: 'servers[] required' },
+      });
+    }
+
+    const pool = getMetaPool();
+    let user;
+    const existing = await pool.query(
+      `SELECT * FROM platform_users WHERE email = $1 LIMIT 1`,
+      [email]
+    );
+    if (existing.rows[0]) {
+      user = existing.rows[0];
+      const password_hash = await hashPassword(password);
+      await pool.query(
+        `UPDATE platform_users SET password_hash = $1, name = COALESCE(NULLIF($2,''), name)
+         WHERE id = $3`,
+        [password_hash, displayName, user.id]
+      );
+      user.name = displayName || user.name;
+    } else {
+      const id = store.newId('usr');
+      const password_hash = await hashPassword(password);
+      const created_at = new Date().toISOString();
+      await pool.query(
+        `INSERT INTO platform_users (id, email, name, password_hash, role, created_at)
+         VALUES ($1,$2,$3,$4,'member',$5)`,
+        [id, email, displayName, password_hash, created_at]
+      );
+      user = { id, email, name: displayName, role: 'member', created_at };
+    }
+
+    const scope = await ensureDefaultOrgForUser(user.id, `${displayName} Org`);
+    const projectId = scope.projectId;
+    const publicBase = (
+      process.env.PUBLIC_API_URL || 'https://dbstorages.com'
+    ).replace(/\/$/, '');
+
+    const created = [];
+    const skipped = [];
+    for (const s of servers) {
+      const database = String(s.database || s.db || '')
+        .trim()
+        .toLowerCase();
+      const company = String(s.company || s.name || database).trim();
+      const createdAt = s.createdAt
+        ? new Date(s.createdAt).toISOString()
+        : new Date().toISOString();
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(database)) {
+        skipped.push({ database, reason: 'invalid_database_name' });
+        continue;
+      }
+
+      const dup = await pool.query(
+        `SELECT i.id FROM instances i
+         JOIN projects p ON p.id = i.project_id
+         JOIN memberships m ON m.tenant_id = p.tenant_id
+         WHERE m.user_id = $1 AND i.database_name = $2 AND i.status <> 'deleted'
+         LIMIT 1`,
+        [user.id, database]
+      );
+      if (dup.rows[0]) {
+        skipped.push({ database, reason: 'exists', id: dup.rows[0].id });
+        continue;
+      }
+
+      const instanceId = store.newId('ins');
+      const provisioned = await provisionOrFallback({
+        instanceId,
+        planId: 'starter',
+        databaseName: database,
+      });
+      const restUrl = `${publicBase}/api/rest/${instanceId}`;
+      const instance = {
+        id: instanceId,
+        project_id: projectId,
+        name: company,
+        plan: 'starter',
+        region: provisioned.region || 'shared',
+        status: provisioned.status || 'ready',
+        host: provisioned.host,
+        port: provisioned.port,
+        database_name: provisioned.database || database,
+        username: provisioned.username,
+        password: provisioned.password,
+        connection_string: provisioned.connectionString,
+        jwt_secret: provisioned.jwtSecret || null,
+        rest_url: restUrl,
+        payment_provider: 'manual_seed',
+        payment_ref: `seed_${database}`,
+        created_at: createdAt,
+      };
+
+      await pool.query(
+        `INSERT INTO instances (
+          id, project_id, name, plan, region, status, host, port, database_name,
+          username, password, connection_string, jwt_secret, rest_url,
+          payment_provider, payment_ref, created_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [
+          instance.id,
+          instance.project_id,
+          instance.name,
+          instance.plan,
+          instance.region,
+          instance.status,
+          instance.host,
+          instance.port,
+          instance.database_name,
+          instance.username,
+          instance.password,
+          instance.connection_string,
+          instance.jwt_secret,
+          instance.rest_url,
+          instance.payment_provider,
+          instance.payment_ref,
+          instance.created_at,
+        ]
+      );
+
+      const internal =
+        provisioned.internalConnectionString || provisioned.connectionString;
+      await setTenantConnection(internal);
+      startListenerForInstanceRow(instance).catch(() => {});
+      created.push({
+        id: instance.id,
+        database: instance.database_name,
+        company: instance.name,
+        createdAt: instance.created_at,
+        status: instance.status,
+      });
+    }
+
+    await writeAudit({
+      actorUserId: req.user.sub,
+      action: 'seed.customer_databases',
+      entityType: 'user',
+      entityId: user.id,
+      meta: { email, created: created.length, skipped: skipped.length },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: { id: user.id, email: user.email, name: user.name },
+        projectId,
+        tenantId: scope.tenantId,
+        created,
+        skipped,
+      },
+    });
+  } catch (err) {
+    console.error('seed-customer-databases', err);
     res.status(500).json({
       success: false,
       error: { code: 'server', message: err.message },
