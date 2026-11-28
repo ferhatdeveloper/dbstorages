@@ -326,6 +326,47 @@ const CloudService = {
     return repo.listProviders(tenantId);
   },
 
+  /**
+   * Create missing hetzner/hostinger provider rows when the matching env token is set.
+   * Does not overwrite existing rows or store the env token in DB (driver reads env).
+   */
+  async ensureEnvProviders({ tenantId, projectId, createdBy } = {}) {
+    if (!tenantId) return repo.listProviders(tenantId);
+    const existing = await repo.listProviders(tenantId);
+    const have = new Set(existing.map((p) => String(p.slug || '').toLowerCase()));
+    const seeds = [
+      {
+        slug: 'hetzner',
+        name: 'Hetzner Cloud',
+        env: 'HETZNER_API_TOKEN',
+      },
+      {
+        slug: 'hostinger',
+        name: 'Hostinger VPS',
+        env: 'HOSTINGER_API_TOKEN',
+      },
+    ];
+    for (const s of seeds) {
+      if (have.has(s.slug)) continue;
+      if (!process.env[s.env]) continue;
+      try {
+        await this.createProvider({
+          tenantId,
+          projectId: projectId || null,
+          name: s.name,
+          slug: s.slug,
+          apiKey: null,
+          config: { seededFromEnv: s.env },
+          createdBy: createdBy || null,
+        });
+        have.add(s.slug);
+      } catch {
+        /* race / validation — ignore */
+      }
+    }
+    return repo.listProviders(tenantId);
+  },
+
   async createServer({
     tenantId,
     projectId,

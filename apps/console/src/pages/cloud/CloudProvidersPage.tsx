@@ -195,18 +195,28 @@ const CloudProvidersPage: React.FC = () => {
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
             >
-              {(slugs.length ? slugs : ['managed', 'hetzner']).map((s) => (
+              {(slugs.length ? slugs : ['managed', 'hetzner', 'hostinger']).map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
             </select>
           </label>
+          {slug === 'hostinger' && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+              Hostinger API token (hPanel → API). Endpoint boş bırakın. Oluşturma Hostinger
+              hesabınızdan ücret alır; Windows şablonu yok.
+            </p>
+          )}
           <label className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
             Endpoint (API base URL, opsiyonel)
             <input
               className={`${cloudFieldClass} font-mono`}
-              placeholder="https://api.example.com/v1"
+              placeholder={
+                slug === 'hostinger'
+                  ? 'https://developers.hostinger.com (varsayılan)'
+                  : 'https://api.example.com/v1'
+              }
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
             />

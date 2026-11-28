@@ -104,7 +104,11 @@ router.get('/slugs', (_req, res) => {
 router.get('/providers', async (req, res) => {
   try {
     const tenantId = await resolveTenant(req);
-    const data = await CloudService.listProviders(tenantId);
+    const data = await CloudService.ensureEnvProviders({
+      tenantId,
+      projectId: req.query.projectId || null,
+      createdBy: req.user?.sub || null,
+    });
     res.json({ success: true, data });
   } catch (err) {
     sendError(res, err);
