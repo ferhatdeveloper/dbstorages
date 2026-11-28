@@ -353,19 +353,73 @@ const CloudService = {
         'validation'
       );
     }
-    await resolveDriver(providerId);
-    const { cloudInitFor } = require('./appTemplates');
+    const { row: providerRow, driver } = await resolveDriver(providerId);
+    const providerSlug = String(providerRow?.slug || '').toLowerCase();
+    const { cloudInitFor, shellScriptFor } = require('./appTemplates');
     const templateId = appTemplate || labels?.app_template || 'none';
     const mergedLabels = {
       ...(labels || {}),
       ...(templateId && templateId !== 'none' ? { app_template: String(templateId) } : {}),
       ...(windowsIso ? { windows_iso: String(windowsIso), os_family: 'windows' } : {}),
+      provider_slug: providerSlug,
     };
+    if (providerSlug === 'hostinger' && (windowsIso || labels?.os_family === 'windows')) {
+      throw cloudError(
+        400,
+        'Hostinger VPS does not offer Windows templates in this catalog',
+        'validation'
+      );
+    }
+    let resolvedSshKeys = sshKeys;
+    if (providerSlug === 'hostinger' && Array.isArray(sshKeys) && sshKeys.length) {
+      const out = [];
+      for (const raw of sshKeys) {
+        const s = String(raw || '');
+        if (
+          s.startsWith('ssh-') ||
+          s.startsWith('ecdsa-') ||
+          s.startsWith('sk-') ||
+          s.includes('AAA')
+        ) {
+          out.push(s);
+          continue;
+        }
+        const row = await repo.getSshKey(s).catch(() => null);
+        if (row?.public_key) out.push(row.public_key);
+      }
+      resolvedSshKeys = out.length ? out : undefined;
+    }
     let finalUserData = userData;
     if (!finalUserData && templateId && templateId !== 'none') {
-      finalUserData = cloudInitFor(templateId, { serverName: name }) || undefined;
+      finalUserData =
+        providerSlug === 'hostinger'
+          ? shellScriptFor(templateId, { serverName: name }) || undefined
+          : cloudInitFor(templateId, { serverName: name }) || undefined;
     }
-    const quote = require('./catalog/enrich').quoteServerType(serverType);
+    let quote = require('./catalog/enrich').quoteServerType(serverType);
+    if (!quote && typeof driver.listServerTypes === 'function') {
+      try {
+        const types = await driver.listServerTypes();
+        const hit = (types || []).find(
+          (t) =>
+            String(t.id) === String(serverType) ||
+            String(t.name) === String(serverType) ||
+            String(t.priceItemId || '') === String(serverType)
+        );
+        if (hit?.priceProviderMonthly != null) {
+          const retail = require('./catalog/markup').applyRetailMarkup(
+            hit.priceProviderMonthly
+          );
+          quote = {
+            costProviderMonthly: hit.priceProviderMonthly,
+            priceRetailMonthly: retail,
+            currency: hit.currency || 'EUR',
+          };
+        }
+      } catch {
+        /* catalog optional */
+      }
+    }
     const server = await repo.insertServer({
       id: newId('csrv'),
       tenantId,
@@ -381,6 +435,7 @@ const CloudService = {
       metadata: {
         appTemplate: templateId && templateId !== 'none' ? templateId : null,
         windowsIso: windowsIso || null,
+        providerSlug,
       },
       costProvider: quote?.costProviderMonthly ?? null,
       priceRetail: quote?.priceRetailMonthly ?? null,
@@ -400,7 +455,7 @@ const CloudService = {
           serverType,
           image,
           location,
-          sshKeys,
+          sshKeys: resolvedSshKeys,
           userData: finalUserData,
           enableIpv4,
           enableIpv6,

@@ -4,16 +4,18 @@
  */
 const { HetznerProvider } = require('./providers/hetzner');
 const { ManagedCloudProvider } = require('./providers/managed');
+const { HostingerProvider } = require('./providers/hostinger');
 const { cloudError } = require('./errors');
 
 const DRIVERS = {
   hetzner: HetznerProvider,
   managed: ManagedCloudProvider,
+  hostinger: HostingerProvider,
   // Deprecated alias — migrate cloud_providers.slug mock → managed
   mock: ManagedCloudProvider,
 };
 
-const PUBLIC_SLUGS = ['hetzner', 'managed'];
+const PUBLIC_SLUGS = ['hetzner', 'managed', 'hostinger'];
 
 function createProviderFromRow(row, { decryptedApiKey } = {}) {
   const slug = String(row?.slug || '')
@@ -34,6 +36,9 @@ function createProviderFromRow(row, { decryptedApiKey } = {}) {
   let token = decryptedApiKey || '';
   if (!token && slug === 'hetzner') {
     token = process.env.HETZNER_API_TOKEN || '';
+  }
+  if (!token && slug === 'hostinger') {
+    token = process.env.HOSTINGER_API_TOKEN || '';
   }
   return new Driver({
     apiToken: token,

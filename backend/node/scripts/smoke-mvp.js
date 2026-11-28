@@ -153,6 +153,7 @@ assert(listed.some((f) => f.name === 'hello'), 'function listed');
   const { listSupportedSlugs } = lib('cloud', 'factory');
   assert(listSupportedSlugs().includes('hetzner'), 'cloud hetzner slug');
   assert(listSupportedSlugs().includes('managed'), 'cloud managed slug');
+  assert(listSupportedSlugs().includes('hostinger'), 'cloud hostinger slug');
   const { ManagedCloudProvider } = lib('cloud', 'providers', 'managed');
   const mock = new ManagedCloudProvider();
   const ms = await mock.createServer({

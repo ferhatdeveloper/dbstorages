@@ -250,6 +250,14 @@ export const SIZE_FAMILIES = [
     descriptionTr:
       'Ayrılmış (dedicated) vCPU. Üretim, veritabanı ve tutarlı performans gereken iş yükleri.',
   },
+  {
+    id: 'kvm',
+    label: 'KVM',
+    familyLabel: 'KVM — Hostinger VPS',
+    hint: 'Hostinger · KVM',
+    descriptionTr:
+      'Hostinger KVM planları. Genel amaçlı Linux VPS; ücret Hostinger hesabınızdan alınır.',
+  },
 ] as const
 
 export function detectSizeFamily(name: string, family?: string | null) {
@@ -260,5 +268,6 @@ export function detectSizeFamily(name: string, family?: string | null) {
   if (n.startsWith('ccx')) return 'ccx'
   if (n.startsWith('cpx')) return 'cpx'
   if (n.startsWith('cx')) return 'cx'
+  if (n.startsWith('kvm')) return 'kvm'
   return 'other'
 }

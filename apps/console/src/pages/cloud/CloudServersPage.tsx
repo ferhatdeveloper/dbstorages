@@ -134,7 +134,7 @@ const CloudServersPage: React.FC = () => {
       setRows(s.data || [])
       const sortedProviders = [...(p.data || [])].sort((a, b) => {
         const rank = (slug: string) =>
-          slug === 'hetzner' ? 0 : slug === 'managed' ? 1 : 2
+          slug === 'hetzner' ? 0 : slug === 'hostinger' ? 1 : slug === 'managed' ? 2 : 3
         return rank(String(a.slug || '')) - rank(String(b.slug || ''))
       })
       setProviders(sortedProviders)

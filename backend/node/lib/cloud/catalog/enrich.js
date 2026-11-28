@@ -16,6 +16,7 @@ function familyFromName(name) {
   if (n.startsWith('cpx')) return 'cpx';
   if (n.startsWith('cax')) return 'cax';
   if (n.startsWith('cx')) return 'cx';
+  if (n.startsWith('kvm') || n.includes('hostinger')) return 'kvm';
   return 'other';
 }
 
@@ -69,7 +70,7 @@ function enrichServerType(t, location) {
     disk: diskGb,
     diskGb,
     popular: seed?.popular || false,
-    currency: CURRENCY,
+    currency: t.currency || CURRENCY,
     priceProviderMonthly: providerMonthly,
     priceRetailMonthly: applyRetailMarkup(providerMonthly),
     markup: RETAIL_MARKUP,

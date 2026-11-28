@@ -30,6 +30,13 @@ const FAMILIES = {
     descriptionTr: 'Ayrılmış (dedicated) vCPU. Üretim, veritabanı ve tutarlı performans gereken iş yükleri.',
     shortHint: 'Dedicated vCPU',
   },
+  kvm: {
+    id: 'kvm',
+    code: 'KVM',
+    familyLabel: 'KVM — Hostinger VPS',
+    descriptionTr: 'Hostinger KVM planları. Genel amaçlı Linux VPS; ücret Hostinger hesabınızdan alınır.',
+    shortHint: 'Hostinger · KVM',
+  },
 };
 
 /** Default included traffic (TB/month) for EU cloud instances when known. */

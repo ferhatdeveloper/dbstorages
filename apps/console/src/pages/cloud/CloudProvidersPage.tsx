@@ -114,7 +114,7 @@ const CloudProvidersPage: React.FC = () => {
             <CloudEmptyState
               icon={<CloudCog className="h-6 w-6" />}
               title="Henüz provider yok"
-              description="Managed Cloud veya Hetzner provider ekleyerek sunucu provision’a başlayın."
+              description="Managed, Hetzner veya Hostinger provider ekleyerek sunucu provision’a başlayın."
               action={
                 <button type="button" onClick={() => setShowForm(true)} className={cloudBtnPrimary}>
                   <Plus className="h-3.5 w-3.5" /> Provider ekle

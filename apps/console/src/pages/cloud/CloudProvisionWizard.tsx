@@ -48,7 +48,12 @@ export type AppTemplate = {
 
 export type CatalogRegion = { id: string; name?: string; description?: string; city?: string; country?: string }
 export type Provider = { id: string; name: string; slug: string }
-export type SshKey = { id: string; name: string; external_id?: string }
+export type SshKey = {
+  id: string
+  name: string
+  external_id?: string
+  public_key?: string
+}
 
 type FormState = {
   providerId: string
@@ -193,6 +198,19 @@ const CloudProvisionWizard: React.FC<Props> = ({
   useEffect(() => {
     if (form.providerId) onProviderChange(form.providerId)
   }, [form.providerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedProvider = useMemo(
+    () => providers.find((p) => p.id === form.providerId) || null,
+    [providers, form.providerId]
+  )
+  const providerSlug = String(selectedProvider?.slug || '').toLowerCase()
+  const isHostinger = providerSlug === 'hostinger'
+
+  useEffect(() => {
+    if (isHostinger && form.osFamily === 'windows') {
+      setForm((f) => ({ ...f, osFamily: 'linux', appTemplate: 'none' }))
+    }
+  }, [isHostinger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Windows ISO install only works on x86 (CX/CPX/CCX) — exclude Arm CAX.
   const usableSizes = useMemo(() => {
@@ -456,6 +474,17 @@ const CloudProvisionWizard: React.FC<Props> = ({
         form.osFamily === 'linux' && form.appTemplate !== 'none'
           ? form.appTemplate
           : undefined
+      let sshPayload: string[] | undefined
+      if (form.osFamily === 'linux') {
+        if (isHostinger) {
+          const material = selectedKey?.public_key || selectedKey?.external_id
+          sshPayload = material ? [String(material)] : undefined
+        } else if (selectedKey?.external_id) {
+          sshPayload = [selectedKey.external_id]
+        } else if (form.sshKeyId) {
+          sshPayload = [form.sshKeyId]
+        }
+      }
       const res = await apiService.cloudCreateServer({
         providerId: form.providerId,
         name: form.name.trim(),
@@ -463,14 +492,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
         image: form.image,
         location: form.location,
         userData: form.osFamily === 'linux' ? form.userData || undefined : undefined,
-        sshKeys:
-          form.osFamily === 'linux'
-            ? selectedKey?.external_id
-              ? [selectedKey.external_id]
-              : form.sshKeyId
-                ? [form.sshKeyId]
-                : undefined
-            : undefined,
+        sshKeys: sshPayload,
         enableIpv4: form.enableIpv4,
         enableIpv6: form.enableIpv6,
         appTemplate,
@@ -656,6 +678,14 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 </select>
               </label>
 
+              {isHostinger && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100">
+                  Hostinger: oluşturma Hostinger hesabınızdan ücret alır (katalog fiyatı).
+                  Windows şablonu yok. Dokploy/Docker hazır OS şablonları veya post-install
+                  ile PostgreSQL+PostgREST / WireGuard kurulabilir.
+                </p>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
@@ -664,23 +694,33 @@ const CloudProvisionWizard: React.FC<Props> = ({
                       title: 'Linux',
                       hint: 'Ubuntu, Debian, Alma, Rocky… SSH ile erişim',
                       icon: <Terminal className="h-5 w-5" />,
+                      disabled: false,
                     },
                     {
                       id: 'windows' as const,
                       title: 'Windows Server',
-                      hint: '2022 / 2019 · RDP 3389 · Administrator parolası',
+                      hint: isHostinger
+                        ? 'Hostinger’da Windows şablonu yok — Hetzner ISO kullanın'
+                        : '2022 / 2019 · RDP 3389 · Administrator parolası',
                       icon: <Monitor className="h-5 w-5" />,
+                      disabled: isHostinger,
                     },
                   ] as const
                 ).map((opt) => (
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setForm({ ...form, osFamily: opt.id })}
+                    disabled={opt.disabled}
+                    onClick={() => {
+                      if (opt.disabled) return
+                      setForm({ ...form, osFamily: opt.id })
+                    }}
                     className={`rounded-lg border p-3 text-left transition ${
-                      form.osFamily === opt.id
-                        ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600/40 dark:border-red-500 dark:bg-red-600/10'
-                        : 'border-slate-200 dark:border-slate-700'
+                      opt.disabled
+                        ? 'cursor-not-allowed opacity-50 border-slate-200 dark:border-slate-700'
+                        : form.osFamily === opt.id
+                          ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600/40 dark:border-red-500 dark:bg-red-600/10'
+                          : 'border-slate-200 dark:border-slate-700'
                     }`}
                   >
                     <div className="text-blue-800 dark:text-red-500">{opt.icon}</div>
@@ -920,8 +960,18 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 </div>
                 {selectedSize && (
                   <p className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    Maliyet {formatAmount(selectedSize.priceProviderMonthly, 'EUR')} × 1,20 ={' '}
-                    <strong>{formatAmount(selectedSize.priceRetailMonthly, 'EUR')}</strong>
+                    Maliyet{' '}
+                    {formatAmount(
+                      selectedSize.priceProviderMonthly,
+                      (selectedSize.currency as any) || 'EUR'
+                    )}{' '}
+                    × 1,20 ={' '}
+                    <strong>
+                      {formatAmount(
+                        selectedSize.priceRetailMonthly,
+                        (selectedSize.currency as any) || 'EUR'
+                      )}
+                    </strong>
                     /ay
                     {useCaseHintFor(selectedSize)
                       ? ` · ${useCaseHintFor(selectedSize)}`
@@ -1062,7 +1112,10 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 <dt className="text-slate-400">Fiyat</dt>
                 <dd>
                   {selectedSize
-                    ? `${formatAmount(selectedSize.priceRetailMonthly, 'EUR')}/ay (×1,20)`
+                    ? `${formatAmount(
+                        selectedSize.priceRetailMonthly,
+                        (selectedSize.currency as any) || 'EUR'
+                      )}/ay (×1,20)`
                     : '—'}
                 </dd>
                 <dt className="text-slate-400">Ağ</dt>

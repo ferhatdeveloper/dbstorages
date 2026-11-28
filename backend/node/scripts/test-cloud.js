@@ -55,8 +55,14 @@ async function main() {
   ));
   assert(listSupportedSlugs().includes('hetzner'), 'slug hetzner registered');
   assert(listSupportedSlugs().includes('managed'), 'slug managed registered');
+  assert(listSupportedSlugs().includes('hostinger'), 'slug hostinger registered');
   const driver = createProviderFromRow({ slug: 'managed' });
   assert(typeof driver.createServer === 'function', 'factory managed driver');
+  const hzFactory = createProviderFromRow({
+    slug: 'hostinger',
+    config: {},
+  }, { decryptedApiKey: 'test-token' });
+  assert(typeof hzFactory.listImages === 'function', 'factory hostinger driver');
 
   // Hetzner provider mapping without live API — inject fake client
   const { HetznerProvider } = require(path.join(
