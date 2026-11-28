@@ -64,7 +64,12 @@ const CloudVpnPage: React.FC = () => {
       await apiService.cloudVpnEnable()
       await load()
     } catch (e: any) {
-      setError(e.message)
+      const msg = e.message || 'VPN etkinleştirilemedi'
+      setError(
+        /bill|fatura|plan|quota|payment|402|403/i.test(msg)
+          ? `Faturalandırma / plan: ${msg}`
+          : msg
+      )
     } finally {
       setEnabling(false)
     }
@@ -96,7 +101,12 @@ const CloudVpnPage: React.FC = () => {
       setForm({ name: '', serverId: '' })
       await load()
     } catch (err: any) {
-      setError(err.message)
+      const msg = err.message || 'Peer oluşturulamadı'
+      setError(
+        /bill|fatura|plan|quota|payment|402|403/i.test(msg)
+          ? `Faturalandırma / plan: ${msg}`
+          : msg
+      )
     } finally {
       setSaving(false)
     }

@@ -53,6 +53,7 @@ const CloudServerDetailPage: React.FC = () => {
   } | null>(null)
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState('')
+  const [advBusy, setAdvBusy] = useState('')
 
   const load = useCallback(async () => {
     if (!id) return
@@ -227,6 +228,20 @@ const CloudServerDetailPage: React.FC = () => {
       setTimeout(() => setCopied(''), 1500)
     } catch {
       /* ignore */
+    }
+  }
+
+  const advanced = async (action: string, body: Record<string, unknown> = {}) => {
+    if (!id) return
+    setAdvBusy(action)
+    setError('')
+    try {
+      await apiService.cloudServerAction(id, action, body)
+      await load()
+    } catch (e: any) {
+      setError(e.message || `${action} başarısız`)
+    } finally {
+      setAdvBusy('')
     }
   }
 
@@ -446,6 +461,80 @@ const CloudServerDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className={`${cloudPanelClass} p-4`}>
+            <h3
+              className="text-sm font-semibold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: 'Montserrat, Inter, sans-serif' }}
+            >
+              Gelişmiş aksiyonlar
+            </h3>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Hata kodları Activity’de ve bu sayfada gösterilir (sahte başarı yok).
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={cloudBtnGhost}
+                disabled={Boolean(advBusy)}
+                onClick={() => advanced('enable_rescue')}
+              >
+                {advBusy === 'enable_rescue' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Rescue aç
+              </button>
+              <button
+                type="button"
+                className={cloudBtnGhost}
+                disabled={Boolean(advBusy)}
+                onClick={() => advanced('disable_rescue')}
+              >
+                Rescue kapat
+              </button>
+              <button
+                type="button"
+                className={cloudBtnGhost}
+                disabled={Boolean(advBusy)}
+                onClick={() => {
+                  const iso = window.prompt('ISO id / adı (boş = iptal)')
+                  if (!iso) return
+                  void advanced('attach_iso', { iso })
+                }}
+              >
+                ISO attach
+              </button>
+              <button
+                type="button"
+                className={cloudBtnGhost}
+                disabled={Boolean(advBusy)}
+                onClick={() => advanced('detach_iso')}
+              >
+                ISO detach
+              </button>
+              <button
+                type="button"
+                className={cloudBtnGhost}
+                disabled={Boolean(advBusy)}
+                onClick={() => advanced('reset')}
+              >
+                Hard reset
+              </button>
+            </div>
+          </div>
+
+          <div className={`${cloudPanelClass} border-dashed p-4`}>
+            <h3
+              className="text-sm font-semibold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: 'Montserrat, Inter, sans-serif' }}
+            >
+              Metrik grafikleri
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              CPU / RAM / disk I/O grafikleri yakında. Hetzner Cloud API canlı metrik chart
+              sağlamıyor; sahte grafik gösterilmez. Anlık durum için sağlayıcı konsolunu kullanın.
+            </p>
           </div>
         </div>
 

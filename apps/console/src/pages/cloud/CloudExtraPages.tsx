@@ -57,6 +57,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
   const [error, setError] = useState('')
   const [show, setShow] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState('')
   const [form, setForm] = useState<Record<string, string>>({
     providerId: '',
     name: '',
@@ -112,6 +113,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
     e.preventDefault()
     setSaving(true)
     setError('')
+    setNotice('')
     try {
       if (kind === 'primary-ips') {
         await apiService.cloudCreatePrimaryIp({
@@ -119,6 +121,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           name: form.name,
           type: form.type,
         })
+        setNotice('Primary IP oluşturuldu (async — Activity)')
       } else if (kind === 'floating-ips') {
         await apiService.cloudCreateFloatingIp({
           providerId: form.providerId,
@@ -126,6 +129,7 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           type: form.type,
           location: form.location,
         })
+        setNotice('Floating IP oluşturuldu (async — Activity)')
       } else if (kind === 'load-balancers') {
         await apiService.cloudCreateLoadBalancer({
           providerId: form.providerId,
@@ -133,12 +137,14 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
           type: 'lb11',
           location: form.location,
         })
+        setNotice('Load balancer oluşturuldu (MVP; Hetzner 501 ise Activity’de hata görünür)')
       } else if (kind === 'placement-groups') {
         await apiService.cloudCreatePlacementGroup({
           providerId: form.providerId,
           name: form.name,
           type: 'spread',
         })
+        setNotice('Placement group oluşturuldu')
       } else if (kind === 'certificates') {
         await apiService.cloudCreateCertificate({
           providerId: form.providerId,
@@ -149,18 +155,20 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
             ? form.domainNames.split(',').map((d) => d.trim())
             : [],
         })
+        setNotice('Certificate kaydı oluşturuldu (MVP)')
       } else if (kind === 'dns') {
         await apiService.cloudSetReverseDns({
           providerId: form.providerId,
           ip: form.ip,
           ptr: form.ptr,
         })
+        setNotice(`PTR kaydı kuyruğa alındı: ${form.ip} → ${form.ptr}`)
       }
       setShow(false)
       setForm((f) => ({ ...f, name: '', ip: '', ptr: '', certificate: '', privateKey: '' }))
       await load()
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || 'İşlem başarısız (sahte başarı yok)')
     } finally {
       setSaving(false)
     }
@@ -185,12 +193,31 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
       setError('Önce sunucu seçin')
       return
     }
+    setError('')
+    setNotice('')
     try {
       if (kind === 'primary-ips') {
         await apiService.cloudAssignPrimaryIp(id, form.serverId)
       } else {
         await apiService.cloudAssignFloatingIp(id, form.serverId)
       }
+      setNotice('Assign kuyruğa alındı')
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const unassign = async (id: string) => {
+    setError('')
+    setNotice('')
+    try {
+      if (kind === 'primary-ips') {
+        await apiService.cloudUnassignPrimaryIp(id)
+      } else {
+        await apiService.cloudUnassignFloatingIp(id)
+      }
+      setNotice('Unassign kuyruğa alındı')
       await load()
     } catch (err: any) {
       setError(err.message)
@@ -259,6 +286,11 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
       />
 
       <CloudError message={error} />
+      {notice && (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {notice}
+        </p>
+      )}
 
       {(kind === 'primary-ips' || kind === 'floating-ips') && (
         <label className={`${cloudPanelClass} grid max-w-xs gap-1 p-3 text-xs text-slate-500`}>
@@ -326,13 +358,22 @@ const CloudExtraPage: React.FC<{ kind: ExtraKind }> = ({ kind }) => {
                       <td className={cloudTd}>
                         <div className="flex gap-1">
                           {(kind === 'primary-ips' || kind === 'floating-ips') && (
-                            <button
-                              type="button"
-                              className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
-                              onClick={() => assign(r.id)}
-                            >
-                              Assign
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
+                                onClick={() => assign(r.id)}
+                              >
+                                Assign
+                              </button>
+                              <button
+                                type="button"
+                                className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
+                                onClick={() => unassign(r.id)}
+                              >
+                                Unassign
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"

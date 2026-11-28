@@ -73,6 +73,9 @@ const CloudResourcePage: React.FC<Props> = ({
   const [saving, setSaving] = useState(false)
   const [attachFor, setAttachFor] = useState<string | null>(null)
   const [restoreFor, setRestoreFor] = useState<string | null>(null)
+  const [applyFwFor, setApplyFwFor] = useState<string | null>(null)
+  const [netAttachFor, setNetAttachFor] = useState<string | null>(null)
+  const [notice, setNotice] = useState('')
   const [form, setForm] = useState<Record<string, string>>({
     providerId: '',
     name: '',
@@ -101,7 +104,13 @@ const CloudResourcePage: React.FC<Props> = ({
       else data = (await apiService.cloudListOperations()).data || []
 
       setRows(data)
-      if (createMode || kind === 'volumes' || kind === 'snapshots') {
+      const needsServers =
+        Boolean(createMode) ||
+        kind === 'volumes' ||
+        kind === 'snapshots' ||
+        kind === 'firewalls' ||
+        kind === 'networks'
+      if (needsServers) {
         const p = await apiService.cloudListProviders()
         setProviders(p.data || [])
         if (p.data?.[0]) setForm((f) => ({ ...f, providerId: f.providerId || p.data![0].id }))
@@ -303,6 +312,11 @@ const CloudResourcePage: React.FC<Props> = ({
       />
 
       <CloudError message={error} />
+      {notice && (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {notice}
+        </p>
+      )}
 
       {attachFor && (
         <div className={`${cloudPanelClass} flex flex-wrap items-end gap-2 p-3`}>
@@ -325,6 +339,96 @@ const CloudResourcePage: React.FC<Props> = ({
             Attach
           </button>
           <button type="button" onClick={() => setAttachFor(null)} className={cloudBtnGhost}>
+            İptal
+          </button>
+        </div>
+      )}
+
+      {applyFwFor && (
+        <div className={`${cloudPanelClass} flex flex-wrap items-end gap-2 p-3`}>
+          <label className="grid flex-1 gap-1 text-xs text-slate-500">
+            Firewall uygula — sunucu
+            <select
+              className={cloudFieldClass}
+              value={form.serverId}
+              onChange={(e) => setForm({ ...form, serverId: e.target.value })}
+            >
+              <option value="">Seçin</option>
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className={cloudBtnPrimary}
+            onClick={async () => {
+              if (!form.serverId) {
+                setError('Sunucu seçin')
+                return
+              }
+              setError('')
+              try {
+                await apiService.cloudApplyFirewall(applyFwFor, [form.serverId])
+                setApplyFwFor(null)
+                setNotice('Firewall uygulandı (async — Activity’de izleyin)')
+                await load()
+              } catch (err: any) {
+                setError(err.message)
+              }
+            }}
+          >
+            Apply
+          </button>
+          <button type="button" onClick={() => setApplyFwFor(null)} className={cloudBtnGhost}>
+            İptal
+          </button>
+        </div>
+      )}
+
+      {netAttachFor && (
+        <div className={`${cloudPanelClass} flex flex-wrap items-end gap-2 p-3`}>
+          <label className="grid flex-1 gap-1 text-xs text-slate-500">
+            Ağa bağla — sunucu
+            <select
+              className={cloudFieldClass}
+              value={form.serverId}
+              onChange={(e) => setForm({ ...form, serverId: e.target.value })}
+            >
+              <option value="">Seçin</option>
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className={cloudBtnPrimary}
+            onClick={async () => {
+              if (!form.serverId) {
+                setError('Sunucu seçin')
+                return
+              }
+              setError('')
+              try {
+                await apiService.cloudNetworkAction(netAttachFor, 'attach', {
+                  serverId: form.serverId,
+                })
+                setNetAttachFor(null)
+                setNotice('Sunucu ağa bağlandı (async)')
+                await load()
+              } catch (err: any) {
+                setError(err.message)
+              }
+            }}
+          >
+            Attach
+          </button>
+          <button type="button" onClick={() => setNetAttachFor(null)} className={cloudBtnGhost}>
             İptal
           </button>
         </div>
@@ -564,20 +668,12 @@ const CloudResourcePage: React.FC<Props> = ({
                               <button
                                 type="button"
                                 className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
-                                onClick={async () => {
+                                onClick={() => {
+                                  setError('')
+                                  setNotice('')
+                                  setApplyFwFor(r.id)
                                   if (!form.serverId && servers[0]) {
                                     setForm((f) => ({ ...f, serverId: servers[0].id }))
-                                  }
-                                  const sid = form.serverId || servers[0]?.id
-                                  if (!sid) {
-                                    setError('Önce sunucu oluşturun')
-                                    return
-                                  }
-                                  try {
-                                    await apiService.cloudApplyFirewall(r.id, [sid])
-                                    await load()
-                                  } catch (err: any) {
-                                    setError(err.message)
                                   }
                                 }}
                               >
@@ -634,10 +730,12 @@ const CloudResourcePage: React.FC<Props> = ({
                               onClick={async () => {
                                 const range = window.prompt('Subnet CIDR', '10.0.1.0/24')
                                 if (!range) return
+                                setError('')
                                 try {
                                   await apiService.cloudNetworkAction(r.id, 'add-subnet', {
                                     subnet: { ipRange: range, networkZone: 'eu-central' },
                                   })
+                                  setNotice('Subnet eklendi (async)')
                                   await load()
                                 } catch (err: any) {
                                   setError(err.message)
@@ -650,22 +748,60 @@ const CloudResourcePage: React.FC<Props> = ({
                               type="button"
                               className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
                               onClick={async () => {
-                                const sid = form.serverId || servers[0]?.id
-                                if (!sid) {
-                                  setError('Sunucu seçin/oluşturun')
-                                  return
-                                }
+                                const dest = window.prompt('Route destination CIDR', '0.0.0.0/0')
+                                if (!dest) return
+                                const gateway = window.prompt('Gateway IP', '10.0.0.1')
+                                if (!gateway) return
+                                setError('')
                                 try {
-                                  await apiService.cloudNetworkAction(r.id, 'attach', {
-                                    serverId: sid,
+                                  await apiService.cloudNetworkAction(r.id, 'add-route', {
+                                    route: { destination: dest, gateway },
                                   })
+                                  setNotice('Route eklendi (async)')
                                   await load()
                                 } catch (err: any) {
                                   setError(err.message)
                                 }
                               }}
                             >
+                              +Route
+                            </button>
+                            <button
+                              type="button"
+                              className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
+                              onClick={() => {
+                                setError('')
+                                setNotice('')
+                                setNetAttachFor(r.id)
+                                if (!form.serverId && servers[0]) {
+                                  setForm((f) => ({ ...f, serverId: servers[0].id }))
+                                }
+                              }}
+                            >
                               Attach srv
+                            </button>
+                            <button
+                              type="button"
+                              className={`${cloudBtnGhost} !py-0.5 !text-[10px]`}
+                              onClick={async () => {
+                                const sid = form.serverId || servers[0]?.id
+                                if (!sid) {
+                                  setError('Detach için sunucu seçin/oluşturun')
+                                  return
+                                }
+                                setError('')
+                                try {
+                                  await apiService.cloudNetworkAction(r.id, 'detach', {
+                                    serverId: sid,
+                                  })
+                                  setNotice('Sunucu ağdan ayrıldı (async)')
+                                  await load()
+                                } catch (err: any) {
+                                  setError(err.message)
+                                }
+                              }}
+                            >
+                              Detach
                             </button>
                             <button
                               type="button"

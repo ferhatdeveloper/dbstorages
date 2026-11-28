@@ -25,7 +25,13 @@ type Provider = {
   slug: string
   status: string
   hasApiKey?: boolean
-  config?: { baseUrl?: string; endpoint?: string }
+  config?: {
+    baseUrl?: string
+    endpoint?: string
+    envFallback?: string
+    hasEnvToken?: boolean
+    seeded?: boolean
+  }
   created_at?: string
 }
 
@@ -90,6 +96,20 @@ const CloudProvidersPage: React.FC = () => {
   const endpointOf = (r: Provider) =>
     r.config?.baseUrl || r.config?.endpoint || '— (varsayılan)'
 
+  const keyLabel = (r: Provider) => {
+    if (r.hasApiKey) return '•••••••• (kayıtlı)'
+    if (r.config?.hasEnvToken) return `env: ${r.config.envFallback || 'OK'}`
+    if (r.config?.envFallback) return `${r.config.envFallback} yok`
+    return 'yok'
+  }
+
+  const needsToken = rows.filter(
+    (r) =>
+      ['hetzner', 'hostinger'].includes(String(r.slug || '').toLowerCase()) &&
+      !r.hasApiKey &&
+      !r.config?.hasEnvToken
+  )
+
   return (
     <div className="space-y-4">
       <CloudPageHeader
@@ -105,6 +125,18 @@ const CloudProvidersPage: React.FC = () => {
       />
 
       <CloudError message={error} />
+
+      {needsToken.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          API anahtarı eksik:{' '}
+          {needsToken.map((r) => r.name).join(', ')}. Providers formundan key ekleyin veya Dokploy
+          Environment’a{' '}
+          <span className="font-mono">
+            {needsToken.map((r) => r.config?.envFallback || 'API_TOKEN').join(' / ')}
+          </span>{' '}
+          yazıp Redeploy edin. Hostinger katalog/provision token olmadan boş kalır.
+        </div>
+      )}
 
       {loading ? (
         <CloudLoading />
@@ -141,9 +173,7 @@ const CloudProvidersPage: React.FC = () => {
                       <td className={`${cloudTd} max-w-[14rem] truncate font-mono text-xs`}>
                         {endpointOf(r)}
                       </td>
-                      <td className={`${cloudTd} font-mono text-xs`}>
-                        {r.hasApiKey ? '•••••••• (kayıtlı)' : 'env / yok'}
-                      </td>
+                      <td className={`${cloudTd} font-mono text-xs`}>{keyLabel(r)}</td>
                       <td className={cloudTd}>
                         <CloudStatusPill status={r.status} />
                       </td>

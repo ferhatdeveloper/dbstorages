@@ -333,7 +333,9 @@ const CloudService = {
   async ensureEnvProviders({ tenantId, projectId, createdBy } = {}) {
     if (!tenantId) return repo.listProviders(tenantId);
     const existing = await repo.listProviders(tenantId);
-    const have = new Set(existing.map((p) => String(p.slug || '').toLowerCase()));
+    const bySlug = new Map(
+      existing.map((p) => [String(p.slug || '').toLowerCase(), p])
+    );
     const seeds = [
       {
         slug: 'hetzner',
@@ -347,24 +349,41 @@ const CloudService = {
       },
     ];
     for (const s of seeds) {
-      if (have.has(s.slug)) continue;
-      try {
-        await this.createProvider({
-          tenantId,
-          projectId: projectId || null,
-          name: s.name,
-          slug: s.slug,
-          apiKey: null,
-          config: {
-            seeded: true,
-            envFallback: s.env,
-            hasEnvToken: Boolean(process.env[s.env]),
-          },
-          createdBy: createdBy || null,
-        });
-        have.add(s.slug);
-      } catch {
-        /* race / validation — ignore */
+      const hasEnv = Boolean(process.env[s.env]);
+      const row = bySlug.get(s.slug);
+      if (!row) {
+        try {
+          await this.createProvider({
+            tenantId,
+            projectId: projectId || null,
+            name: s.name,
+            slug: s.slug,
+            apiKey: null,
+            config: {
+              seeded: true,
+              envFallback: s.env,
+              hasEnvToken: hasEnv,
+            },
+            createdBy: createdBy || null,
+          });
+        } catch {
+          /* race / validation — ignore */
+        }
+        continue;
+      }
+      const cfg = row.config && typeof row.config === 'object' ? { ...row.config } : {};
+      if (
+        cfg.envFallback !== s.env ||
+        Boolean(cfg.hasEnvToken) !== hasEnv ||
+        !cfg.seeded
+      ) {
+        try {
+          await repo.updateProvider(row.id, {
+            config: { ...cfg, seeded: true, envFallback: s.env, hasEnvToken: hasEnv },
+          });
+        } catch {
+          /* ignore */
+        }
       }
     }
     return repo.listProviders(tenantId);

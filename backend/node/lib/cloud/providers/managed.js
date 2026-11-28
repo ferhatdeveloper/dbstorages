@@ -92,10 +92,20 @@ class ManagedCloudProvider extends CloudProvider {
   }
 
   async attachVolume(volumeId, serverId) {
+    const v = this.volumes.get(String(volumeId));
+    if (v) {
+      v.serverId = String(serverId);
+      v.status = 'attached';
+    }
     return { action: this._action() };
   }
 
   async detachVolume(volumeId) {
+    const v = this.volumes.get(String(volumeId));
+    if (v) {
+      v.serverId = null;
+      v.status = 'available';
+    }
     return { action: this._action() };
   }
 
@@ -225,6 +235,9 @@ class ManagedCloudProvider extends CloudProvider {
       externalId,
       name: spec.name,
       ipRange: spec.ipRange || '10.0.0.0/16',
+      subnets: [],
+      routes: [],
+      servers: [],
     };
     this.networks.set(externalId, network);
     return { network };
@@ -356,23 +369,47 @@ class ManagedCloudProvider extends CloudProvider {
     return { action: this._action() };
   }
 
-  async applyFirewallToResources() {
+  async applyFirewallToResources(externalId, resourceIds) {
+    const f = this.firewalls.get(String(externalId));
+    if (f) {
+      f.appliedTo = Array.isArray(resourceIds) ? resourceIds.map(String) : [];
+    }
     return { action: this._action() };
   }
 
-  async addNetworkSubnet() {
+  async addNetworkSubnet(networkId, subnet) {
+    const n = this.networks.get(String(networkId));
+    if (n) {
+      if (!Array.isArray(n.subnets)) n.subnets = [];
+      n.subnets.push(subnet || {});
+    }
     return { action: this._action() };
   }
 
-  async attachServerToNetwork() {
+  async attachServerToNetwork(networkId, serverId) {
+    const n = this.networks.get(String(networkId));
+    if (n) {
+      if (!Array.isArray(n.servers)) n.servers = [];
+      const sid = String(serverId);
+      if (!n.servers.includes(sid)) n.servers.push(sid);
+    }
     return { action: this._action() };
   }
 
-  async detachServerFromNetwork() {
+  async detachServerFromNetwork(networkId, serverId) {
+    const n = this.networks.get(String(networkId));
+    if (n && Array.isArray(n.servers)) {
+      n.servers = n.servers.filter((s) => s !== String(serverId));
+    }
     return { action: this._action() };
   }
 
-  async addNetworkRoute() {
+  async addNetworkRoute(networkId, route) {
+    const n = this.networks.get(String(networkId));
+    if (n) {
+      if (!Array.isArray(n.routes)) n.routes = [];
+      n.routes.push(route || {});
+    }
     return { action: this._action() };
   }
 
@@ -394,11 +431,15 @@ class ManagedCloudProvider extends CloudProvider {
     return { ok: true };
   }
 
-  async assignPrimaryIp() {
+  async assignPrimaryIp(externalId, serverId) {
+    const p = this.primaryIps?.get(String(externalId));
+    if (p) p.serverId = String(serverId);
     return { action: this._action() };
   }
 
-  async unassignPrimaryIp() {
+  async unassignPrimaryIp(externalId) {
+    const p = this.primaryIps?.get(String(externalId));
+    if (p) p.serverId = null;
     return { action: this._action() };
   }
 
@@ -429,11 +470,15 @@ class ManagedCloudProvider extends CloudProvider {
     return { ok: true };
   }
 
-  async assignFloatingIp() {
+  async assignFloatingIp(externalId, serverId) {
+    const f = this.floatingIps?.get(String(externalId));
+    if (f) f.serverId = String(serverId);
     return { action: this._action() };
   }
 
-  async unassignFloatingIp() {
+  async unassignFloatingIp(externalId) {
+    const f = this.floatingIps?.get(String(externalId));
+    if (f) f.serverId = null;
     return { action: this._action() };
   }
 

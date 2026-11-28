@@ -24,8 +24,17 @@ function nowIso() {
 function publicProvider(row) {
   if (!row) return null;
   const { api_key_enc, ...rest } = row;
+  const cfg =
+    rest.config && typeof rest.config === 'object' ? { ...rest.config } : {};
+  const envName = cfg.envFallback || null;
+  const liveEnv = Boolean(envName && process.env[envName]);
+  if (envName) {
+    cfg.envFallback = envName;
+    cfg.hasEnvToken = liveEnv || Boolean(cfg.hasEnvToken);
+  }
   return {
     ...rest,
+    config: cfg,
     hasApiKey: Boolean(api_key_enc),
   };
 }
@@ -95,6 +104,33 @@ async function getProviderDecryptedKey(row) {
   if (!row) return null;
   if (row.api_key_enc) return decryptSecret(row.api_key_enc);
   return null;
+}
+
+async function updateProvider(id, patch = {}) {
+  const row = await getProvider(id);
+  if (!row) return null;
+  if (patch.config !== undefined) row.config = patch.config;
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.apiKey !== undefined) {
+    row.api_key_enc = patch.apiKey ? encryptSecret(patch.apiKey) : null;
+  }
+  row.updated_at = nowIso();
+  if (isMetaReady()) {
+    await getMetaPool().query(
+      `UPDATE cloud_providers
+       SET name = $2, status = $3, config = $4::jsonb, api_key_enc = $5, updated_at = NOW()
+       WHERE id = $1`,
+      [
+        id,
+        row.name,
+        row.status,
+        JSON.stringify(row.config || {}),
+        row.api_key_enc,
+      ]
+    );
+  }
+  return publicProvider(row);
 }
 
 async function insertServer(data) {
@@ -737,6 +773,7 @@ module.exports = {
   listProviders,
   getProvider,
   getProviderDecryptedKey,
+  updateProvider,
   publicProvider,
   insertServer,
   updateServer,

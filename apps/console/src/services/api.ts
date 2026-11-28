@@ -985,6 +985,12 @@ class ApiService {
       { method: 'POST', body: JSON.stringify({ serverId }) }
     );
   }
+  async cloudUnassignPrimaryIp(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/primary-ips/${encodeURIComponent(id)}/unassign`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+  }
 
   async cloudListFloatingIps() {
     return this.request<{ success: boolean; data: any[] }>(`${NODE_API_BASE}/cloud/floating-ips`);
@@ -1005,6 +1011,12 @@ class ApiService {
     return this.request<{ success: boolean }>(
       `${NODE_API_BASE}/cloud/floating-ips/${encodeURIComponent(id)}/assign`,
       { method: 'POST', body: JSON.stringify({ serverId }) }
+    );
+  }
+  async cloudUnassignFloatingIp(id: string) {
+    return this.request<{ success: boolean }>(
+      `${NODE_API_BASE}/cloud/floating-ips/${encodeURIComponent(id)}/unassign`,
+      { method: 'POST', body: JSON.stringify({}) }
     );
   }
 
