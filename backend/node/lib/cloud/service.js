@@ -327,8 +327,8 @@ const CloudService = {
   },
 
   /**
-   * Create missing hetzner/hostinger provider rows when the matching env token is set.
-   * Does not overwrite existing rows or store the env token in DB (driver reads env).
+   * Ensure hetzner/hostinger provider rows exist so the wizard dropdown lists them.
+   * API key may come later via Providers UI or from env (HETZNER_API_TOKEN / HOSTINGER_API_TOKEN).
    */
   async ensureEnvProviders({ tenantId, projectId, createdBy } = {}) {
     if (!tenantId) return repo.listProviders(tenantId);
@@ -348,7 +348,6 @@ const CloudService = {
     ];
     for (const s of seeds) {
       if (have.has(s.slug)) continue;
-      if (!process.env[s.env]) continue;
       try {
         await this.createProvider({
           tenantId,
@@ -356,7 +355,11 @@ const CloudService = {
           name: s.name,
           slug: s.slug,
           apiKey: null,
-          config: { seededFromEnv: s.env },
+          config: {
+            seeded: true,
+            envFallback: s.env,
+            hasEnvToken: Boolean(process.env[s.env]),
+          },
           createdBy: createdBy || null,
         });
         have.add(s.slug);
