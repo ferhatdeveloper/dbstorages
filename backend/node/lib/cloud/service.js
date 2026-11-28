@@ -32,15 +32,24 @@ function ensureHandlers() {
     const imageName = String(req.spec?.image || out.server?.image || '');
     const osFamily = /windows/i.test(imageName) ? 'windows' : 'linux';
     const existing = await repo.getServer(op.resource_id);
+    // Hetzner often returns "initializing" with a public IP already assigned.
+    // Treat IP+boot as running for UI/progress; detail sync can refine later.
+    const rawStatus = String(out.server?.status || '').toLowerCase();
+    const hasIp = Boolean(out.server?.ipv4 || out.server?.ipv6);
+    const status =
+      hasIp && ['initializing', 'starting'].includes(rawStatus)
+        ? 'running'
+        : out.server?.status || 'running';
     await repo.updateServer(op.resource_id, {
       externalId: out.server.externalId,
-      status: out.server.status || 'running',
+      status,
       ipv4: out.server.ipv4,
       ipv6: out.server.ipv6,
       metadata: {
         ...(existing?.metadata || {}),
         rootPasswordSet: Boolean(out.rootPassword),
         providerAction: out.action,
+        providerStatus: out.server?.status || null,
         osFamily,
       },
     });
@@ -352,6 +361,38 @@ const CloudService = {
     const s = await repo.getServer(id);
     if (!s || s.tenant_id !== tenantId) {
       throw cloudError(404, 'Server not found', 'not_found');
+    }
+    const st = String(s.status || '').toLowerCase();
+    const transitional = ['pending', 'initializing', 'starting', 'rebuilding'].includes(
+      st
+    );
+    if (s.external_id && transitional) {
+      try {
+        const { driver } = await resolveDriver(s.provider_id);
+        if (typeof driver.getServer === 'function') {
+          const remote = await driver.getServer(s.external_id);
+          if (remote) {
+            const remoteSt = String(remote.status || '').toLowerCase();
+            const hasIp = Boolean(remote.ipv4 || remote.ipv6);
+            const nextStatus =
+              hasIp && ['initializing', 'starting'].includes(remoteSt)
+                ? 'running'
+                : remote.status || s.status;
+            await repo.updateServer(id, {
+              status: nextStatus,
+              ipv4: remote.ipv4 || s.ipv4,
+              ipv6: remote.ipv6 || s.ipv6,
+              metadata: {
+                ...(s.metadata || {}),
+                providerStatus: remote.status || null,
+              },
+            });
+            return repo.getServer(id);
+          }
+        }
+      } catch {
+        /* keep local row if provider sync fails */
+      }
     }
     return s;
   },

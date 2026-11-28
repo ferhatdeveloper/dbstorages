@@ -250,7 +250,21 @@ class HetznerProvider extends CloudProvider {
         osFamily: detectOsFamily(img.name, img.description, img.os_flavor),
         architecture: img.architecture,
       }));
-    return images;
+    // Prefer x86 over arm duplicates of the same image name (wizard uses name as create value).
+    const byName = new Map();
+    for (const img of images) {
+      const key = String(img.name || img.id);
+      const prev = byName.get(key);
+      if (!prev) {
+        byName.set(key, img);
+        continue;
+      }
+      const preferNew =
+        String(img.architecture || '') === 'x86' &&
+        String(prev.architecture || '') !== 'x86';
+      if (preferNew) byName.set(key, img);
+    }
+    return [...byName.values()];
   }
 
   async listLocations() {
@@ -445,6 +459,11 @@ class HetznerProvider extends CloudProvider {
       `/servers/${externalId}/actions/disable_backup`
     );
     return { action: { id: String(data.action.id), status: data.action.status } };
+  }
+
+  async getServer(externalId) {
+    const data = await this._request('GET', `/servers/${externalId}`);
+    return this._mapServer(data.server);
   }
 
   async getServerMetrics(_externalId, _opts) {

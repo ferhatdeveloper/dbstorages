@@ -126,10 +126,17 @@ const CloudServersPage: React.FC = () => {
         apiService.cloudListSshKeys(),
       ])
       setRows(s.data || [])
-      setProviders(p.data || [])
+      const sortedProviders = [...(p.data || [])].sort((a, b) => {
+        const rank = (slug: string) =>
+          slug === 'hetzner' ? 0 : slug === 'managed' ? 1 : 2
+        return rank(String(a.slug || '')) - rank(String(b.slug || ''))
+      })
+      setProviders(sortedProviders)
       setSshKeys(k.data || [])
-      if (p.data?.[0]) {
-        const pid = catalogProviderId || p.data[0].id
+      if (sortedProviders[0]) {
+        const preferred =
+          sortedProviders.find((x) => x.slug === 'hetzner') || sortedProviders[0]
+        const pid = catalogProviderId || preferred.id
         await loadCatalog(pid)
       } else {
         try {

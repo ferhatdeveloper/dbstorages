@@ -189,21 +189,47 @@ const CloudProvisionWizard: React.FC<Props> = ({
       (i) => (i.name || i.id) === form.image
     )
     if (!currentOk) {
-      const first = filteredImages[0]
-      setForm((f) => ({ ...f, image: String(first.name || first.id) }))
+      const preferred =
+        filteredImages.find((i) =>
+          String(i.name || '')
+            .toLowerCase()
+            .includes(form.osFamily === 'windows' ? 'windows-2022' : 'ubuntu-22.04')
+        ) || filteredImages[0]
+      setForm((f) => ({ ...f, image: String(preferred.name || preferred.id) }))
     }
-  }, [filteredImages, form.image])
+  }, [filteredImages, form.image, form.osFamily])
 
   useEffect(() => {
     if (!regions.length) return
     const ok = regions.some((r) => (r.name || r.id) === form.location)
     if (!ok) {
+      const preferred =
+        regions.find((r) => String(r.name || '').toLowerCase() === 'nbg1') ||
+        regions.find((r) => String(r.name || '').toLowerCase() === 'fsn1') ||
+        regions[0]
       setForm((f) => ({
         ...f,
-        location: String(regions[0].name || regions[0].id),
+        location: String(preferred.name || preferred.id),
       }))
     }
   }, [regions, form.location])
+
+  useEffect(() => {
+    if (!sizes.length) return
+    const ok = sizes.some((s) => (s.name || s.id) === form.serverType)
+    if (!ok) {
+      const preferred =
+        sizes.find((s) => String(s.name || '').toLowerCase() === 'cx23') ||
+        sizes.find((s) => s.popular) ||
+        sizes[0]
+      const value = String(preferred.name || preferred.id || '')
+      if (value) {
+        setForm((f) => ({ ...f, serverType: value }))
+        const fam = detectSizeFamily(value, preferred.family)
+        setSizeFamily(fam)
+      }
+    }
+  }, [sizes, form.serverType])
 
   const selectedSize = useMemo(
     () => sizes.find((s) => (s.name || s.id) === form.serverType) || null,
@@ -267,14 +293,19 @@ const CloudProvisionWizard: React.FC<Props> = ({
         const st = String(s.status || '').toLowerCase()
         const hasIp = Boolean(s.ipv4 || s.ipv6)
         const consoleReady = Boolean(s.metadata?.console?.wssUrl)
+        const live = ['running', 'active', 'online'].includes(st)
+        const booting = ['initializing', 'starting', 'rebuilding', 'migrating'].includes(
+          st
+        )
         if (st === 'failed' || st === 'error') {
           setPhase('failed')
           return
         }
-        if (consoleReady) {
+        // Hetzner: initializing often already has a public IP — treat as success for wizard.
+        if ((live || booting) && hasIp) {
           setPhase('done')
-        } else if (hasIp && ['running', 'active', 'online'].includes(st)) {
-          setPhase('console')
+        } else if (consoleReady && hasIp) {
+          setPhase('done')
         } else if (hasIp) {
           setPhase('ip')
         } else if (st === 'pending') {
