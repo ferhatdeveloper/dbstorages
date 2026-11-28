@@ -1181,12 +1181,18 @@ class ApiService {
   }
 
   async cloudCatalog(
-    kind: 'images' | 'regions' | 'server-types' | 'ssh-keys',
+    kind: 'images' | 'regions' | 'server-types' | 'ssh-keys' | 'app-templates',
     providerId: string
   ) {
     const qs = `?providerId=${encodeURIComponent(providerId)}`;
     return this.request<{ success: boolean; data: any[] }>(
       `${NODE_API_BASE}/cloud/${kind}${qs}`
+    );
+  }
+
+  async cloudAppTemplates(osFamily: 'linux' | 'windows' = 'linux') {
+    return this.request<{ success: boolean; data: any[] }>(
+      `${NODE_API_BASE}/cloud/app-templates/list?osFamily=${encodeURIComponent(osFamily)}`
     );
   }
 

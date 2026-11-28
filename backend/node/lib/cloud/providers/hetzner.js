@@ -249,6 +249,7 @@ class HetznerProvider extends CloudProvider {
         osFlavor: img.os_flavor,
         osFamily: detectOsFamily(img.name, img.description, img.os_flavor),
         architecture: img.architecture,
+        installMethod: 'image',
       }));
     // Prefer x86 over arm duplicates of the same image name (wizard uses name as create value).
     const byName = new Map();
@@ -264,7 +265,71 @@ class HetznerProvider extends CloudProvider {
         String(prev.architecture || '') !== 'x86';
       if (preferNew) byName.set(key, img);
     }
-    return [...byName.values()];
+    const linux = [...byName.values()];
+
+    // Hetzner Cloud has no ready Windows system images — expose Windows Server ISOs
+    // so the wizard can create an x86 VM and attach the ISO for BYOL install.
+    let windows = [];
+    try {
+      const isos = await this.listIsos();
+      windows = (isos || [])
+        .filter((iso) => {
+          const blob = `${iso.name || ''} ${iso.description || ''}`.toLowerCase();
+          const isWin =
+            blob.includes('windows server') ||
+            blob.includes('windows_server') ||
+            /(^|[^a-z])win(dows)?[_\s-]?server/.test(blob);
+          return (
+            isWin &&
+            !blob.includes('language pack') &&
+            !blob.includes('virtio') &&
+            !blob.includes('virtio drivers')
+          );
+        })
+        .map((iso) => {
+          const blob = `${iso.name || ''} ${iso.description || ''}`.toLowerCase();
+          let label = 'Windows Server';
+          if (blob.includes('2025')) label = 'Windows Server 2025';
+          else if (blob.includes('2022')) label = 'Windows Server 2022';
+          else if (blob.includes('2019')) label = 'Windows Server 2019';
+          else if (blob.includes('2016')) label = 'Windows Server 2016';
+          const lang = blob.includes('german')
+            ? 'DE'
+            : blob.includes('russian')
+              ? 'RU'
+              : blob.includes('english') || blob.includes('en-us') || blob.includes('en_us')
+                ? 'EN'
+                : 'EN';
+          const slug = `windows-iso-${iso.id}`;
+          return {
+            id: String(iso.id),
+            name: slug,
+            description: `${label} (${lang}) · ISO · kendi lisansınız`,
+            osFlavor: 'windows',
+            osFamily: 'windows',
+            architecture: iso.architecture || 'x86',
+            installMethod: 'iso',
+            isoId: String(iso.id),
+            isoName: iso.name,
+          };
+        })
+        // Prefer EN + newer years first in the wizard dropdown
+        .sort((a, b) => {
+          const score = (d) => {
+            let s = 0;
+            if (/2025/.test(d.description)) s += 30;
+            else if (/2022/.test(d.description)) s += 20;
+            else if (/2019/.test(d.description)) s += 10;
+            if (/\(EN\)/.test(d.description)) s += 5;
+            return s;
+          };
+          return score(b) - score(a);
+        });
+    } catch {
+      windows = [];
+    }
+
+    return [...linux, ...windows];
   }
 
   async listLocations() {
@@ -475,8 +540,17 @@ class HetznerProvider extends CloudProvider {
   }
 
   async listIsos() {
-    const data = await this._request('GET', '/isos?per_page=50');
-    return (data.isos || []).map((i) => ({
+    const all = [];
+    let page = 1;
+    for (;;) {
+      const data = await this._request('GET', `/isos?per_page=50&page=${page}`);
+      const batch = data.isos || [];
+      all.push(...batch);
+      const last = Number(data.meta?.pagination?.last_page || page);
+      if (page >= last || !batch.length || page >= 30) break;
+      page += 1;
+    }
+    return all.map((i) => ({
       id: String(i.id),
       name: i.name,
       description: i.description,

@@ -32,6 +32,7 @@ import {
   cloudTr,
 } from './cloudUi'
 import CloudProvisionWizard, {
+  type AppTemplate,
   type CatalogImage,
   type CatalogRegion,
   type Provider,
@@ -93,6 +94,7 @@ const CloudServersPage: React.FC = () => {
   const [images, setImages] = useState<CatalogImage[]>([])
   const [regions, setRegions] = useState<CatalogRegion[]>([])
   const [sizes, setSizes] = useState<VpsServerType[]>([])
+  const [appTemplates, setAppTemplates] = useState<AppTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -102,15 +104,19 @@ const CloudServersPage: React.FC = () => {
     if (!providerId) return
     setCatalogProviderId(providerId)
     try {
-      const [img, reg, typ] = await Promise.all([
+      const [img, reg, typ, apps] = await Promise.all([
         apiService.cloudCatalog('images', providerId).catch(() => ({ data: [] })),
         apiService.cloudCatalog('regions', providerId).catch(() => ({ data: [] })),
         apiService.cloudCatalog('server-types', providerId).catch(() => ({ data: [] })),
+        apiService
+          .cloudCatalog('app-templates', providerId)
+          .catch(() => apiService.cloudAppTemplates('linux').catch(() => ({ data: [] }))),
       ])
       setImages(img.data || [])
       setRegions(reg.data || [])
       const types = (typ.data || []) as VpsServerType[]
       setSizes(types.length ? types : VPS_POPULAR_FALLBACK)
+      setAppTemplates((apps.data || []) as AppTemplate[])
     } catch {
       setSizes(VPS_POPULAR_FALLBACK)
     }
@@ -484,6 +490,7 @@ const CloudServersPage: React.FC = () => {
         images={images}
         regions={regions}
         sizes={sizes}
+        appTemplates={appTemplates}
         initialProviderId={catalogProviderId || providers[0]?.id}
         onProviderChange={(pid) => loadCatalog(pid)}
         onCreated={() => load()}

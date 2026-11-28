@@ -160,6 +160,8 @@ router.post('/servers', async (req, res) => {
       networks: req.body.networks,
       placementGroup: req.body.placementGroup,
       firewalls: req.body.firewalls,
+      appTemplate: req.body.appTemplate,
+      windowsIso: req.body.windowsIso,
       createdBy: req.user.sub,
     });
     res.status(202).json({
@@ -525,6 +527,17 @@ async function catalogAlias(kind, req, res) {
 router.get('/images', (req, res) => catalogAlias('images', req, res));
 router.get('/regions', (req, res) => catalogAlias('regions', req, res));
 router.get('/server-types', (req, res) => catalogAlias('server-types', req, res));
+router.get('/app-templates', (req, res) => catalogAlias('app-templates', req, res));
+
+router.get('/app-templates/list', async (req, res) => {
+  try {
+    const { listAppTemplates } = require('../lib/cloud/appTemplates');
+    const osFamily = String(req.query.osFamily || 'linux');
+    res.json({ success: true, data: listAppTemplates({ osFamily }) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
 
 router.get('/parity', (_req, res) => {
   res.json({ success: true, data: CloudService.capabilityMatrix() });

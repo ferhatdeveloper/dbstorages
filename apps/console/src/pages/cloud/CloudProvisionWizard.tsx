@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  Boxes,
   Check,
   ChevronLeft,
   ChevronRight,
+  Database,
   Loader2,
   Monitor,
   Server,
@@ -32,6 +34,16 @@ export type CatalogImage = {
   description?: string
   osFlavor?: string
   osFamily?: string
+  installMethod?: string
+  isoId?: string
+}
+
+export type AppTemplate = {
+  id: string
+  name: string
+  description?: string
+  osFamily?: string
+  ports?: number[]
 }
 
 export type CatalogRegion = { id: string; name?: string; description?: string; city?: string; country?: string }
@@ -44,6 +56,7 @@ type FormState = {
   osFamily: 'linux' | 'windows'
   serverType: string
   image: string
+  appTemplate: string
   location: string
   sshKeyId: string
   userData: string
@@ -58,7 +71,8 @@ const STEPS = [
   {
     id: 1,
     title: 'İşletim sistemi',
-    description: 'Linux veya Windows Server seçin. Image kataloğu buna göre filtrelenir.',
+    description:
+      'Linux veya Windows seçin; Linux’ta PostgreSQL+PostgREST, Dokploy, WireGuard gibi hazır uygulamalar.',
   },
   {
     id: 2,
@@ -112,6 +126,7 @@ type Props = {
   images: CatalogImage[]
   regions: CatalogRegion[]
   sizes: VpsServerType[]
+  appTemplates?: AppTemplate[]
   initialProviderId?: string
   onCreated: (serverId: string) => void
   onProviderChange: (providerId: string) => void
@@ -125,6 +140,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
   images,
   regions,
   sizes,
+  appTemplates = [],
   initialProviderId,
   onCreated,
   onProviderChange,
@@ -145,6 +161,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
     osFamily: 'linux',
     serverType: 'cx23',
     image: 'ubuntu-22.04',
+    appTemplate: 'none',
     location: 'nbg1',
     sshKeyId: '',
     userData: '',
@@ -166,6 +183,7 @@ const CloudProvisionWizard: React.FC<Props> = ({
       ...f,
       providerId: initialProviderId || providers[0]?.id || f.providerId,
       name: '',
+      appTemplate: 'none',
       sshKeyId: '',
       userData: '',
       windowsPasswordNoteAck: false,
@@ -176,24 +194,94 @@ const CloudProvisionWizard: React.FC<Props> = ({
     if (form.providerId) onProviderChange(form.providerId)
   }, [form.providerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredImages = useMemo(() => {
-    const list = images.filter((img) =>
-      form.osFamily === 'windows' ? isWindowsImage(img) : !isWindowsImage(img)
-    )
-    return list.length ? list : images
-  }, [images, form.osFamily])
+  // Windows ISO install only works on x86 (CX/CPX/CCX) — exclude Arm CAX.
+  const usableSizes = useMemo(() => {
+    if (form.osFamily !== 'windows') return sizes
+    return sizes.filter((s) => {
+      const fam = detectSizeFamily(s.name || s.id || '', s.family)
+      return fam !== 'cax'
+    })
+  }, [sizes, form.osFamily])
+
+  const selectedSize = useMemo(
+    () => usableSizes.find((s) => (s.name || s.id) === form.serverType) || null,
+    [usableSizes, form.serverType]
+  )
+
+  const sizesByFamily = useMemo(() => {
+    const map: Record<string, VpsServerType[]> = {}
+    for (const s of usableSizes) {
+      const fam = detectSizeFamily(s.name || s.id || '', s.family)
+      if (!map[fam]) map[fam] = []
+      map[fam].push(s)
+    }
+    return map
+  }, [usableSizes])
+
+  const filteredImages = useMemo(
+    () =>
+      images.filter((img) =>
+        form.osFamily === 'windows' ? isWindowsImage(img) : !isWindowsImage(img)
+      ),
+    [images, form.osFamily]
+  )
+
+  const linuxAppTemplates = useMemo(
+    () =>
+      (appTemplates.length
+        ? appTemplates
+        : [
+            {
+              id: 'none',
+              name: 'Boş sunucu',
+              description: 'Yalnızca işletim sistemi',
+              osFamily: 'linux',
+            },
+            {
+              id: 'postgres-postgrest',
+              name: 'PostgreSQL + PostgREST',
+              description: 'Database + REST API (5432 / 3000)',
+              osFamily: 'linux',
+              ports: [5432, 3000],
+            },
+            {
+              id: 'dokploy',
+              name: 'Dokploy',
+              description: 'Self-hosted PaaS / deploy paneli',
+              osFamily: 'linux',
+              ports: [3000, 80, 443],
+            },
+            {
+              id: 'wireguard',
+              name: 'WireGuard VPN',
+              description: 'VPN sunucu (UDP 51820)',
+              osFamily: 'linux',
+              ports: [51820],
+            },
+            {
+              id: 'docker',
+              name: 'Docker CE',
+              description: 'Docker Engine + Compose',
+              osFamily: 'linux',
+            },
+          ]
+      ).filter((t) => (t.osFamily || 'linux') === 'linux'),
+    [appTemplates]
+  )
+
+  const selectedApp = useMemo(
+    () => linuxAppTemplates.find((t) => t.id === form.appTemplate) || null,
+    [linuxAppTemplates, form.appTemplate]
+  )
 
   useEffect(() => {
     if (!filteredImages.length) return
-    const currentOk = filteredImages.some(
-      (i) => (i.name || i.id) === form.image
-    )
+    const currentOk = filteredImages.some((i) => (i.name || i.id) === form.image)
     if (!currentOk) {
+      const needle = form.osFamily === 'windows' ? '2022' : 'ubuntu-22.04'
       const preferred =
         filteredImages.find((i) =>
-          String(i.name || '')
-            .toLowerCase()
-            .includes(form.osFamily === 'windows' ? 'windows-2022' : 'ubuntu-22.04')
+          `${i.name || ''} ${i.description || ''}`.toLowerCase().includes(needle)
         ) || filteredImages[0]
       setForm((f) => ({ ...f, image: String(preferred.name || preferred.id) }))
     }
@@ -215,13 +303,13 @@ const CloudProvisionWizard: React.FC<Props> = ({
   }, [regions, form.location])
 
   useEffect(() => {
-    if (!sizes.length) return
-    const ok = sizes.some((s) => (s.name || s.id) === form.serverType)
+    if (!usableSizes.length) return
+    const ok = usableSizes.some((s) => (s.name || s.id) === form.serverType)
     if (!ok) {
       const preferred =
-        sizes.find((s) => String(s.name || '').toLowerCase() === 'cx23') ||
-        sizes.find((s) => s.popular) ||
-        sizes[0]
+        usableSizes.find((s) => String(s.name || '').toLowerCase() === 'cx23') ||
+        usableSizes.find((s) => s.popular) ||
+        usableSizes[0]
       const value = String(preferred.name || preferred.id || '')
       if (value) {
         setForm((f) => ({ ...f, serverType: value }))
@@ -229,22 +317,13 @@ const CloudProvisionWizard: React.FC<Props> = ({
         setSizeFamily(fam)
       }
     }
-  }, [sizes, form.serverType])
+  }, [usableSizes, form.serverType])
 
-  const selectedSize = useMemo(
-    () => sizes.find((s) => (s.name || s.id) === form.serverType) || null,
-    [sizes, form.serverType]
-  )
-
-  const sizesByFamily = useMemo(() => {
-    const map: Record<string, VpsServerType[]> = {}
-    for (const s of sizes) {
-      const fam = detectSizeFamily(s.name || s.id || '', s.family)
-      if (!map[fam]) map[fam] = []
-      map[fam].push(s)
+  useEffect(() => {
+    if (form.osFamily === 'windows' && form.appTemplate !== 'none') {
+      setForm((f) => ({ ...f, appTemplate: 'none' }))
     }
-    return map
-  }, [sizes])
+  }, [form.osFamily]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const familyTabs = useMemo(() => {
     const known = SIZE_FAMILIES.filter((f) => (sizesByFamily[f.id] || []).length > 0)
@@ -341,7 +420,14 @@ const CloudProvisionWizard: React.FC<Props> = ({
   }, [createdId, opId, phase])
 
   const canNext = () => {
-    if (step === 1) return Boolean(form.providerId && form.osFamily && form.image)
+    if (step === 1) {
+      return Boolean(
+        form.providerId &&
+          form.osFamily &&
+          form.image &&
+          filteredImages.some((i) => (i.name || i.id) === form.image)
+      )
+    }
     if (step === 2) return Boolean(form.location)
     if (step === 3) return Boolean(form.serverType && form.name.trim())
     if (step === 4) {
@@ -357,6 +443,19 @@ const CloudProvisionWizard: React.FC<Props> = ({
     setPhase('pending')
     try {
       const selectedKey = sshKeys.find((k) => k.id === form.sshKeyId)
+      const selectedImage =
+        filteredImages.find((i) => (i.name || i.id) === form.image) || null
+      const windowsIso =
+        form.osFamily === 'windows'
+          ? selectedImage?.isoId ||
+            (String(form.image).startsWith('windows-iso-')
+              ? String(form.image).replace(/^windows-iso-/, '')
+              : undefined)
+          : undefined
+      const appTemplate =
+        form.osFamily === 'linux' && form.appTemplate !== 'none'
+          ? form.appTemplate
+          : undefined
       const res = await apiService.cloudCreateServer({
         providerId: form.providerId,
         name: form.name.trim(),
@@ -374,7 +473,13 @@ const CloudProvisionWizard: React.FC<Props> = ({
             : undefined,
         enableIpv4: form.enableIpv4,
         enableIpv6: form.enableIpv6,
-        labels: { os_family: form.osFamily },
+        appTemplate,
+        windowsIso,
+        labels: {
+          os_family: form.osFamily,
+          ...(appTemplate ? { app_template: appTemplate } : {}),
+          ...(windowsIso ? { windows_iso: String(windowsIso) } : {}),
+        },
       })
       const serverId = String((res as any).data?.id || (res as any).data?.server?.id || '')
       const operationId = String(
@@ -602,16 +707,71 @@ const CloudProvisionWizard: React.FC<Props> = ({
                     ))}
                   </select>
                 ) : (
-                  <input
-                    className={cloudFieldClass}
-                    value={form.image}
-                    onChange={(e) => setForm({ ...form, image: e.target.value })}
-                    placeholder={
-                      form.osFamily === 'windows' ? 'windows-2022' : 'ubuntu-22.04'
-                    }
-                  />
+                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100">
+                    {form.osFamily === 'windows'
+                      ? 'Bu sağlayıcıda henüz Windows imajı / ISO yok. Hetzner için ISO kataloğu yükleniyor olmalı; sayfayı yenileyin veya başka sağlayıcı seçin.'
+                      : 'Linux imaj listesi boş — sağlayıcıyı kontrol edin.'}
+                  </p>
                 )}
               </label>
+
+              {form.osFamily === 'windows' && filteredImages.length > 0 && (
+                <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  Hetzner’de hazır Windows sistem imajı yok. Seçilen ISO, x86 sunucuya
+                  bağlanır (BYOL — kendi lisansınız). Kurulum web konsol / VNC ile
+                  tamamlanır. Arm (CAX) tipleri listeden çıkarılır.
+                </p>
+              )}
+
+              {form.osFamily === 'linux' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Hazır uygulama
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {linuxAppTemplates.map((tpl) => {
+                      const selected = form.appTemplate === tpl.id
+                      const icon =
+                        tpl.id === 'postgres-postgrest' ? (
+                          <Database className="h-4 w-4" />
+                        ) : tpl.id === 'dokploy' ? (
+                          <Boxes className="h-4 w-4" />
+                        ) : tpl.id === 'wireguard' ? (
+                          <Shield className="h-4 w-4" />
+                        ) : tpl.id === 'docker' ? (
+                          <Boxes className="h-4 w-4" />
+                        ) : (
+                          <Server className="h-4 w-4" />
+                        )
+                      return (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, appTemplate: tpl.id })}
+                          className={`rounded-lg border p-3 text-left transition ${
+                            selected
+                              ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600/40 dark:border-red-500 dark:bg-red-600/10'
+                              : 'border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <div className="text-blue-800 dark:text-red-500">{icon}</div>
+                          <p className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {tpl.name}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {tpl.description || '—'}
+                          </p>
+                          {tpl.ports?.length ? (
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                              port {tpl.ports.join(', ')}
+                            </p>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -874,6 +1034,12 @@ const CloudProvisionWizard: React.FC<Props> = ({
                 <dd>
                   {form.osFamily === 'windows' ? 'Windows Server' : 'Linux'} · {form.image}
                 </dd>
+                {form.osFamily === 'linux' && form.appTemplate !== 'none' ? (
+                  <>
+                    <dt className="text-slate-400">Uygulama</dt>
+                    <dd>{selectedApp?.name || form.appTemplate}</dd>
+                  </>
+                ) : null}
                 <dt className="text-slate-400">Konum</dt>
                 <dd>{form.location}</dd>
                 <dt className="text-slate-400">Tip</dt>

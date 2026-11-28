@@ -28,9 +28,29 @@ function ensureHandlers() {
   queue.registerHandler('create_server', async (op) => {
     const req = op.request || {};
     const { driver } = await resolveDriver(op.provider_id);
-    const out = await driver.createServer(req.spec);
-    const imageName = String(req.spec?.image || out.server?.image || '');
-    const osFamily = /windows/i.test(imageName) ? 'windows' : 'linux';
+    const spec = { ...(req.spec || {}) };
+    const windowsIso =
+      spec.windowsIso ||
+      spec.labels?.windows_iso ||
+      (String(spec.image || '').startsWith('windows-iso-')
+        ? String(spec.image).replace(/^windows-iso-/, '')
+        : null);
+    // Hetzner: no Windows system image — bootstrap Linux then attach ISO.
+    if (windowsIso) {
+      spec.image = spec.bootstrapImage || 'ubuntu-22.04';
+      spec.labels = {
+        ...(spec.labels || {}),
+        os_family: 'windows',
+        windows_iso: String(windowsIso),
+        install_method: 'iso',
+      };
+    }
+    const out = await driver.createServer(spec);
+    const imageName = String(spec.image || out.server?.image || '');
+    const osFamily =
+      windowsIso || /windows/i.test(imageName) || spec.labels?.os_family === 'windows'
+        ? 'windows'
+        : 'linux';
     const existing = await repo.getServer(op.resource_id);
     // Hetzner often returns "initializing" with a public IP already assigned.
     // Treat IP+boot as running for UI/progress; detail sync can refine later.
@@ -40,17 +60,39 @@ function ensureHandlers() {
       hasIp && ['initializing', 'starting'].includes(rawStatus)
         ? 'running'
         : out.server?.status || 'running';
+
+    let isoAttached = false;
+    let isoError = null;
+    if (windowsIso && out.server?.externalId && typeof driver.attachIso === 'function') {
+      try {
+        await driver.attachIso(out.server.externalId, windowsIso);
+        isoAttached = true;
+        if (typeof driver.reboot === 'function') {
+          await driver.reboot(out.server.externalId);
+        }
+      } catch (err) {
+        // Keep server; surface ISO failure in operation result
+        isoAttached = false;
+        isoError = err?.message || String(err);
+      }
+    }
+
     await repo.updateServer(op.resource_id, {
       externalId: out.server.externalId,
       status,
       ipv4: out.server.ipv4,
       ipv6: out.server.ipv6,
+      image: windowsIso ? `windows-iso-${windowsIso}` : spec.image || out.server?.image,
       metadata: {
         ...(existing?.metadata || {}),
         rootPasswordSet: Boolean(out.rootPassword),
         providerAction: out.action,
         providerStatus: out.server?.status || null,
         osFamily,
+        windowsIso: windowsIso || null,
+        isoAttached,
+        appTemplate: spec.appTemplate || spec.labels?.app_template || null,
+        isoError,
       },
     });
     return {
@@ -61,6 +103,9 @@ function ensureHandlers() {
       rootPasswordSet: Boolean(out.rootPassword),
       // One-time password in operation result (Windows Administrator / Linux root)
       rootPassword: out.rootPassword || null,
+      windowsIso: windowsIso || null,
+      isoAttached,
+      isoError,
     };
   });
 
@@ -297,6 +342,8 @@ const CloudService = {
     networks,
     placementGroup,
     firewalls,
+    appTemplate,
+    windowsIso,
     createdBy,
   }) {
     if (!providerId || !name || !serverType || !image || !location) {
@@ -307,6 +354,17 @@ const CloudService = {
       );
     }
     await resolveDriver(providerId);
+    const { cloudInitFor } = require('./appTemplates');
+    const templateId = appTemplate || labels?.app_template || 'none';
+    const mergedLabels = {
+      ...(labels || {}),
+      ...(templateId && templateId !== 'none' ? { app_template: String(templateId) } : {}),
+      ...(windowsIso ? { windows_iso: String(windowsIso), os_family: 'windows' } : {}),
+    };
+    let finalUserData = userData;
+    if (!finalUserData && templateId && templateId !== 'none') {
+      finalUserData = cloudInitFor(templateId, { serverName: name }) || undefined;
+    }
     const quote = require('./catalog/enrich').quoteServerType(serverType);
     const server = await repo.insertServer({
       id: newId('csrv'),
@@ -318,8 +376,12 @@ const CloudService = {
       serverType,
       image,
       location,
-      labels,
-      userData,
+      labels: mergedLabels,
+      userData: finalUserData,
+      metadata: {
+        appTemplate: templateId && templateId !== 'none' ? templateId : null,
+        windowsIso: windowsIso || null,
+      },
       costProvider: quote?.costProviderMonthly ?? null,
       priceRetail: quote?.priceRetailMonthly ?? null,
       currency: quote?.currency || 'EUR',
@@ -339,13 +401,15 @@ const CloudService = {
           image,
           location,
           sshKeys,
-          userData,
+          userData: finalUserData,
           enableIpv4,
           enableIpv6,
-          labels,
+          labels: mergedLabels,
           networks,
           placementGroup,
           firewalls,
+          appTemplate: templateId,
+          windowsIso: windowsIso || undefined,
         },
       },
       createdBy,
@@ -728,6 +792,10 @@ const CloudService = {
     switch (kind) {
       case 'images':
         return driver.listImages();
+      case 'app-templates': {
+        const { listAppTemplates } = require('./appTemplates');
+        return listAppTemplates({ osFamily: 'linux' });
+      }
       case 'locations':
       case 'regions': {
         try {
@@ -745,6 +813,9 @@ const CloudService = {
       }
       case 'ssh-keys':
         return driver.listSSHKeys();
+      case 'isos':
+        if (typeof driver.listIsos === 'function') return driver.listIsos();
+        return [];
       default:
         throw cloudError(400, `Unknown catalog kind: ${kind}`, 'validation');
     }
