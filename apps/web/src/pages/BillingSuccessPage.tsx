@@ -73,7 +73,7 @@ const BillingSuccessPage: React.FC = () => {
               </>
             ) : (
               <p>
-                Instance kaydı bulunamadı. Webhook gecikmiş olabilir veya mock
+                Instance kaydı bulunamadı. Webhook gecikmiş olabilir veya sandbox
                 ödeme tamamlanmamış olabilir.
               </p>
             )}

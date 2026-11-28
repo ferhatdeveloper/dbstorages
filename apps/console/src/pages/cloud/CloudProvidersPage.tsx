@@ -36,7 +36,7 @@ const CloudProvidersPage: React.FC = () => {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
-  const [slug, setSlug] = useState('hetzner')
+  const [slug, setSlug] = useState('managed')
   const [endpoint, setEndpoint] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
@@ -114,7 +114,7 @@ const CloudProvidersPage: React.FC = () => {
             <CloudEmptyState
               icon={<CloudCog className="h-6 w-6" />}
               title="Henüz provider yok"
-              description="Hetzner veya mock provider ekleyerek sunucu provision’a başlayın."
+              description="Managed Cloud veya Hetzner provider ekleyerek sunucu provision’a başlayın."
               action={
                 <button type="button" onClick={() => setShowForm(true)} className={cloudBtnPrimary}>
                   <Plus className="h-3.5 w-3.5" /> Provider ekle
@@ -195,7 +195,7 @@ const CloudProvidersPage: React.FC = () => {
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
             >
-              {(slugs.length ? slugs : ['hetzner', 'mock']).map((s) => (
+              {(slugs.length ? slugs : ['managed', 'hetzner']).map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

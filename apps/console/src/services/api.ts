@@ -595,6 +595,21 @@ class ApiService {
     );
   }
 
+  async projectAuthListUsers(instanceId: string) {
+    return this.request<{
+      success: boolean;
+      data: Array<{
+        id: string;
+        email: string;
+        raw_user_meta_data?: Record<string, unknown>;
+        created_at?: string;
+      }>;
+      jwtSecretConfigured?: boolean;
+    }>(
+      `${NODE_API_BASE}/project-auth/${encodeURIComponent(instanceId)}/users`
+    );
+  }
+
   async getPackages() {
     return this.request<{
       success: boolean;

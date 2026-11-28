@@ -507,7 +507,7 @@ const PricingPage: React.FC = () => {
             ).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.id}
-                {p.configured ? ' (yapılandırıldı)' : ' (sandbox/mock)'}
+                {p.configured ? ' (yapılandırıldı)' : ' (sandbox)'}
               </option>
             ))}
           </select>

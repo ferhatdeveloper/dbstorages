@@ -701,16 +701,32 @@ router.post('/seed-customer-cloud-servers', async (req, res) => {
     const tenantId = scope.tenantId;
     const projectId = scope.projectId;
 
+    // Eradicate legacy slug `mock` → `managed` for this tenant (and any leftover rows).
+    await pool.query(
+      `UPDATE cloud_providers
+       SET slug = 'managed',
+           name = CASE
+             WHEN lower(name) LIKE '%mock%' OR name IS NULL OR btrim(name) = ''
+               THEN 'Managed Cloud'
+             ELSE name
+           END,
+           updated_at = NOW()
+       WHERE slug = 'mock'`
+    );
+
     let providers = await CloudService.listProviders(tenantId);
-    let provider = providers.find((p) => p.slug === 'mock') || providers[0];
+    let provider =
+      providers.find((p) => p.slug === 'managed') ||
+      providers.find((p) => p.slug === 'hetzner') ||
+      providers[0];
     if (!provider) {
       provider = await CloudService.createProvider({
         tenantId,
         projectId,
         name: 'Managed Cloud',
-        slug: 'mock',
-        apiKey: 'seed-mock',
-        config: { seeded: true },
+        slug: 'managed',
+        apiKey: null,
+        config: { seeded: true, kind: 'inventory' },
         createdBy: req.user.sub,
       });
     }

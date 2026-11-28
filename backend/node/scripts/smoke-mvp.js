@@ -152,16 +152,16 @@ assert(listed.some((f) => f.name === 'hello'), 'function listed');
   assert(decryptSecret(enc) === 'abc', 'cloud secrets roundtrip');
   const { listSupportedSlugs } = lib('cloud', 'factory');
   assert(listSupportedSlugs().includes('hetzner'), 'cloud hetzner slug');
-  assert(listSupportedSlugs().includes('mock'), 'cloud mock slug');
-  const { MockCloudProvider } = lib('cloud', 'providers', 'mock');
-  const mock = new MockCloudProvider();
+  assert(listSupportedSlugs().includes('managed'), 'cloud managed slug');
+  const { ManagedCloudProvider } = lib('cloud', 'providers', 'managed');
+  const mock = new ManagedCloudProvider();
   const ms = await mock.createServer({
     name: 's1',
     serverType: 'cx22',
     image: 'ubuntu-22.04',
     location: 'nbg1',
   });
-  assert(!!ms.server.externalId, 'mock cloud createServer');
+  assert(!!ms.server.externalId, 'managed cloud createServer');
   const { getAddon } = require(path.join(root, 'payments'));
   assert(getAddon('vps')?.id === 'vps', 'vps ek hizmet addon');
   assert(getAddon('vpn')?.priceCents === 599, 'vpn ek hizmet €5.99/kullanıcı');

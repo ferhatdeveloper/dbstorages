@@ -25,38 +25,38 @@ async function main() {
   assert(decryptSecret(enc) === 'tok_secret_123', 'decrypt roundtrip');
   assert(!String(enc).includes('tok_secret'), 'ciphertext hides plain');
 
-  const { MockCloudProvider } = require(path.join(
+  const { ManagedCloudProvider } = require(path.join(
     root,
-    'lib/cloud/providers/mock'
+    'lib/cloud/providers/managed'
   ));
-  const mock = new MockCloudProvider();
-  const created = await mock.createServer({
+  const managed = new ManagedCloudProvider();
+  const created = await managed.createServer({
     name: 'web-1',
     serverType: 'cx22',
     image: 'ubuntu-22.04',
     location: 'nbg1',
   });
-  assert(created.server.externalId, 'mock createServer id');
-  assert(created.server.ipv4, 'mock ipv4');
-  await mock.powerOff(created.server.externalId);
+  assert(created.server.externalId, 'managed createServer id');
+  assert(created.server.ipv4, 'managed ipv4');
+  await managed.powerOff(created.server.externalId);
   assert(
-    mock.servers.get(created.server.externalId).status === 'off',
-    'mock powerOff'
+    managed.servers.get(created.server.externalId).status === 'off',
+    'managed powerOff'
   );
-  const images = await mock.listImages();
-  assert(images.some((i) => /ubuntu/i.test(i.name)), 'mock ubuntu image');
-  assert(images.some((i) => /debian/i.test(i.name)), 'mock debian image');
-  assert(images.some((i) => /windows-2022/i.test(i.name)), 'mock windows-2022 image');
-  assert(images.some((i) => i.osFamily === 'windows'), 'mock windows osFamily');
+  const images = await managed.listImages();
+  assert(images.some((i) => /ubuntu/i.test(i.name)), 'managed ubuntu image');
+  assert(images.some((i) => /debian/i.test(i.name)), 'managed debian image');
+  assert(images.some((i) => /windows-2022/i.test(i.name)), 'managed windows-2022 image');
+  assert(images.some((i) => i.osFamily === 'windows'), 'managed windows osFamily');
 
   const { createProviderFromRow, listSupportedSlugs } = require(path.join(
     root,
     'lib/cloud/factory'
   ));
   assert(listSupportedSlugs().includes('hetzner'), 'slug hetzner registered');
-  assert(listSupportedSlugs().includes('mock'), 'slug mock registered');
-  const driver = createProviderFromRow({ slug: 'mock' });
-  assert(typeof driver.createServer === 'function', 'factory mock driver');
+  assert(listSupportedSlugs().includes('managed'), 'slug managed registered');
+  const driver = createProviderFromRow({ slug: 'managed' });
+  assert(typeof driver.createServer === 'function', 'factory managed driver');
 
   // Hetzner provider mapping without live API — inject fake client
   const { HetznerProvider } = require(path.join(
@@ -139,8 +139,8 @@ async function main() {
   const { CloudService } = require(path.join(root, 'lib/cloud/service'));
   const provider = await CloudService.createProvider({
     tenantId: 'ten_demo',
-    name: 'Mock Cloud',
-    slug: 'mock',
+    name: 'Managed Cloud',
+    slug: 'managed',
     createdBy: 'usr_demo',
   });
   assert(provider.id, 'createProvider');
@@ -226,7 +226,7 @@ async function main() {
 
   const quote = CloudService.quoteServerType('cpx22');
   assert(quote.priceRetailMonthly === 23.39, 'quote cpx22 retail');
-  assert(server.cost_provider === 5.49 || server.cost_provider == null || Number(server.cost_provider) >= 0, 'server cost fields optional on mock cx22');
+  assert(server.cost_provider === 5.49 || server.cost_provider == null || Number(server.cost_provider) >= 0, 'server cost fields optional on managed cx22');
 
   // Re-create with known seed type to assert cost_provider / price_retail
   const { server: srv2 } = await CloudService.createServer({

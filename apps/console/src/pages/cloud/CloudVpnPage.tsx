@@ -222,7 +222,7 @@ const CloudVpnPage: React.FC = () => {
             </p>
             {status?.mock && (
               <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                Mock mod: gerçek WG uç noktası yok. Üretim için{' '}
+                VPN uç noktası yapılandırılmamış. Üretim için{' '}
                 <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
                   WIREGUARD_ENDPOINT
                 </code>{' '}
@@ -247,7 +247,7 @@ const CloudVpnPage: React.FC = () => {
             <div>
               <dt className="text-slate-500">Endpoint</dt>
               <dd className="font-mono text-slate-800 dark:text-slate-200">
-                {status.network.serverEndpoint || '— (mock)'}
+                {status.network.serverEndpoint || '— (yapılandırılmamış)'}
               </dd>
             </div>
             <div>

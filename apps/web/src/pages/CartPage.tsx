@@ -479,7 +479,7 @@ const CartPage: React.FC = () => {
                         onClick={() => setPayProvider(p.id)}
                       >
                         <strong>{PAY_LABELS[p.id] || p.id}</strong>
-                        <span>{p.configured ? 'Hazır' : 'Mock'}</span>
+                        <span>{p.configured ? 'Hazır' : 'Sandbox'}</span>
                       </button>
                     ))}
                   </div>

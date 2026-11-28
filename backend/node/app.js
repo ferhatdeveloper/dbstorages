@@ -1139,6 +1139,29 @@ async function start() {
   } catch (err) {
     console.warn('[supervisor] seed skip:', err.message);
   }
+  try {
+    if (isMetaReady()) {
+      const migrated = await getMetaPool().query(
+        `UPDATE cloud_providers
+         SET slug = 'managed',
+             name = CASE
+               WHEN lower(coalesce(name, '')) LIKE '%mock%' OR btrim(coalesce(name, '')) = ''
+                 THEN 'Managed Cloud'
+               ELSE name
+             END,
+             updated_at = NOW()
+         WHERE slug = 'mock'
+         RETURNING id`
+      );
+      if (migrated.rowCount) {
+        console.log(
+          `[cloud] migrated ${migrated.rowCount} provider(s) mock → managed`
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[cloud] mock→managed migrate skip:', err.message);
+  }
 
   await warmListeners();
 

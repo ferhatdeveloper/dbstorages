@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDatabaseConnections } from '../context/DatabaseConnectionsContext';
+import { apiService } from '../services/api';
 import {
   Users,
   User,
@@ -445,201 +447,7 @@ const AuthPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showToast, setShowToast] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
-  // Mock data
-  const mockUsers = [
-    {
-      id: '1',
-      username: 'admin',
-      email: 'admin@example.com',
-      fullName: 'Admin User',
-      avatar: null,
-      role: 'admin',
-      roleLevel: 3,
-      status: 'active' as const,
-      securityLevel: 'high' as const,
-      lastLogin: '2024-01-15T10:30:00Z',
-      lastLoginIp: '192.168.1.100',
-      lastLoginDevice: 'Desktop - Chrome',
-      mfaEnabled: true,
-      ssoEnabled: true,
-      permissions: ['read', 'write', 'delete', 'admin'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      loginCount: 150,
-      failedLoginAttempts: 0,
-      isOnline: true,
-      department: 'IT',
-      position: 'System Administrator',
-      phone: '+90 555 123 4567',
-      location: 'Istanbul, Turkey'
-    },
-    {
-      id: '2',
-      username: 'manager',
-      email: 'manager@example.com',
-      fullName: 'Manager User',
-      avatar: null,
-      role: 'manager',
-      roleLevel: 2,
-      status: 'active' as const,
-      securityLevel: 'medium' as const,
-      lastLogin: '2024-01-15T09:15:00Z',
-      lastLoginIp: '192.168.1.101',
-      lastLoginDevice: 'Mobile - Safari',
-      mfaEnabled: false,
-      ssoEnabled: false,
-      permissions: ['read', 'write'],
-      createdAt: '2024-01-02T00:00:00Z',
-      updatedAt: '2024-01-15T09:15:00Z',
-      loginCount: 75,
-      failedLoginAttempts: 2,
-      isOnline: false,
-      department: 'Sales',
-      position: 'Sales Manager',
-      phone: '+90 555 123 4568',
-      location: 'Ankara, Turkey'
-    },
-    {
-      id: '3',
-      username: 'user',
-      email: 'user@example.com',
-      fullName: 'Regular User',
-      avatar: null,
-      role: 'user',
-      roleLevel: 1,
-      status: 'active' as const,
-      securityLevel: 'low' as const,
-      lastLogin: '2024-01-14T16:45:00Z',
-      lastLoginIp: '192.168.1.102',
-      lastLoginDevice: 'Tablet - Chrome',
-      mfaEnabled: true,
-      ssoEnabled: false,
-      permissions: ['read'],
-      createdAt: '2024-01-03T00:00:00Z',
-      updatedAt: '2024-01-14T16:45:00Z',
-      loginCount: 45,
-      failedLoginAttempts: 1,
-      isOnline: true,
-      department: 'Marketing',
-      position: 'Marketing Specialist',
-      phone: '+90 555 123 4569',
-      location: 'Izmir, Turkey'
-    }
-  ];
-
-  const mockRoles = [
-    {
-      id: '1',
-      name: 'admin',
-      displayName: 'Administrator',
-      level: 3,
-      permissions: ['read', 'write', 'delete', 'admin'],
-      description: 'Full system access',
-      userCount: 1,
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: '2',
-      name: 'manager',
-      displayName: 'Manager',
-      level: 2,
-      permissions: ['read', 'write'],
-      description: 'Department management access',
-      userCount: 1,
-      createdAt: '2024-01-02T00:00:00Z'
-    },
-    {
-      id: '3',
-      name: 'user',
-      displayName: 'User',
-      level: 1,
-      permissions: ['read'],
-      description: 'Basic user access',
-      userCount: 1,
-      createdAt: '2024-01-03T00:00:00Z'
-    }
-  ];
-
-  const mockPermissions = [
-    {
-      id: '1',
-      name: 'read',
-      displayName: 'Read Access',
-      description: 'Can read data',
-      category: 'data',
-      userCount: 3,
-      roleCount: 3
-    },
-    {
-      id: '2',
-      name: 'write',
-      displayName: 'Write Access',
-      description: 'Can create and update data',
-      category: 'data',
-      userCount: 2,
-      roleCount: 2
-    },
-    {
-      id: '3',
-      name: 'delete',
-      displayName: 'Delete Access',
-      description: 'Can delete data',
-      category: 'data',
-      userCount: 1,
-      roleCount: 1
-    },
-    {
-      id: '4',
-      name: 'admin',
-      displayName: 'Admin Access',
-      description: 'Full administrative access',
-      category: 'system',
-      userCount: 1,
-      roleCount: 1
-    }
-  ];
-
-  const mockAuditLogs = [
-    {
-      id: '1',
-      userId: '1',
-      username: 'admin',
-      action: 'LOGIN',
-      resource: 'auth',
-      details: 'Successful login from 192.168.1.100',
-      ipAddress: '192.168.1.100',
-      userAgent: 'Chrome/120.0.0.0',
-      timestamp: '2024-01-15T10:30:00Z',
-      status: 'success' as const,
-      severity: 'low' as const
-    },
-    {
-      id: '2',
-      userId: '2',
-      username: 'manager',
-      action: 'LOGIN_FAILED',
-      resource: 'auth',
-      details: 'Failed login attempt - incorrect password',
-      ipAddress: '192.168.1.101',
-      userAgent: 'Safari/17.0',
-      timestamp: '2024-01-15T09:15:00Z',
-      status: 'failure' as const,
-      severity: 'medium' as const
-    },
-    {
-      id: '3',
-      userId: '1',
-      username: 'admin',
-      action: 'USER_CREATED',
-      resource: 'users',
-      details: 'Created new user: user@example.com',
-      ipAddress: '192.168.1.100',
-      userAgent: 'Chrome/120.0.0.0',
-      timestamp: '2024-01-14T16:45:00Z',
-      status: 'success' as const,
-      severity: 'medium' as const
-    }
-  ];
+  const { selectedConnection } = useDatabaseConnections();
 
   // Toast notification
   const showNotification = useCallback((type: 'success' | 'error', message: string) => {
@@ -647,22 +455,56 @@ const AuthPage: React.FC = () => {
     setTimeout(() => setShowToast(null), 3000);
   }, []);
 
-  // Load data on mount
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedConnection?.id]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Simulate API calls
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setUsers(mockUsers);
-      setRoles(mockRoles);
-      setPermissions(mockPermissions);
-      setAuditLogs(mockAuditLogs);
+      setRoles([]);
+      setPermissions([]);
+      setAuditLogs([]);
+      if (!selectedConnection?.id) {
+        setUsers([]);
+        return;
+      }
+      const res = await apiService.projectAuthListUsers(selectedConnection.id);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      setUsers(
+        rows.map((row: any) => {
+          const meta = row.raw_user_meta_data || {};
+          return {
+            id: String(row.id),
+            username: String(meta.username || (row.email || '').split('@')[0] || row.id),
+            email: String(row.email || ''),
+            fullName: String(meta.full_name || meta.name || row.email || 'User'),
+            avatar: meta.avatar_url || null,
+            role: String(meta.role || 'user'),
+            roleLevel: Number(meta.role_level || 1),
+            status: 'active' as const,
+            securityLevel: 'medium' as const,
+            lastLogin: meta.last_login || row.created_at || '',
+            lastLoginIp: '',
+            lastLoginDevice: '',
+            mfaEnabled: Boolean(meta.mfa_enabled),
+            ssoEnabled: Boolean(meta.sso_enabled),
+            permissions: Array.isArray(meta.permissions) ? meta.permissions : ['read'],
+            createdAt: row.created_at || '',
+            updatedAt: row.created_at || '',
+            loginCount: Number(meta.login_count || 0),
+            failedLoginAttempts: 0,
+            isOnline: false,
+            department: String(meta.department || ''),
+            position: String(meta.position || ''),
+            phone: String(meta.phone || ''),
+            location: String(meta.location || ''),
+          };
+        })
+      );
     } catch (error) {
-      showNotification('error', 'Veriler yüklenirken hata oluştu');
+      setUsers([]);
+      showNotification('error', 'Auth kullanıcıları yüklenemedi');
     } finally {
       setLoading(false);
     }

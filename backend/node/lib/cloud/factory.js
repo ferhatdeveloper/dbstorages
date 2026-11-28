@@ -3,14 +3,17 @@
  * CloudService never imports vendor modules directly.
  */
 const { HetznerProvider } = require('./providers/hetzner');
-const { MockCloudProvider } = require('./providers/mock');
+const { ManagedCloudProvider } = require('./providers/managed');
 const { cloudError } = require('./errors');
 
 const DRIVERS = {
   hetzner: HetznerProvider,
-  mock: MockCloudProvider,
-  // Future: digitalocean, aws_ec2, ...
+  managed: ManagedCloudProvider,
+  // Deprecated alias — migrate cloud_providers.slug mock → managed
+  mock: ManagedCloudProvider,
 };
+
+const PUBLIC_SLUGS = ['hetzner', 'managed'];
 
 function createProviderFromRow(row, { decryptedApiKey } = {}) {
   const slug = String(row?.slug || '')
@@ -24,7 +27,7 @@ function createProviderFromRow(row, { decryptedApiKey } = {}) {
       'unknown_provider'
     );
   }
-  if (slug === 'mock') {
+  if (slug === 'managed' || slug === 'mock') {
     return new Driver();
   }
   // Per-row encrypted key preferred; env default only for known driver slug.
@@ -39,7 +42,7 @@ function createProviderFromRow(row, { decryptedApiKey } = {}) {
 }
 
 function listSupportedSlugs() {
-  return Object.keys(DRIVERS);
+  return [...PUBLIC_SLUGS];
 }
 
 module.exports = {

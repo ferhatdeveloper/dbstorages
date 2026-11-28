@@ -598,7 +598,7 @@ const RealtimePage: React.FC = () => {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Studio veya Data API yazmaları Socket.IO + LISTEN/NOTIFY ile bu odaya düşer. Mock olay üretilmez.
+            Studio veya Data API yazmaları Socket.IO + LISTEN/NOTIFY ile bu odaya düşer. Sahte olay üretilmez.
           </p>
         </div>
 
